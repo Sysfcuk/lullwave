@@ -26,8 +26,10 @@ import { createAurora } from './music/aurora.js';
 import { createRain } from './music/rain.js';
 import { createSpace } from './music/space.js';
 import { createDisco } from './music/disco.js';
+import { createEventing } from './music/eventing.js';
+import { createCotswold } from './music/cotswold.js';
 
-const COMPOSERS = { cave: createCave, drive: createDrive, ocean: createOcean, aurora: createAurora, rain: createRain, space: createSpace, disco: createDisco };
+const COMPOSERS = { cave: createCave, drive: createDrive, ocean: createOcean, aurora: createAurora, rain: createRain, space: createSpace, disco: createDisco, eventing: createEventing, cotswold: createCotswold };
 const CHUNK = 20;           // seconds of notes per chunk
 const TAIL = 24;            // extra seconds for notes, reverb and echoes to ring out (longest pad ~15 s + reverb)
 const AHEAD = 50;           // keep this much music rendered ahead (seconds)

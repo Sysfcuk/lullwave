@@ -43,6 +43,14 @@
     transition: opacity .8s var(--ease), transform .8s var(--ease); }
   #home.away { opacity: 0; transform: translateY(14px); pointer-events: none; }
   .top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .top .brand { flex: 1; }
+  #nights svg { width: 14px; height: 14px; color: #c9b6ff; }
+  #nights { font-size: 13px; }
+  .night-list { display: flex; flex-direction: column; gap: 4px; max-height: 50vh; overflow-y: auto; }
+  .night { display: flex; justify-content: space-between; gap: 10px; padding: 9px 12px; border-radius: 12px; background: rgba(255, 255, 255, .05); font-size: 14px; color: var(--ink-2); }
+  .night b { color: var(--ink); font-weight: 600; }
+  .streak { font-size: 15px; color: var(--ink-2); }
+  .streak b { color: var(--ink); font-size: 22px; font-family: 'Unbounded', sans-serif; font-weight: 400; margin-right: 6px; }
   .brand { font-family: 'Unbounded', 'Outfit', sans-serif; font-weight: 400; font-size: 17px; letter-spacing: .32em; text-transform: lowercase; color: var(--ink);
     text-shadow: 0 0 18px rgba(185, 164, 255, .6); padding-left: 2px; }
   .chip-btn { display: inline-flex; align-items: center; gap: 7px; padding: 8px 13px; border-radius: 999px; font-size: 14px; font-weight: 600; }
@@ -179,6 +187,7 @@
 <main id="home">
   <div class="top">
     <div class="brand">lullwave</div>
+    <button id="nights" class="chip-btn glass hidden" aria-label="Your nights"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg><span id="nightsLabel"></span></button>
     <button id="install" class="chip-btn glass hidden" aria-label="Install as an app">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4-4m4 4 4-4M5 21h14"/></svg>
       <span>Install app</span>
@@ -198,6 +207,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/></svg>
         <span>Variation <b class="num" id="seedLabel"></b></span>
       </button>
+      <button class="seed glass" id="surprise" aria-label="Surprise me: a random world"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg></button>
       <button class="seed glass heart" id="fav" aria-label="Save to favourites" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg></button>
       <button class="seed glass hidden" id="favList" aria-label="Favourites"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg><b class="num" id="favCount"></b></button>
     </div>
@@ -280,6 +290,16 @@
       <li>Tap <b>Add</b>.</li>
     </ol>
     <button class="ghost" id="iosClose">Got it</button>
+  </div>
+</div>
+
+<div class="modal hidden" id="nightsSheet">
+  <div class="sheet glass">
+    <h3>Your nights</h3>
+    <div class="streak" id="streakLine"></div>
+    <div class="night-list" id="nightList"></div>
+    <p class="fine" style="font-size:12.5px;color:var(--ink-3);margin:0">Listening most nights is what helped in the studies. Kept on this device only.</p>
+    <button class="ghost" id="nightsClose">Close</button>
   </div>
 </div>
 

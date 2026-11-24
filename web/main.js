@@ -15,6 +15,8 @@ const WORLDS = [
   { id: 'aurora', name: 'Aurora', tag: 'Northern lights ripple over a frozen lake as snow falls softly. A quiet choir sings.' },
   { id: 'rain', name: 'Neon Rain', tag: 'Rain runs down the window of a city night. Lo-fi keys, soft beats, distant thunder.' },
   { id: 'space', name: 'Stardust', tag: 'Drift through glowing nebulae past a ringed giant, to slow cosmic ambient.' },
+  { id: 'eventing', name: 'Cross Country', tag: 'Ride a cross-country course at sunset between your horse\u2019s ears. The canter eases to a walk.' },
+  { id: 'cotswold', name: 'Cotswold Valley', tag: 'An evening walk above a steep valley of beech woods and honey-stone cottages, as the lights come on.' },
   { id: 'disco', name: 'Disco Cat', tag: 'A rainbow cat grooves under the mirror ball, then curls up and drifts off to a lullaby.' },
 ];
 const TIMERS = [15, 30, 45, 60, 90, 0];
@@ -70,6 +72,51 @@ function showWorld(animate = true) {
   view.setScene(w.id, S.seed);
   store.set('world', S.world); store.set('seed', S.seed);
 }
+
+// ------------------------------------------------------------------ your nights: a simple log and streak (kept on this device)
+// A night runs from noon to noon, so a session just after midnight still counts for the evening before.
+const nightKey = (d = new Date()) => { const n = new Date(d.getTime() - 12 * 3600000); return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`; };
+let nights = store.get('nights', []); // [{ night, world, minutes }] newest first
+let current = null;
+function logStart(worldId) {
+  current = { night: nightKey(), world: worldId, minutes: 0 };
+  nights.unshift(current); nights = nights.slice(0, 120);
+}
+function logProgress(minutesListened) {
+  if (!current) return;
+  current.minutes = Math.round(minutesListened);
+  store.set('nights', nights.filter((n) => n.minutes >= 1));
+}
+function streak() {
+  const days = new Set(nights.filter((n) => n.minutes >= 5).map((n) => n.night));
+  let k = 0;
+  const d = new Date();
+  if (!days.has(nightKey(d))) d.setDate(d.getDate() - 1); // tonight not yet: count from last night
+  while (days.has(nightKey(d))) { k++; d.setDate(d.getDate() - 1); }
+  return k;
+}
+function paintNights() {
+  const listened = nights.filter((n) => n.minutes >= 5);
+  $('nights').classList.toggle('hidden', !listened.length);
+  const k = streak();
+  $('nightsLabel').textContent = k > 1 ? `${k} nights` : `${listened.length} ${listened.length === 1 ? 'night' : 'nights'}`;
+}
+$('nights').onclick = () => {
+  const k = streak();
+  $('streakLine').innerHTML = k ? `<b>${k}</b>${k === 1 ? 'night' : 'nights in a row'}` : 'No streak yet. Tonight could be the first.';
+  const box = $('nightList'); box.innerHTML = '';
+  for (const n of nights.filter((x) => x.minutes >= 5).slice(0, 30)) {
+    const [y, m, d] = n.night.split('-').map(Number);
+    const label = new Date(y, m - 1, d).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
+    const w = WORLDS.find((x) => x.id === n.world);
+    const row = document.createElement('div'); row.className = 'night';
+    row.innerHTML = `<span><b>${label}</b> · ${w ? w.name : n.world}</span><span class="num">${n.minutes} min</span>`;
+    box.appendChild(row);
+  }
+  $('nightsSheet').classList.remove('hidden');
+};
+$('nightsClose').onclick = () => $('nightsSheet').classList.add('hidden');
+$('nightsSheet').onclick = (e) => { if (e.target === $('nightsSheet')) $('nightsSheet').classList.add('hidden'); };
 
 // ------------------------------------------------------------------ favourites: worlds and variations worth keeping
 const isFav = () => S.favs.some((f) => f.w === WORLDS[S.world].id && f.s === S.seed);
@@ -141,6 +188,11 @@ $('dots').innerHTML = WORLDS.map(() => '<i></i>').join('');
 $('prev').onclick = () => { S.world = (S.world + WORLDS.length - 1) % WORLDS.length; showWorld(); };
 $('next').onclick = () => { S.world = (S.world + 1) % WORLDS.length; showWorld(); };
 $('reroll').onclick = () => { S.seed = newSeed(); showWorld(false); };
+$('surprise').onclick = () => {
+  let k = S.world;
+  while (WORLDS.length > 1 && k === S.world) k = Math.floor(Math.random() * WORLDS.length);
+  S.world = k; S.seed = newSeed(); showWorld();
+};
 // swipe between worlds on the open background
 let swipe = null;
 $('view').addEventListener('pointerdown', (e) => { swipe = { x: e.clientX, y: e.clientY }; });
@@ -218,6 +270,7 @@ if (isBrave) $('sHint').textContent = 'Brave: to keep the sound going with the s
 function startSession() {
   const w = WORLDS[S.world];
   engine.start({ scene: w.id, seed: S.seed, minutes: minutes() });
+  logStart(w.id);
   mode = 'session';
   $('home').classList.add('away');
   $('sScene').textContent = w.name;
@@ -239,6 +292,8 @@ function endSession(finished) {
     mode = 'ended';
     return;
   }
+  logProgress(engine.elapsed() / 60);
+  current = null;
   engine.stop();
   backHome();
 }
@@ -255,9 +310,10 @@ function backHome() {
   view.start();
   lockScreenOn(false);
   updateStart();
+  paintNights();
 }
 
-engine.onEnd = () => endSession(true);
+engine.onEnd = () => { logProgress(engine.total() / 60 || 0); current = null; endSession(true); };
 $('ended').onclick = backHome;
 
 function showControls() {
@@ -301,6 +357,24 @@ function setupMediaSession(w) {
       artwork: [{ src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' }, { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png' }],
     });
     navigator.mediaSession.playbackState = 'playing';
+    // a moment in, use a frame of the world itself as the lock-screen artwork
+    setTimeout(() => {
+      try {
+        if (mode !== 'session' || !view.running) return;
+        const src = new Image();
+        src.onload = () => {
+          const c = document.createElement('canvas'); c.width = c.height = 512;
+          const k = Math.min(src.width, src.height);
+          c.getContext('2d').drawImage(src, (src.width - k) / 2, (src.height - k) / 2, k, k, 0, 0, 512, 512);
+          const art = c.toDataURL('image/jpeg', 0.85);
+          navigator.mediaSession.metadata = new MediaMetadata({
+            title: w.name, artist: 'Lullwave', album: minutes() ? `Sleep timer \u00b7 ${minutes()} min` : 'Sleep',
+            artwork: [{ src: art, sizes: '512x512', type: 'image/jpeg' }, { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png' }],
+          });
+        };
+        src.src = view.snapshot();
+      } catch { /* the icon stays */ }
+    }, 2500);
     navigator.mediaSession.setActionHandler('play', () => { engine.resume(); paintPause(); });
     navigator.mediaSession.setActionHandler('pause', () => { engine.pause(); paintPause(); });
     navigator.mediaSession.setActionHandler('stop', () => endSession(false));
@@ -321,6 +395,7 @@ setInterval(() => {
   $('sSub').textContent = total ? `left · ends ${fmtClock(new Date(Date.now() + (total - el) * 1000))}` : 'playing · no timer';
   $('sBar').style.width = total ? (100 * el / total).toFixed(2) + '%' : '0%';
   view.setState({ energy: energyCurve(el, total) });
+  if (Math.floor(el) % 30 === 0) logProgress(el / 60);
 
   // the screen dims gently from the start, then fades to black when the visuals time runs out
   // (or as the music fades out at the end of the timer)
@@ -400,6 +475,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && mo
 // ------------------------------------------------------------------ go
 showWorld(false);
 updateStart();
+paintNights();
 view.setFps(mobile ? 30 : 60);
 view.start();
 requestAnimationFrame(() => requestAnimationFrame(() => { $('loader').style.opacity = 0; setTimeout(() => $('loader').remove(), 1000); }));

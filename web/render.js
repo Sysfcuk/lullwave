@@ -13,8 +13,10 @@ import { createAuroraScene } from './scenes/aurora.js';
 import { createRainScene } from './scenes/rain.js';
 import { createSpaceScene } from './scenes/space.js';
 import { createDiscoScene } from './scenes/disco.js';
+import { createEventingScene } from './scenes/eventing.js';
+import { createCotswoldScene } from './scenes/cotswold.js';
 
-const SCENES = { cave: createCaveScene, drive: createDriveScene, ocean: createOceanScene, aurora: createAuroraScene, rain: createRainScene, space: createSpaceScene, disco: createDiscoScene };
+const SCENES = { cave: createCaveScene, drive: createDriveScene, ocean: createOceanScene, aurora: createAuroraScene, rain: createRainScene, space: createSpaceScene, disco: createDiscoScene, eventing: createEventingScene, cotswold: createCotswoldScene };
 
 // The finishing pass, after tone mapping: a little chromatic aberration towards the edges, a
 // vignette, and fine animated grain, which also dithers away the banding that dark gradients

@@ -20,6 +20,8 @@ closes, and in the last stretch of the timer everything fades out.
 | **Neon Rain** | Rain runs down a window over a city at night: out-of-focus neon and street lights, traffic far below, each drop a tiny lens; lightning before the thunder. | Lo-fi: electric piano jazz chords, upright-ish bass, brushed swing beat, rain on the glass, distant thunder. |
 | **Stardust** | Drifting through deep space: a swirling nebula with dust lanes, nearer clouds drifting past, streaming stars, a ringed gas giant lit by a far sun, the odd comet. | Evolving pads with breathing filters, a slow echoing arpeggio, a sub drone, radio-like sweeps. |
 | **Disco Cat** | A rainbow cat on a light-up dance floor under a spinning mirror ball, nodding to the beat; as the night winds down the disco dims and the cat closes its eyes and drifts off, Zs floating up. | A soft disco groove (gentle kick, octave bass, offbeat keys, strings) that winds down into a music-box lullaby. |
+| **Cross Country** | Riding a cross-country course at sunset, seen between your horse's ears: logs, rails, brush fences and roll-tops flagged red and white, hedgerows and oaks. The canter eases to a walk round the fences as the sun sets and the stars come out. | Pastoral folk in a lilting 6/8: plucked arpeggios, strings, a flute with a new tune each time, soft hoofbeats in a canter rhythm, evening birds. |
+| **Cotswold Valley** | An evening walk high on the side of a steep valley (inspired by the Laurie Lee walk around Slad): beech woods, dry-stone walls, sheep, a stream, and a village of honey-stone cottages whose windows light up at dusk; glow-worms and stars under moonlight. | English pastoral strings, a wandering folk flute, blackbirds and a thrush, the stream, a church bell across the valley, a tawny owl after dark. |
 
 Every session has a **variation** number (the seed): the same number gives the same layout and the same tune.
 
@@ -29,6 +31,9 @@ Every session has a **variation** number (the seed): the same number gives the s
 - Ambience mixer: music, rain, waves, pink noise and brown noise, each with its own level.
 - Breathing guide (optional): a soft ring for the first 2 or 5 minutes, six breaths a minute with a longer out-breath.
 - Favourites: tap the heart to keep a world and variation you liked, and pick it again from the list.
+- Surprise me: a random world and variation.
+- Your nights: a log of nights listened (5 minutes or more) and your streak, kept on the device.
+- Lock-screen artwork is a frame of the world you're in.
 - The screen dims gently, then fades to black after a set time (5, 15 or 30 minutes, or never) and lets the phone sleep;
   the sound keeps playing. A warm-screen filter cuts blue light.
 - Lock-screen controls (Media Session), offline support (service worker), installable PWA.
