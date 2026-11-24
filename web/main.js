@@ -36,7 +36,8 @@ const S = {
   custom: store.get('custom', 120),
   fade: store.get('fade', 15),
   warm: store.get('warm', false),
-  route: store.get('route2', 'media'),
+  route: store.get('route3', 'direct'),
+  stats: store.get('stats', false),
   mix: { music: 0.8, rain: 0, waves: 0, brown: 0, ...store.get('mix', {}) },
 };
 function newSeed() { return 1 + Math.floor(Math.random() * 9999); }
@@ -123,7 +124,25 @@ $('customBtn').classList.toggle('on', S.timer === 'custom');
 $('customMin').value = S.custom;
 $('customMin').oninput = () => { S.custom = +$('customMin').value || 0; store.set('custom', S.custom); updateStart(); };
 chips($('fade'), FADES, (v) => v === S.fade, (v) => { S.fade = v; store.set('fade', v); });
-chips($('route'), [['media', 'Media'], ['direct', 'Direct']], (v) => v === S.route, (v) => { S.route = v; store.set('route2', v); engine.setRoute(v); });
+chips($('route'), [['direct', 'Direct'], ['stream', 'Stream']], (v) => v === S.route, (v) => { S.route = v; store.set('route3', v); engine.setRoute(v); });
+// audio stats, for testing on a phone
+const statsToggle = $('statsToggle');
+const applyStats = () => { statsToggle.classList.toggle('on', S.stats); $('stats').classList.toggle('hidden', !S.stats); };
+statsToggle.onclick = () => { S.stats = !S.stats; store.set('stats', S.stats); applyStats(); };
+applyStats();
+let lastFrame = performance.now(), worstGap = 0;
+(function watch() { const now = performance.now(); worstGap = Math.max(worstGap, now - lastFrame); lastFrame = now; requestAnimationFrame(watch); })();
+setInterval(() => {
+  if (!S.stats) return;
+  const d = engine.debugInfo();
+  $('stats').textContent = d
+    ? `out ${d.route} · ${d.state} · ${d.rate} Hz · latency ${d.latency} ms
+chunks ${d.chunks} · last render ${d.renderMs} ms · ${d.ahead} s ahead` +
+      (d.glitches !== null ? ` · glitches ${d.glitches}` : '') + `
+slowest frame ${Math.round(worstGap)} ms · ${navigator.hardwareConcurrency || '?'} cores`
+    : 'audio not started';
+  worstGap = 0;
+}, 1000);
 engine.setRoute(S.route);
 const warmToggle = $('warmToggle');
 const applyWarm = () => { warmToggle.classList.toggle('on', S.warm); $('warm').classList.toggle('on', S.warm); };

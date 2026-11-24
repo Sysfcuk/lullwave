@@ -34,8 +34,10 @@ finished buffers, so a phone busy drawing 3D can't make it stutter.
 
 ## How it keeps playing with the screen off
 
-- The audio goes through a `MediaStream` into an `<audio>` element, so the phone treats it as media playback.
-  (Settings → Background audio → **Direct** switches back to plain Web Audio if a device plays nothing.)
+- Web Audio plays straight to the speakers, and a silent looping `<audio>` element plays alongside so the phone treats
+  the page as playing media (lock-screen controls, keeps going with the screen off). Settings → Audio output →
+  **Stream** routes the sound itself through an `<audio>` element instead, for a phone that stops it when locked
+  (that route drops out on some Android phones, so it isn't the default).
 - The whole session's volume envelope, including the final fade, is scheduled on the audio thread when it starts.
 - Rain, waves, noise and each world's drone are looping sources that need no JavaScript once started.
 - Chunks are rendered from a Web Worker clock, further ahead (almost two minutes) while the page is hidden.

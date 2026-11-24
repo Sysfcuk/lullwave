@@ -137,6 +137,7 @@
   #toast { position: fixed; left: 50%; top: calc(var(--safe-t) + 16px); transform: translate(-50%, -20px); opacity: 0; padding: 10px 16px; border-radius: 14px; font-size: 14px; color: var(--ink);
     transition: opacity .4s, transform .4s var(--ease); pointer-events: none; z-index: 20; max-width: calc(100% - 32px); text-align: center; }
   #toast.show { opacity: 1; transform: translate(-50%, 0); }
+  #stats { position: fixed; left: 8px; bottom: calc(var(--safe-b) + 6px); margin: 0; padding: 6px 8px; border-radius: 8px; background: rgba(0, 0, 0, .6); color: #9fe; font: 11px/1.4 ui-monospace, monospace; z-index: 40; pointer-events: none; white-space: pre; }
   #loader { position: fixed; inset: 0; background: #05040c; display: grid; place-items: center; transition: opacity 1s; z-index: 30; }
   #loader .brand { animation: breathe 2.4s ease-in-out infinite; }
   @keyframes breathe { 50% { opacity: .35; } }
@@ -197,8 +198,12 @@
         <button class="toggle" id="warmToggle" aria-label="Warm screen"></button>
       </div>
       <div class="row">
-        <div class="t">Background audio<small>If you hear nothing, try Direct</small></div>
+        <div class="t">Audio output<small>If the sound stops when you lock the phone, try Stream</small></div>
         <div class="mini-chips" id="route"></div>
+      </div>
+      <div class="row">
+        <div class="t">Audio stats<small>For testing: shows what the sound engine is doing</small></div>
+        <button class="toggle" id="statsToggle" aria-label="Audio stats"></button>
       </div>
     </details>
     <button class="start" id="start">
@@ -243,6 +248,7 @@
 </div>
 
 <div id="toast" class="glass"></div>
+<pre id="stats" class="hidden"></pre>
 <div id="loader"><div class="brand">lullwave</div></div>
 
 <script type="module" src="main.js"></script>

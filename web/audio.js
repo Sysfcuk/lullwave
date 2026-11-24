@@ -13,8 +13,11 @@
 // Sleep-specific choices:
 // - The whole session's volume envelope (fade in, the long fade out before the timer ends) is
 //   scheduled on the master gain up front, so it happens on time even if JavaScript is paused.
-// - Output can go through a MediaStream into an <audio> element so the phone treats it as media
-//   playback (lock-screen controls, keeps playing with the screen off). "Direct" skips that.
+// - Output goes straight from Web Audio to the speakers (the most reliable path: routing it through
+//   a MediaStream into an <audio> element drops out on some Android phones). A silent looping
+//   <audio> element plays alongside, so the phone still treats the page as playing media:
+//   lock-screen controls, and it keeps going with the screen off. "Stream" is the old route,
+//   kept as a fallback for a phone that stops the sound when locked.
 // - Chunks are rendered further ahead while the page is hidden.
 import { createCave } from './music/cave.js';
 import { createDrive } from './music/drive.js';
@@ -113,15 +116,25 @@ export function cleanUp(buffer) {
   }
 }
 
+/** One second of silence as a WAV file (8 kHz, 16-bit mono), for the keep-alive element. */
+function silentWav() {
+  const n = 8000, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+  const str = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
+  str(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); str(8, 'WAVEfmt '); v.setUint32(16, 16, true);
+  v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, 8000, true); v.setUint32(28, 16000, true);
+  v.setUint16(32, 2, true); v.setUint16(34, 16, true); str(36, 'data'); v.setUint32(40, n * 2, true);
+  return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+}
+
 export function createEngine({ mobile = false } = {}) {
   const SR = mobile ? 32000 : 44100; // offline render rate (bells are filtered below 15 kHz anyway)
-  let ac = null, master, limiter, el = null, streamDest = null, routeIsMedia = false;
+  let ac = null, master, limiter, el = null, keepalive = null, streamDest = null, routeIsStream = false;
   const buses = {};
   let events = [];
   let composer = null, worker = null, session = null, paused = false;
   let verbIR = null, whiteBuffer = null;
   const mix = { music: 0.8, rain: 0, waves: 0, brown: 0 };
-  let onEnd = () => {}, wantRoute = 'media';
+  let onEnd = () => {}, wantRoute = 'direct';
   const stats = { chunks: 0, lastRenderMs: 0 };
 
   // ------------------------------------------------------------------ the live graph
@@ -175,6 +188,9 @@ export function createEngine({ mobile = false } = {}) {
     el = document.createElement('audio');
     el.setAttribute('playsinline', ''); el.autoplay = false;
     document.body.appendChild(el);
+    keepalive = document.createElement('audio');
+    keepalive.setAttribute('playsinline', ''); keepalive.loop = true; keepalive.src = silentWav();
+    document.body.appendChild(keepalive);
     setRoute(wantRoute);
 
     const src = 'let id=0;onmessage=(e)=>{clearInterval(id);if(e.data>0)id=setInterval(()=>postMessage(0),e.data)}';
@@ -187,16 +203,22 @@ export function createEngine({ mobile = false } = {}) {
 
   function setRoute(route) {
     try { limiter.disconnect(); } catch { /* not connected */ }
-    routeIsMedia = false;
-    if (route === 'media' && ac.createMediaStreamDestination && 'srcObject' in el) {
+    routeIsStream = false;
+    if (route === 'stream' && ac.createMediaStreamDestination && 'srcObject' in el) {
       streamDest ??= ac.createMediaStreamDestination();
       limiter.connect(streamDest);
       el.srcObject = streamDest.stream;
-      routeIsMedia = true;
+      routeIsStream = true;
+      keepalive.pause();
     } else {
       el.pause(); el.srcObject = null;
       limiter.connect(ac.destination);
     }
+  }
+  /** Start or stop the media element that makes the phone treat this as playing media. */
+  function media(on) {
+    const m = routeIsStream ? el : keepalive;
+    if (on) m.play().catch(() => {}); else { el.pause(); keepalive.pause(); }
   }
 
   function applyMix(ramp = 0.4) {
@@ -309,7 +331,7 @@ export function createEngine({ mobile = false } = {}) {
     clearInterval(fallbackTimer);
     master.gain.cancelScheduledValues(ac.currentTime);
     master.gain.setValueAtTime(0, ac.currentTime);
-    setTimeout(() => { if (!session) { ac.suspend(); el.pause(); } }, 200);
+    setTimeout(() => { if (!session) { ac.suspend(); media(false); } }, 200);
     if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'none';
   }
 
@@ -317,11 +339,23 @@ export function createEngine({ mobile = false } = {}) {
 
   return {
     get ctx() { return ac; },
-    get isMediaRoute() { return routeIsMedia; },
+    get route() { return routeIsStream ? 'stream' : 'direct'; },
     get running() { return !!session; },
     get paused() { return paused; },
     mix, stats,
     get queued() { return session ? session.sources.size : 0; },
+    /** For the on-screen audio stats. */
+    debugInfo() {
+      if (!ac) return null;
+      const ahead = session ? session.next * CHUNK - (ac.currentTime - session.t0) : 0;
+      const ps = ac.playoutStats || ac.playbackStats;
+      return {
+        route: routeIsStream ? 'stream' : 'direct', state: ac.state, rate: ac.sampleRate, renderRate: SR,
+        latency: Math.round(((ac.baseLatency || 0) + (ac.outputLatency || 0)) * 1000),
+        chunks: stats.chunks, renderMs: stats.lastRenderMs, ahead: Math.round(ahead),
+        glitches: ps ? (ps.fallbackFramesEvents ?? ps.underrunEvents ?? null) : null,
+      };
+    },
     set onEnd(f) { onEnd = f; },
 
     /** Must be called from a tap (browsers only start audio from a user gesture). */
@@ -329,7 +363,7 @@ export function createEngine({ mobile = false } = {}) {
       init();
       if (session) stopNow();
       ac.resume();
-      if (routeIsMedia) el.play().catch(() => { setRoute('direct'); });
+      media(true);
       composer = COMPOSERS[scene]({ rng: mulberry32(seed), mobile });
       const t0 = ac.currentTime + 0.25;
       session = { t0, total: minutes ? minutes * 60 : 0, scene, next: 0, rendering: false, sources: new Set(), live: null };
@@ -358,14 +392,14 @@ export function createEngine({ mobile = false } = {}) {
     pause() {
       if (!session || paused) return;
       paused = true;
-      ac.suspend(); el.pause();
+      ac.suspend(); media(false);
       if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
     },
     resume() {
       if (!session || !paused) return;
       paused = false;
       ac.resume();
-      if (routeIsMedia) el.play().catch(() => {});
+      media(true);
       if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
       tick();
     },
@@ -383,8 +417,9 @@ export function createEngine({ mobile = false } = {}) {
     setRoute(route) {
       wantRoute = route;
       if (!ac) return;
+      media(false);
       setRoute(route);
-      if (routeIsMedia && session && !paused) el.play().catch(() => {});
+      if (session && !paused) media(true);
     },
 
     /** Events (bells, drips, kicks, chords) whose time has come, for the visuals. */
