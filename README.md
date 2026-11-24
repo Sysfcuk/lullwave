@@ -13,7 +13,7 @@ closes, and in the last stretch of the timer everything fades out.
 
 | World | Visuals | Music |
 | --- | --- | --- |
-| **Crystal Cave** | A slow drift round an underground lake. Crystals light up as the bells ring; drips ripple the water. | Lydian pads, glass bells answering across the cavern, a drone, water drops, wind. |
+| **Crystal Cave** | A slow flight down an endless winding tunnel. Crystals grow from the walls and light the rock; a cluster flares on the side each bell rings from. | Lydian pads, glass bells answering across the cavern, a drone, water drops, wind. |
 | **Night Drive** | An endless neon road through wireframe mountains. The striped sun sinks as the night goes on. | Slow synthwave: detuned saw pads with tape wobble, bass, arpeggio, a sung hook, a soft beat, passing cars. |
 
 Every session has a **variation** number (the seed): the same number gives the same layout and the same tune.
@@ -26,13 +26,19 @@ Every session has a **variation** number (the seed): the same number gives the s
   the sound keeps playing. A warm-screen filter cuts blue light.
 - Lock-screen controls (Media Session), offline support (service worker), installable PWA.
 
+## How the music plays smoothly
+
+The music is composed ahead in 20-second chunks, each rendered by an `OfflineAudioContext` (faster than real time, off
+the audio thread) with 24 seconds of tail for notes and reverb to ring out. The live audio graph just plays the
+finished buffers, so a phone busy drawing 3D can't make it stutter.
+
 ## How it keeps playing with the screen off
 
 - The audio goes through a `MediaStream` into an `<audio>` element, so the phone treats it as media playback.
   (Settings → Background audio → **Direct** switches back to plain Web Audio if a device plays nothing.)
 - The whole session's volume envelope, including the final fade, is scheduled on the audio thread when it starts.
 - Rain, waves, noise and each world's drone are looping sources that need no JavaScript once started.
-- Notes are scheduled from a Web Worker clock, with a longer look-ahead while the page is hidden.
+- Chunks are rendered from a Web Worker clock, further ahead (almost two minutes) while the page is hidden.
 
 ## Run it locally
 

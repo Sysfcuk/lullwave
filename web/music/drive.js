@@ -17,28 +17,10 @@ const PROGRESSIONS = [['i', 'VI', 'III', 'VII'], ['i', 'iv', 'VI', 'v'], ['VI', 
 const MINOR = [0, 2, 3, 5, 7, 8, 10];
 const BEATS_PER_CHORD = 8;
 
-export function createDrive(A) {
-  const { ac, rng, mobile } = A;
+export function createDrive({ rng, mobile }) {
   const root = pick(rng, [57, 54, 52, 55, 53]); // A, F#, E, G or F minor
   const prog = pick(rng, PROGRESSIONS);
-  const padCh = channel(A, { gain: 1, verb: 0.45, delay: 0.08 });
-  const bassCh = channel(A, { gain: 1, verb: 0.05 });
-  const arpCh = channel(A, { gain: 1, verb: 0.3, delay: 0.45 });
-  const leadCh = channel(A, { gain: 1, verb: 0.5, delay: 0.4 });
-  const drumCh = channel(A, { gain: 1, verb: 0.2 });
-  const fxCh = channel(A, { gain: 1, verb: 0.3 });
-
-  // the tape wobble: one slow LFO bending every pad oscillator together
-  const wob = ac.createOscillator(), wobAmt = ac.createGain();
-  wob.frequency.value = 0.31; wobAmt.gain.value = 6;
-  wob.connect(wobAmt);
-  // a held bass drone that keeps going on its own (background safety, and warmth)
-  const hum = ac.createOscillator(), humG = ac.createGain(), humLp = ac.createBiquadFilter();
-  hum.type = 'triangle'; hum.frequency.value = 440 * Math.pow(2, (root - 24 - 69) / 12);
-  humLp.type = 'lowpass'; humLp.frequency.value = 180; humG.gain.value = 0;
-  hum.connect(humLp); humLp.connect(humG); humG.connect(bassCh.input);
-
-  let next = 0, step = 0, hook = [], lastLead = null, nextCar = 0;
+  let next = 0, step = 0, hook = [], lastLead = null, nextCar = 30;
   const bpm = (e) => 64 + 14 * e;
 
   function newHook() {
@@ -55,7 +37,7 @@ export function createDrive(A) {
   }
   const degMidi = (d) => root + Math.floor(d / 7) * 12 + MINOR[((d % 7) + 7) % 7];
 
-  function playStep(t, e) {
+  function playStep(A, c, tm, t, e) {
     const beatLen = 60 / bpm(e), s16 = beatLen / 4;
     const beat = Math.floor(step / 4), sub = step % 4;
     const chordIdx = Math.floor(beat / BEATS_PER_CHORD) % prog.length;
@@ -64,18 +46,18 @@ export function createDrive(A) {
     const bar = Math.floor(beat / 4);
 
     if (step % (4 * BEATS_PER_CHORD) === 0) {
-      padChord(A, padCh, t, ch.notes.map((o) => root + o), BEATS_PER_CHORD * beatLen, {
-        type: 'sawtooth', voices: mobile ? 2 : 3, spread: 11, attack: 1.8, release: 3, vol: 0.022, cutoff: 700 + 1500 * e, q: 0.8, wobble: wobAmt,
+      padChord(A, c.padCh, t, ch.notes.map((o) => root + o), BEATS_PER_CHORD * beatLen, {
+        type: 'sawtooth', voices: mobile ? 2 : 3, spread: 11, attack: 1.8, release: 3, vol: 0.022, cutoff: 700 + 1500 * e, q: 0.8, wobble: c.wobAmt,
       });
-      A.emit('chord', t, { index: chordIdx });
+      A.emit('chord', tm, { index: chordIdx });
       if (chordIdx === 0 && (bar % 16 === 0 || !hook.length)) hook = newHook();
     }
 
     // bass: long notes when it's quiet, a gentle eighth-note pulse when there's energy
     if (e > 0.55) {
-      if (sub % 2 === 0) bass(A, bassCh, t, root - 24 + ch.bass + (sub === 2 && inChord % 2 ? 12 : 0), s16 * 1.6, 0.13 + 0.05 * e);
+      if (sub % 2 === 0) bass(A, c.bassCh, t, root - 24 + ch.bass + (sub === 2 && inChord % 2 ? 12 : 0), s16 * 1.6, 0.13 + 0.05 * e);
     } else if (sub === 0 && inChord % 4 === 0) {
-      bass(A, bassCh, t, root - 24 + ch.bass, beatLen * 3.8, 0.16);
+      bass(A, c.bassCh, t, root - 24 + ch.bass, beatLen * 3.8, 0.16);
     }
 
     // the arpeggio: up and down the chord in dotted rhythm, an octave up
@@ -84,7 +66,7 @@ export function createDrive(A) {
       const seq = [...tones, ...tones.slice(1, -1).reverse()];
       const k = (step / 2) % seq.length;
       const vel = 0.03 + 0.05 * (e - 0.35);
-      pluck(A, arpCh, t, seq[k], vel, k % 2 ? 0.35 : -0.35, { bright: 1400 + 1800 * e, decay: 0.3 });
+      pluck(A, c.arpCh, t, seq[k], vel, k % 2 ? 0.35 : -0.35, { bright: 1400 + 1800 * e, decay: 0.3 });
     }
 
     // the lead sings the hook on two bars out of every eight
@@ -93,43 +75,59 @@ export function createDrive(A) {
       if (step % 2 === 0) for (const nt of hook) {
         if (nt.at === pos) {
           const m = degMidi(nt.deg);
-          lead(A, leadCh, t, m, nt.len * s16 * 2 * 0.95, 0.035 + 0.02 * e, lastLead);
+          lead(A, c.leadCh, t, m, nt.len * s16 * 2 * 0.95, 0.035 + 0.02 * e, lastLead);
           lastLead = m;
-          A.emit('lead', t, { midi: m });
+          A.emit('lead', tm, { midi: m });
         }
       }
     } else lastLead = null;
 
     // the beat
-    if (e > 0.6 && sub === 0 && (beat % 4 === 0 || beat % 4 === 2)) { kick(A, drumCh, t, 0.18 + 0.15 * (e - 0.6)); A.emit('kick', t, {}); }
-    if (e > 0.72 && sub === 0 && beat % 2 === 1) noiseHit(A, drumCh, t, { vel: 0.05, type: 'bandpass', freq: 1800, q: 0.8, decay: 0.18 });
-    if (e > 0.5 && sub === 2) noiseHit(A, drumCh, t, { vel: 0.018 + 0.02 * (e - 0.5), freq: 8000, decay: 0.04, pan: 0.2 });
+    if (e > 0.6 && sub === 0 && (beat % 4 === 0 || beat % 4 === 2)) { kick(A, c.drumCh, t, 0.18 + 0.15 * (e - 0.6)); A.emit('kick', tm, {}); }
+    if (e > 0.72 && sub === 0 && beat % 2 === 1) noiseHit(A, c.drumCh, t, { vel: 0.05, type: 'bandpass', freq: 1800, q: 0.8, decay: 0.18 });
+    if (e > 0.5 && sub === 2) noiseHit(A, c.drumCh, t, { vel: 0.018 + 0.02 * (e - 0.5), freq: 8000, decay: 0.04, pan: 0.2 });
 
     // a car passing on the other side of the road
-    if (t >= nextCar) {
-      if (nextCar) {
-        const from = rng() < 0.5 ? -0.8 : 0.8;
-        swell(A, fxCh, t, { dur: 5 + rng() * 3, vel: 0.06, freq: 300, freq2: 140, q: 0.7, pan: from, pan2: -from });
-        A.emit('car', t, { side: from });
-      }
-      nextCar = t + 25 + rng() * 50;
+    if (tm >= nextCar) {
+      const side = rng() < 0.5 ? -0.8 : 0.8;
+      swell(A, c.fxCh, t, { dur: 5 + rng() * 3, vel: 0.06, freq: 300, freq2: 140, q: 0.7, pan: side, pan2: -side });
+      A.emit('car', tm, { side });
+      nextCar = tm + 25 + rng() * 50;
     }
     step++;
     next += s16;
   }
 
   return {
-    delayTime: 60 / bpm(1) * 0.75,
-    start(t0) {
-      next = t0; step = 0;
-      wob.start(t0); hum.start(t0);
-      humG.gain.setValueAtTime(0, t0); humG.gain.linearRampToValueAtTime(0.06, t0 + 10);
+    delayTime: (60 / bpm(1)) * 0.75,
+
+    live(ac, dest, t0) {
+      // a held bass hum that keeps going on its own (warmth, and sound if the page is frozen)
+      const hum = ac.createOscillator(), g = ac.createGain(), lp = ac.createBiquadFilter();
+      hum.type = 'triangle'; hum.frequency.value = 440 * Math.pow(2, (root - 24 - 69) / 12);
+      lp.type = 'lowpass'; lp.frequency.value = 180; g.gain.value = 0;
+      hum.connect(lp); lp.connect(g); g.connect(dest);
+      hum.start(t0);
+      g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(0.05, t0 + 10);
+      return { stop(t) { try { hum.stop(t + 0.05); } catch { /* fine */ } } };
     },
-    schedule(until, energyAt) {
-      while (next < until) playStep(next, energyAt(next));
-    },
-    stop(t) {
-      for (const o of [wob, hum]) { try { o.stop(t + 0.1); } catch { /* never started */ } }
+
+    chunk(A, from, to, energyAt) {
+      const { ac } = A;
+      // the tape wobble: one slow LFO bending every pad oscillator together
+      const wob = ac.createOscillator(), wobAmt = ac.createGain();
+      wob.frequency.value = 0.31; wobAmt.gain.value = 6;
+      wob.connect(wobAmt); wob.start(0);
+      const c = {
+        wobAmt,
+        padCh: channel(A, { gain: 1, verb: 0.45, delay: 0.08 }),
+        bassCh: channel(A, { gain: 1, verb: 0.05 }),
+        arpCh: channel(A, { gain: 1, verb: 0.3, delay: 0.45 }),
+        leadCh: channel(A, { gain: 1, verb: 0.5, delay: 0.4 }),
+        drumCh: channel(A, { gain: 1, verb: 0.2 }),
+        fxCh: channel(A, { gain: 1, verb: 0.3 }),
+      };
+      while (next < to) playStep(A, c, next, next - from, energyAt(next));
     },
   };
 }

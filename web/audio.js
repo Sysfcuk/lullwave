@@ -1,20 +1,29 @@
-// The sound engine: one AudioContext, a master chain, shared reverb and delay, the ambience
-// layers (rain, waves, brown noise) and the scene's generative composer.
+// The sound engine.
+//
+// The music is composed ahead of time, in chunks: each chunk (CHUNK seconds of notes) is rendered
+// with an OfflineAudioContext, which runs faster than real time on its own thread, and the
+// finished audio is queued to play at the right moment. The live audio graph only plays buffers,
+// so a phone busy drawing 3D never makes the music stutter. Each chunk also renders TAIL seconds
+// past its end so long notes, reverb and echoes ring out; overlapping chunks simply add up.
+//
+// The live graph: the chunk player, each world's drone (oscillators, so there is sound even if the
+// page is frozen in the background and no new chunks arrive), looped ambience (rain, waves,
+// brown noise), the master envelope and a gentle limiter.
 //
 // Sleep-specific choices:
 // - The whole session's volume envelope (fade in, the long fade out before the timer ends) is
-//   scheduled on the master gain up front, so it happens on time even if the phone freezes the
-//   page's JavaScript while the screen is off.
-// - The ambience layers are looped buffers and the composers keep a drone running, so there is
-//   sound even if note scheduling stalls in the background.
-// - The output goes through a MediaStream into an <audio> element (when allowed), so the phone
-//   treats it as media playback: lock-screen controls, and it keeps playing with the screen off.
-// - Notes are scheduled from a Web Worker clock, which browsers throttle far less than timers on
-//   a hidden page, and with a longer look-ahead while the page is hidden.
+//   scheduled on the master gain up front, so it happens on time even if JavaScript is paused.
+// - Output can go through a MediaStream into an <audio> element so the phone treats it as media
+//   playback (lock-screen controls, keeps playing with the screen off). "Direct" skips that.
+// - Chunks are rendered further ahead while the page is hidden.
 import { createCave } from './music/cave.js';
 import { createDrive } from './music/drive.js';
 
 const COMPOSERS = { cave: createCave, drive: createDrive };
+const CHUNK = 20;           // seconds of notes per chunk
+const TAIL = 24;            // extra seconds for notes, reverb and echoes to ring out (longest pad ~15 s + reverb)
+const AHEAD = 50;           // keep this much music rendered ahead (seconds)
+const AHEAD_HIDDEN = 110;   // ... and more while the page is hidden, in case timers slow down
 
 export function mulberry32(a) {
   return () => {
@@ -35,66 +44,87 @@ export function energyCurve(elapsed, total) {
 
 export function fadeLength(totalSec) { return Math.min(600, Math.max(45, totalSec * 0.25)); }
 
+// ------------------------------------------------------------------ buffers (context-free)
+function makeBuffer(channels, length, sampleRate) { return new AudioBuffer({ numberOfChannels: channels, length, sampleRate }); }
+
+function noiseBuffer(sr, sec, fill) {
+  const n = Math.floor(sec * sr), fade = Math.floor(sr * 0.5);
+  const buf = makeBuffer(2, n, sr);
+  for (let c = 0; c < 2; c++) {
+    const tmp = new Float32Array(n + fade);
+    fill(tmp, sr, c);
+    const d = buf.getChannelData(c);
+    for (let i = 0; i < n; i++) d[i] = tmp[i];
+    // crossfade the overhang into the start so the loop is seamless
+    for (let i = 0; i < fade; i++) { const k = i / fade; d[i] = tmp[i] * k + tmp[n + i] * (1 - k); }
+  }
+  return buf;
+}
+const white = (d) => { for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; };
+function brown(d) {
+  let b = 0;
+  for (let i = 0; i < d.length; i++) { b = (b + 0.02 * (Math.random() * 2 - 1)) / 1.02; d[i] = b * 3.5; }
+}
+function rain(d, sr) {
+  // a soft hiss, a low patter and individual drops (tiny decaying chirps) at random times
+  let lp = 0, lp2 = 0, hp = 0, prev = 0;
+  for (let i = 0; i < d.length; i++) {
+    const w = Math.random() * 2 - 1;
+    lp += 0.35 * (w - lp); hp = 0.97 * (hp + lp - prev); prev = lp;
+    lp2 += 0.03 * (w - lp2);
+    d[i] = hp * 0.22 + lp2 * 0.9;
+  }
+  const drops = Math.floor((d.length / sr) * 70);
+  for (let k = 0; k < drops; k++) {
+    const at = Math.floor(Math.random() * (d.length - sr * 0.05)), f = 1500 + Math.random() * 4500;
+    const amp = Math.pow(Math.random(), 3) * 0.35, tau = sr * (0.002 + Math.random() * 0.004);
+    const len = Math.floor(tau * 6), w = (2 * Math.PI * f) / sr;
+    for (let i = 0; i < len; i++) d[at + i] += Math.sin(w * i * (1 + i / len * 0.3)) * amp * Math.exp(-i / tau);
+  }
+}
+function impulse(sr, sec, decay) {
+  const n = Math.floor(sec * sr), buf = makeBuffer(2, n, sr);
+  for (let c = 0; c < 2; c++) {
+    const d = buf.getChannelData(c);
+    let lp = 0;
+    for (let i = 0; i < n; i++) {
+      const k = i / n, a = 0.9 - 0.75 * k; // the tail gets darker as it dies
+      lp += a * ((Math.random() * 2 - 1) - lp);
+      d[i] = lp * Math.pow(1 - k, decay);
+    }
+  }
+  return buf;
+}
+
+/**
+ * Tidy a rendered chunk: repair isolated one-sample spikes (Chrome's offline renderer can
+ * leave one at a render-block boundary, heard as a tick) and fade out the very end, so nothing
+ * still ringing can click when the buffer stops.
+ */
+export function cleanUp(buffer) {
+  const fadeN = Math.floor(buffer.sampleRate * 0.5);
+  for (let c = 0; c < buffer.numberOfChannels; c++) {
+    const d = buffer.getChannelData(c), n = d.length;
+    for (let i = 1; i < n - 1; i++) {
+      const mid = (d[i - 1] + d[i + 1]) * 0.5, dev = d[i] - mid;
+      if ((dev > 0.06 || dev < -0.06) && Math.abs(d[i + 1] - d[i - 1]) < 0.03) d[i] = mid;
+    }
+    for (let i = 0; i < fadeN; i++) d[n - 1 - i] *= i / fadeN;
+  }
+}
+
 export function createEngine({ mobile = false } = {}) {
-  let ac = null, master, limiter, dry, verb, delayIn, delayL, delayR, el = null, streamDest = null, routeIsMedia = false;
-  const buses = {}, events = [];
+  const SR = mobile ? 32000 : 44100; // offline render rate (bells are filtered below 15 kHz anyway)
+  let ac = null, master, limiter, el = null, streamDest = null, routeIsMedia = false;
+  const buses = {};
+  let events = [];
   let composer = null, worker = null, session = null, paused = false;
-  let whiteBuffer = null;
+  let verbIR = null, whiteBuffer = null;
   const mix = { music: 0.8, rain: 0, waves: 0, brown: 0 };
   let onEnd = () => {}, wantRoute = 'media';
+  const stats = { chunks: 0, lastRenderMs: 0 };
 
-  // ------------------------------------------------------------------ buffers
-  function noiseBuffer(sec, fill) {
-    const sr = ac.sampleRate, n = Math.floor(sec * sr), fade = Math.floor(sr * 0.5);
-    const buf = ac.createBuffer(2, n, sr);
-    for (let c = 0; c < 2; c++) {
-      const tmp = new Float32Array(n + fade);
-      fill(tmp, sr, c);
-      const d = buf.getChannelData(c);
-      for (let i = 0; i < n; i++) d[i] = tmp[i];
-      // crossfade the overhang into the start so the loop is seamless
-      for (let i = 0; i < fade; i++) { const k = i / fade; d[i] = tmp[i] * k + tmp[n + i] * (1 - k); }
-    }
-    return buf;
-  }
-  const white = (d) => { for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; };
-  function brown(d) {
-    let b = 0;
-    for (let i = 0; i < d.length; i++) { b = (b + 0.02 * (Math.random() * 2 - 1)) / 1.02; d[i] = b * 3.5; }
-  }
-  function rain(d, sr) {
-    // a soft hiss, a low patter and individual drops (tiny decaying chirps) at random times
-    let lp = 0, lp2 = 0, hp = 0, prev = 0;
-    for (let i = 0; i < d.length; i++) {
-      const w = Math.random() * 2 - 1;
-      lp += 0.35 * (w - lp); hp = 0.97 * (hp + lp - prev); prev = lp;
-      lp2 += 0.03 * (w - lp2);
-      d[i] = hp * 0.22 + lp2 * 0.9;
-    }
-    const drops = Math.floor((d.length / sr) * 70);
-    for (let k = 0; k < drops; k++) {
-      const at = Math.floor(Math.random() * (d.length - sr * 0.05)), f = 1500 + Math.random() * 4500;
-      const amp = Math.pow(Math.random(), 3) * 0.35, tau = sr * (0.002 + Math.random() * 0.004);
-      const len = Math.floor(tau * 6), w = (2 * Math.PI * f) / sr;
-      for (let i = 0; i < len; i++) d[at + i] += Math.sin(w * i * (1 + i / len * 0.3)) * amp * Math.exp(-i / tau);
-    }
-  }
-
-  // ------------------------------------------------------------------ graph
-  function impulse(sec, decay) {
-    const sr = ac.sampleRate, n = Math.floor(sec * sr), buf = ac.createBuffer(2, n, sr);
-    for (let c = 0; c < 2; c++) {
-      const d = buf.getChannelData(c);
-      let lp = 0;
-      for (let i = 0; i < n; i++) {
-        const k = i / n, a = 0.9 - 0.75 * k; // the tail gets darker as it dies
-        lp += a * ((Math.random() * 2 - 1) - lp);
-        d[i] = lp * Math.pow(1 - k, decay);
-      }
-    }
-    return buf;
-  }
-
+  // ------------------------------------------------------------------ the live graph
   function init() {
     if (ac) return;
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -102,28 +132,11 @@ export function createEngine({ mobile = false } = {}) {
     try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch { /* not supported */ }
     master = ac.createGain(); master.gain.value = 0;
     limiter = ac.createDynamicsCompressor();
-    limiter.threshold.value = -12; limiter.knee.value = 10; limiter.ratio.value = 4; limiter.attack.value = 0.02; limiter.release.value = 0.4;
+    limiter.threshold.value = -10; limiter.knee.value = 10; limiter.ratio.value = 3; limiter.attack.value = 0.02; limiter.release.value = 0.4;
     master.connect(limiter);
-
     buses.music = ac.createGain(); buses.music.connect(master);
-    dry = ac.createGain(); dry.connect(buses.music);
-    verb = ac.createGain();
-    const conv = ac.createConvolver(); conv.buffer = impulse(6, 3);
-    const verbOut = ac.createGain(); verbOut.gain.value = 0.55;
-    verb.connect(conv); conv.connect(verbOut); verbOut.connect(buses.music);
-    // ping-pong delay with a darkening feedback loop
-    delayIn = ac.createGain();
-    delayL = ac.createDelay(3); delayR = ac.createDelay(3);
-    const fb = ac.createGain(); fb.gain.value = 0.42;
-    const tone = ac.createBiquadFilter(); tone.type = 'lowpass'; tone.frequency.value = 2400;
-    const pl = ac.createStereoPanner(), pr = ac.createStereoPanner(); pl.pan.value = -0.7; pr.pan.value = 0.7;
-    const delOut = ac.createGain(); delOut.gain.value = 0.5;
-    delayIn.connect(delayL); delayL.connect(pl); pl.connect(delOut);
-    delayL.connect(delayR); delayR.connect(pr); pr.connect(delOut);
-    delayR.connect(tone); tone.connect(fb); fb.connect(delayL);
-    delOut.connect(buses.music); delOut.connect(verb);
 
-    whiteBuffer = noiseBuffer(4, white);
+    const lsr = ac.sampleRate;
     const layer = (name, buffer, build) => {
       const src = ac.createBufferSource(); src.buffer = buffer; src.loop = true;
       buses[name] = ac.createGain(); buses[name].gain.value = 0;
@@ -131,14 +144,13 @@ export function createEngine({ mobile = false } = {}) {
       buses[name].connect(master);
       src.start(0, Math.random() * buffer.duration);
     };
-    layer('rain', noiseBuffer(9, rain), (src, out) => {
-      // the rain swells a little, slowly
+    layer('rain', noiseBuffer(lsr, 9, rain), (src, out) => {
       const g = ac.createGain(); g.gain.value = 0.85;
       const lfo = ac.createOscillator(), amt = ac.createGain(); lfo.frequency.value = 0.037; amt.gain.value = 0.15;
       lfo.connect(amt); amt.connect(g.gain); lfo.start();
       src.connect(g); g.connect(out);
     });
-    layer('waves', noiseBuffer(10, brown), (src, out) => {
+    layer('waves', noiseBuffer(lsr, 10, brown), (src, out) => {
       // two slow LFOs out of step make the swells irregular; the filter opens as each wave breaks
       const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 500;
       const g = ac.createGain(); g.gain.value = 0.5;
@@ -150,19 +162,21 @@ export function createEngine({ mobile = false } = {}) {
       }
       src.connect(lp); lp.connect(g); g.connect(out);
     });
-    layer('brown', noiseBuffer(8, brown), (src, out) => {
+    layer('brown', noiseBuffer(lsr, 8, brown), (src, out) => {
       const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 700;
       const g = ac.createGain(); g.gain.value = 0.7;
       src.connect(lp); lp.connect(g); g.connect(out);
     });
     applyMix(0);
 
+    verbIR = impulse(SR, 6, 3);
+    whiteBuffer = noiseBuffer(SR, 4, white);
+
     el = document.createElement('audio');
     el.setAttribute('playsinline', ''); el.autoplay = false;
     document.body.appendChild(el);
     setRoute(wantRoute);
 
-    // the scheduler's clock
     const src = 'let id=0;onmessage=(e)=>{clearInterval(id);if(e.data>0)id=setInterval(()=>postMessage(0),e.data)}';
     try {
       worker = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
@@ -195,19 +209,76 @@ export function createEngine({ mobile = false } = {}) {
     buses.brown.gain.setTargetAtTime(curve(mix.brown) * 0.5, now, ramp);
   }
 
-  // ------------------------------------------------------------------ scheduling
+  // ------------------------------------------------------------------ chunk rendering
+  async function renderChunk(s, k) {
+    const from = k * CHUNK, to = from + CHUNK;
+    const oac = new OfflineAudioContext(2, Math.ceil((CHUNK + TAIL) * SR), SR);
+    const dry = oac.createGain(); dry.connect(oac.destination);
+    // reverb
+    const verb = oac.createGain();
+    const conv = oac.createConvolver(); conv.buffer = verbIR;
+    const verbOut = oac.createGain(); verbOut.gain.value = 0.55;
+    verb.connect(conv); conv.connect(verbOut); verbOut.connect(oac.destination);
+    // ping-pong delay with a darkening feedback loop
+    const delay = oac.createGain();
+    const dl = oac.createDelay(3), dr = oac.createDelay(3);
+    dl.delayTime.value = dr.delayTime.value = composer.delayTime;
+    const fb = oac.createGain(); fb.gain.value = 0.4;
+    const tone = oac.createBiquadFilter(); tone.type = 'lowpass'; tone.frequency.value = 2400;
+    const pl = oac.createStereoPanner(), pr = oac.createStereoPanner(); pl.pan.value = -0.7; pr.pan.value = 0.7;
+    const delOut = oac.createGain(); delOut.gain.value = 0.5;
+    delay.connect(dl); dl.connect(pl); pl.connect(delOut);
+    dl.connect(dr); dr.connect(pr); pr.connect(delOut);
+    dr.connect(tone); tone.connect(fb); fb.connect(dl);
+    delOut.connect(oac.destination); delOut.connect(verb);
+
+    const chunkEvents = [];
+    const A = {
+      ac: oac, mobile, dry, verb, delay, whiteBuffer, from,
+      emit(type, time, data) { chunkEvents.push({ type, time: s.t0 + time, ...data }); },
+    };
+    composer.chunk(A, from, to, (t) => energyCurve(t, s.total));
+    const started = performance.now();
+    const buffer = await oac.startRendering();
+    stats.lastRenderMs = Math.round(performance.now() - started); stats.chunks++;
+    if (session !== s) return; // stopped meanwhile
+    cleanUp(buffer);
+    const src = ac.createBufferSource(); src.buffer = buffer;
+    src.connect(buses.music);
+    const at = s.t0 + from, now = ac.currentTime;
+    if (at >= now + 0.02) src.start(at);
+    else if (now - at < CHUNK + TAIL) src.start(now + 0.02, now + 0.02 - at); // late: join in step
+    else return;
+    s.sources.add(src);
+    src.onended = () => { s.sources.delete(src); try { src.disconnect(); } catch { /* fine */ } };
+    events = events.concat(chunkEvents).sort((a, b) => a.time - b.time);
+  }
+
+  async function pump() {
+    const s = session;
+    if (!s || s.rendering) return;
+    s.rendering = true;
+    try {
+      const ahead = document.hidden ? AHEAD_HIDDEN : AHEAD;
+      while (session === s && s.next * CHUNK < Math.max(0, ac.currentTime - s.t0) + ahead) {
+        if (s.total && s.next * CHUNK > s.total) break;
+        await renderChunk(s, s.next++);
+      }
+    } catch (err) {
+      console.error('render failed', err);
+    } finally { s.rendering = false; }
+  }
+
   function tick() {
-    if (!session || paused || !composer) return;
-    const now = ac.currentTime;
-    const ahead = document.hidden ? 4 : 0.6;
-    composer.schedule(now + ahead, (t) => energyCurve(t - session.t0, session.total));
-    if (session.total && now > session.t0 + session.total + 0.5) end();
+    if (!session || !composer) return;
+    pump();
+    if (!paused && session.total && ac.currentTime > session.t0 + session.total + 0.5) end();
   }
 
   function scheduleEnvelope(from) {
     const g = master.gain, now = ac.currentTime;
     if (g.cancelAndHoldAtTime) g.cancelAndHoldAtTime(now); else { g.cancelScheduledValues(now); g.setValueAtTime(g.value, now); }
-    const fadeInEnd = session.t0 + 6;
+    const fadeInEnd = session.t0 + 5;
     if (from < fadeInEnd) g.linearRampToValueAtTime(1, fadeInEnd);
     else g.linearRampToValueAtTime(1, now + 2);
     if (!session.total) return;
@@ -227,8 +298,13 @@ export function createEngine({ mobile = false } = {}) {
 
   function stopNow() {
     if (!ac) return;
-    if (composer) { composer.stop(ac.currentTime); composer = null; }
+    const s = session;
     session = null; paused = false;
+    if (s) {
+      for (const src of s.sources) { try { src.stop(); } catch { /* not started */ } }
+      s.live?.stop(ac.currentTime);
+    }
+    composer = null; events = [];
     worker?.postMessage(0);
     clearInterval(fallbackTimer);
     master.gain.cancelScheduledValues(ac.currentTime);
@@ -244,7 +320,8 @@ export function createEngine({ mobile = false } = {}) {
     get isMediaRoute() { return routeIsMedia; },
     get running() { return !!session; },
     get paused() { return paused; },
-    mix,
+    mix, stats,
+    get queued() { return session ? session.sources.size : 0; },
     set onEnd(f) { onEnd = f; },
 
     /** Must be called from a tap (browsers only start audio from a user gesture). */
@@ -253,20 +330,15 @@ export function createEngine({ mobile = false } = {}) {
       if (session) stopNow();
       ac.resume();
       if (routeIsMedia) el.play().catch(() => { setRoute('direct'); });
-      const A = {
-        ac, rng: mulberry32(seed), mobile, dry, verb, delay: delayIn, whiteBuffer,
-        emit(type, time, data) { events.push({ type, time, ...data }); if (events.length > 300) events.splice(0, events.length - 300); },
-      };
-      composer = COMPOSERS[scene](A);
-      delayL.delayTime.value = delayR.delayTime.value = composer.delayTime;
-      const t0 = ac.currentTime + 0.15;
-      session = { t0, total: minutes ? minutes * 60 : 0, scene };
+      composer = COMPOSERS[scene]({ rng: mulberry32(seed), mobile });
+      const t0 = ac.currentTime + 0.25;
+      session = { t0, total: minutes ? minutes * 60 : 0, scene, next: 0, rendering: false, sources: new Set(), live: null };
       paused = false;
-      composer.start(t0);
+      session.live = composer.live(ac, buses.music, t0);
       master.gain.cancelScheduledValues(ac.currentTime);
       master.gain.setValueAtTime(0, ac.currentTime);
       scheduleEnvelope(t0);
-      if (worker) worker.postMessage(100); else fallbackTimer = setInterval(tick, 100);
+      if (worker) worker.postMessage(250); else fallbackTimer = setInterval(tick, 250);
       tick();
     },
 
@@ -280,6 +352,7 @@ export function createEngine({ mobile = false } = {}) {
       if (!session) return;
       session.total = minutes ? minutes * 60 : 0;
       scheduleEnvelope(ac.currentTime);
+      tick();
     },
 
     pause() {
@@ -317,9 +390,13 @@ export function createEngine({ mobile = false } = {}) {
     /** Events (bells, drips, kicks, chords) whose time has come, for the visuals. */
     drainEvents() {
       if (!ac || !events.length) return [];
-      const now = ac.currentTime, out = [];
-      while (events.length && events[0].time <= now) out.push(events.shift());
-      return out;
+      const now = ac.currentTime;
+      let n = 0;
+      while (n < events.length && events[n].time <= now) n++;
+      if (!n) return [];
+      const out = events.slice(0, n);
+      events = events.slice(n);
+      return out.filter((e) => now - e.time < 1); // skip a backlog (after the screen was off)
     },
   };
 }

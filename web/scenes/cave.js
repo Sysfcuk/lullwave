@@ -1,21 +1,63 @@
-// Crystal Cave: a slow drift around an underground lake in a vast cavern. Crystal clusters glow
-// along the shore and the walls and light up when the music's bells ring (each cluster has its
-// own pitch range), drips from the music send ripples across the lake, dust drifts through a
-// shaft of moonlight, and a few wisps wander over the water. The cluster layout comes from the
-// session's seed.
+// Crystal Cave: a slow flight down an endless winding tunnel through the rock. Crystal clusters
+// grow out of the walls and light the stone around them; when the music's bells ring, a cluster
+// ahead on that side flares up. Now and then the tunnel opens into a wider chamber. A few
+// glowing motes drift ahead as if leading the way, and dust hangs in the air.
+//
+// The tunnel is one fixed mesh: its vertex shader bends it along the path and sizes it with the
+// wall function, both evaluated at the camera's position along the path, so it never ends. The
+// same path and wall functions run in JS to place the crystals on the walls.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { mulberry32 } from '../audio.js';
 
 const TAU = Math.PI * 2;
-const FLOOR = 0;
-const LAKE_R = 15;
 const PALETTES = [
-  ['#7a5cff', '#2de0d0', '#ff4fa3', '#4f8bff', '#ffb03a'],
+  ['#8a6bff', '#2de0d0', '#ff4fa3', '#4f8bff', '#ffb03a'],
   ['#2de0d0', '#4f8bff', '#9b6bff', '#8fffe0', '#3dd0ff'],
   ['#ff6b8b', '#ffb03a', '#b05cff', '#ff8a5c', '#ffd27a'],
   ['#9b6bff', '#ff4fa3', '#4f8bff', '#c58bff', '#2de0d0'],
 ];
+
+// The path (centre line) and the wall radius, written once for GLSL and once for JS. They must
+// stay identical. `ph` is the seed's phase offsets.
+const GLSL_PATH = `
+  uniform vec4 uPh;
+  vec3 pathAt(float s){
+    return vec3(9. * sin(s * .021 + uPh.x) + 4. * sin(s * .053 + uPh.y),
+                3. * sin(s * .017 + uPh.z) + 1.5 * sin(s * .041),
+                -s);
+  }
+  float chamber(float s){ return smoothstep(.55, 1., sin(s * .019 + uPh.w)); }
+  float wallR(float s, float a){
+    float r = 4.3 + 2.6 * chamber(s);
+    r += .7 * sin(a * 3. + s * .23) * sin(s * .11 + 1.) + .45 * sin(a * 5. - s * .37 + 2.)
+       + .3 * sin(a * 2. + s * .61) + .16 * sin(a * 9. + s * 1.3);
+    return r;
+  }
+  void frameAt(float s, out vec3 T, out vec3 R, out vec3 U){
+    T = normalize(pathAt(s + .6) - pathAt(s - .6));
+    R = normalize(cross(T, vec3(0., 1., 0.)));
+    U = cross(R, T);
+  }`;
+
+function makePath(ph) {
+  const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  const pathAt = (s, out = new THREE.Vector3()) => out.set(
+    9 * Math.sin(s * 0.021 + ph[0]) + 4 * Math.sin(s * 0.053 + ph[1]),
+    3 * Math.sin(s * 0.017 + ph[2]) + 1.5 * Math.sin(s * 0.041),
+    -s);
+  const chamber = (s) => smooth(0.55, 1, Math.sin(s * 0.019 + ph[3]));
+  const wallR = (s, a) => 4.3 + 2.6 * chamber(s)
+    + 0.7 * Math.sin(a * 3 + s * 0.23) * Math.sin(s * 0.11 + 1) + 0.45 * Math.sin(a * 5 - s * 0.37 + 2)
+    + 0.3 * Math.sin(a * 2 + s * 0.61) + 0.16 * Math.sin(a * 9 + s * 1.3);
+  const a0 = new THREE.Vector3(), b0 = new THREE.Vector3(), Y = new THREE.Vector3(0, 1, 0);
+  function frameAt(s, T, R, U) {
+    T.subVectors(pathAt(s + 0.6, a0), pathAt(s - 0.6, b0)).normalize();
+    R.crossVectors(T, Y).normalize();
+    U.crossVectors(R, T);
+  }
+  return { pathAt, wallR, chamber, frameAt };
+}
 
 function softDot() {
   const c = document.createElement('canvas'); c.width = c.height = 64;
@@ -33,256 +75,259 @@ function crystalGeo() {
   const p = g.attributes.position, c = new Float32Array(p.count * 3);
   for (let i = 0; i < p.count; i++) { const k = 0.3 + 0.7 * Math.min(1, p.getY(i)); c[i * 3] = c[i * 3 + 1] = c[i * 3 + 2] = k; }
   g.setAttribute('color', new THREE.BufferAttribute(c, 3));
+  g.translate(0, -0.12, 0); // sink the base into the rock
   return g;
 }
 
 export function createCaveScene({ mobile, seed }) {
   const rand = mulberry32(seed ^ 0x5eed);
-  const palette = PALETTES[Math.floor(rand() * PALETTES.length)];
+  const palette = PALETTES[Math.floor(rand() * PALETTES.length)].map((c) => new THREE.Color(c));
+  const ph = [rand() * TAU, rand() * TAU, rand() * TAU, rand() * TAU];
+  const P = makePath(ph);
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color('#03040a');
-  scene.fog = new THREE.FogExp2('#04060e', 0.016);
-  const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 400);
+  const FOG = new THREE.Color('#020309');
+  scene.background = FOG;
+  scene.fog = new THREE.FogExp2(FOG, 0.028);
+  const camera = new THREE.PerspectiveCamera(66, 1, 0.05, 200);
   const disposables = [];
   const keep = (x) => (disposables.push(x), x);
 
-  scene.add(new THREE.HemisphereLight('#4a5a9a', '#05060c', 0.7));
-  const moon = new THREE.DirectionalLight('#b9c8ff', 0.6); moon.position.set(4, 30, 2); scene.add(moon);
-
-  function jitter(geo, amount, keepFn = () => false) {
-    const p = geo.attributes.position;
-    for (let i = 0; i < p.count; i++) {
-      if (keepFn(p.getX(i), p.getY(i), p.getZ(i))) continue;
-      const j = 1 + (rand() - 0.5) * amount;
-      p.setXYZ(i, p.getX(i) * j, p.getY(i) * (1 + (rand() - 0.5) * amount * 0.5), p.getZ(i) * j);
-    }
-    geo.computeVertexNormals();
-    return geo;
-  }
-
-  const rockMat = keep(new THREE.MeshStandardMaterial({ color: '#262b3e', roughness: 0.95, flatShading: true }));
-  // ------------------------------------------------------------------ the cavern
-  const dome = new THREE.Mesh(keep(jitter(new THREE.IcosahedronGeometry(70, 3), 0.2)), keep(new THREE.MeshStandardMaterial({ color: '#0d0f1a', roughness: 1, flatShading: true, side: THREE.BackSide })));
-  dome.scale.set(1, 0.5, 1); dome.position.y = 6;
-  scene.add(dome);
-  const floorGeo = keep(new THREE.RingGeometry(LAKE_R - 0.3, 80, 64, 6));
-  { const p = floorGeo.attributes.position; for (let i = 0; i < p.count; i++) { const r = Math.hypot(p.getX(i), p.getY(i)); p.setZ(i, r > LAKE_R + 1 ? (rand() - 0.3) * 0.8 + (r - LAKE_R) * 0.04 : -0.05); } floorGeo.computeVertexNormals(); }
-  const floor = new THREE.Mesh(floorGeo, keep(new THREE.MeshStandardMaterial({ color: '#141725', roughness: 1, flatShading: true })));
-  floor.rotation.x = -Math.PI / 2; floor.position.y = FLOOR;
-  scene.add(floor);
-
-  // stalactites and stalagmites
-  const spike = keep(jitter(new THREE.ConeGeometry(1, 1, 7, 3), 0.25, (x, y) => y > 0.49));
-  const SPIKES = mobile ? 50 : 90;
-  const spikes = new THREE.InstancedMesh(spike, rockMat, SPIKES);
-  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), s = new THREE.Vector3();
-  const down = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI);
-  for (let k = 0; k < SPIKES; k++) {
-    const a = rand() * TAU, len = 3 + rand() * 10, r = 0.6 + rand() * 1.5;
-    if (k % 2) { const d = 18 + rand() * 45; v.set(Math.cos(a) * d, 38 - len / 2 - rand() * 6, Math.sin(a) * d); q.copy(down); }
-    else { const d = 34 + rand() * 30; v.set(Math.cos(a) * d, FLOOR + len / 2 - 0.5, Math.sin(a) * d); q.identity(); }
-    spikes.setMatrixAt(k, m4.compose(v, q, s.set(r, len, r)));
-  }
-  scene.add(spikes);
-
-  // ------------------------------------------------------------------ crystals
-  const CRYSTALS = mobile ? 230 : 380;
-  const cGeo = keep(crystalGeo());
-  const cMat = keep(new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false, transparent: true, opacity: 0.93 }));
-  const crystals = new THREE.InstancedMesh(cGeo, cMat, CRYSTALS);
-  crystals.frustumCulled = false;
-  const clusters = []; // { base: Color, from, to, glow, light, x, z, pitch }
-  let n = 0;
-  function cluster(x, y, z, color, count, size) {
-    const base = new THREE.Color(color), from = n;
-    for (let k = 0; k < count && n < CRYSTALS; k++) {
-      const a = rand() * TAU, d = rand() * size * 0.55;
-      q.setFromEuler(new THREE.Euler((rand() - 0.5) * 1.1, rand() * TAU, (rand() - 0.5) * 1.1));
-      const h = size * (0.45 + rand() * 0.9);
-      crystals.setMatrixAt(n, m4.compose(v.set(x + Math.cos(a) * d, y - 0.1, z + Math.sin(a) * d), q, s.set(h * 0.9, h, h * 0.9)));
-      crystals.setColorAt(n, base.clone().multiplyScalar(0.55 + rand() * 0.3));
-      n++;
-    }
-    const c = { base, from, to: n, glow: 0, x, y, z, light: null, shade: [] };
-    for (let i = from; i < n; i++) { const col = new THREE.Color(); crystals.getColorAt(i, col); c.shade.push(col); }
-    clusters.push(c);
-    return c;
-  }
-  // a ring of clusters along the lake shore, bigger ones further back, some up on the walls
-  const SHORE = mobile ? 14 : 20;
-  for (let k = 0; k < SHORE; k++) {
-    const a = (k / SHORE) * TAU + rand() * 0.25, d = LAKE_R + 1 + rand() * 4;
-    cluster(Math.cos(a) * d, FLOOR, Math.sin(a) * d, palette[k % palette.length], 6, 1.1 + rand() * 1.4);
-  }
-  for (let k = 0; k < (mobile ? 9 : 14); k++) {
-    const a = rand() * TAU, d = 26 + rand() * 20;
-    cluster(Math.cos(a) * d, FLOOR + rand() * 2, Math.sin(a) * d, palette[Math.floor(rand() * palette.length)], 9, 3 + rand() * 3);
-  }
-  for (let k = 0; k < (mobile ? 5 : 8); k++) {
-    const a = rand() * TAU, d = 30 + rand() * 25;
-    cluster(Math.cos(a) * d, 20 + rand() * 10, Math.sin(a) * d, palette[Math.floor(rand() * palette.length)], 5, 2 + rand() * 2);
-  }
-  crystals.count = n;
-  scene.add(crystals);
-  // each cluster answers a slice of pitch: low notes light the far, big ones, high notes the shore
-  clusters.forEach((c, k) => { c.pitch = k; });
-  // a few coloured lights so the glow really lights the rock
-  const lights = [];
-  for (let k = 0; k < (mobile ? 3 : 6); k++) {
-    const c = clusters[Math.floor((k / (mobile ? 3 : 6)) * SHORE)];
-    const l = new THREE.PointLight(c.base, 18, 26, 2);
-    l.position.set(c.x, FLOOR + 2.5, c.z);
-    l.userData.base = 18;
-    c.light = l; scene.add(l); lights.push(l);
-  }
-
-  // the crystals' reflection in the lake: the same instances, mirrored about the water line
-  const mirrorMat = keep(new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false }));
-  const mirror = new THREE.InstancedMesh(cGeo, mirrorMat, CRYSTALS);
-  mirror.instanceMatrix = crystals.instanceMatrix; mirror.instanceColor = crystals.instanceColor;
-  mirror.count = n; mirror.frustumCulled = false;
-  mirror.position.y = 2 * FLOOR - 0.02; mirror.scale.y = -1;
-  scene.add(mirror);
-
-  // ------------------------------------------------------------------ the lake
-  const RIPPLES = 8;
-  const lakeU = {
-    uTime: { value: 0 }, uRip: { value: Array.from({ length: RIPPLES }, () => new THREE.Vector4(0, 0, -99, 0)) },
-    uTint: { value: new THREE.Color(palette[1]) }, fogColor: { value: scene.fog.color }, fogDensity: { value: scene.fog.density },
+  // ------------------------------------------------------------------ the tunnel
+  const NL = mobile ? 6 : 10; // crystal lights the rock shader takes
+  const DS = 0.8, RINGS = mobile ? 115 : 150, SEGS = mobile ? 22 : 30, BEHIND = 6;
+  const tunnelU = {
+    uS: { value: 0 }, uPh: { value: new THREE.Vector4(...ph) }, uCam: { value: new THREE.Vector3() },
+    uL: { value: Array.from({ length: NL }, () => new THREE.Vector4()) },
+    uLC: { value: Array.from({ length: NL }, () => new THREE.Color()) },
+    uFog: { value: FOG }, uDensity: { value: scene.fog.density },
   };
-  let ripN = 0;
-  const lakeMat = keep(new THREE.ShaderMaterial({
-    uniforms: lakeU, transparent: true, depthWrite: false,
-    vertexShader: `varying vec3 vW; varying float vDepth;
-      void main(){ vec4 w = modelMatrix * vec4(position,1.); vW = w.xyz; vec4 mv = viewMatrix * w; vDepth = -mv.z; gl_Position = projectionMatrix * mv; }`,
-    fragmentShader: `uniform float uTime; uniform vec4 uRip[${RIPPLES}]; uniform vec3 uTint; uniform vec3 fogColor; uniform float fogDensity;
-      varying vec3 vW; varying float vDepth;
+  const tGeo = keep(new THREE.BufferGeometry());
+  {
+    const pos = [], idx = [];
+    for (let i = 0; i < RINGS; i++) for (let j = 0; j <= SEGS; j++) pos.push(i * DS, (j / SEGS) * TAU, 0);
+    for (let i = 0; i < RINGS - 1; i++) for (let j = 0; j < SEGS; j++) {
+      const a = i * (SEGS + 1) + j, b = a + SEGS + 1;
+      idx.push(a, b, a + 1, b, b + 1, a + 1);
+    }
+    tGeo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    tGeo.setIndex(idx);
+  }
+  const tunnel = new THREE.Mesh(tGeo, keep(new THREE.ShaderMaterial({
+    uniforms: tunnelU, side: THREE.DoubleSide, extensions: { derivatives: true },
+    vertexShader: `${GLSL_PATH}
+      uniform float uS; varying vec3 vW; varying vec2 vSA;
       void main(){
-        vec2 p = vW.xz; float h = 0.;
-        for (int i = 0; i < ${RIPPLES}; i++) {
-          vec4 r = uRip[i]; float age = uTime - r.z;
-          if (age > 0. && age < 9.) {
-            float d = length(p - r.xy), front = age * 1.7;
-            float env = exp(-pow((d - front) * 1.3, 2.)) * r.w * exp(-age * 0.45) / (1. + front * 0.3);
-            h += env * sin((d - front) * 7.);
-          }
+        float s = floor(uS / ${DS.toFixed(2)}) * ${DS.toFixed(2)} - ${BEHIND.toFixed(1)} + position.x;
+        float a = position.y;
+        vec3 T, R, U; frameAt(s, T, R, U);
+        vec3 w = pathAt(s) + (cos(a) * R + sin(a) * U) * wallR(s, a);
+        vW = w; vSA = vec2(s, a);
+        gl_Position = projectionMatrix * viewMatrix * vec4(w, 1.);
+      }`,
+    fragmentShader: `uniform vec3 uCam; uniform vec4 uL[${NL}]; uniform vec3 uLC[${NL}]; uniform vec3 uFog; uniform float uDensity;
+      varying vec3 vW; varying vec2 vSA;
+      void main(){
+        // flat facets from screen-space derivatives give the rock its chiselled look
+        vec3 n = normalize(cross(dFdx(vW), dFdy(vW)));
+        vec3 toCam = uCam - vW; float dc = length(toCam);
+        if (dot(n, toCam) < 0.) n = -n;
+        float grain = .75 + .25 * sin(vSA.x * 1.9 + vSA.y * 7.) * sin(vSA.x * .7 - vSA.y * 3.);
+        vec3 rock = vec3(.075, .08, .11) * grain;
+        // a faint cool light that travels with us, so the walls never vanish
+        vec3 light = vec3(.13, .15, .24) * (.35 + .65 * max(dot(n, toCam / dc), 0.)) / (1. + dc * dc * .012);
+        for (int i = 0; i < ${NL}; i++) {
+          vec3 d = uL[i].xyz - vW; float dist2 = dot(d, d);
+          float lam = .35 + .65 * max(dot(n, d * inversesqrt(dist2)), 0.);
+          light += uLC[i] * uL[i].w * lam / (1. + dist2 * .28);
         }
-        float sh = sin(p.x * .55 + uTime * .23) * sin(p.y * .7 - uTime * .19) + .5 * sin(p.x * 1.3 - p.y * .9 + uTime * .31);
-        float edge = smoothstep(${(LAKE_R - 3).toFixed(1)}, ${LAKE_R.toFixed(1)}, length(p));
-        vec3 col = vec3(.008, .025, .04) + uTint * (.035 + .02 * sh) + uTint * max(h, 0.) * .9 + vec3(.7, .8, 1.) * max(-h, 0.) * .15;
-        float a = mix(.78, .95, edge);
-        float f = 1. - exp(-fogDensity * fogDensity * vDepth * vDepth);
-        gl_FragColor = vec4(mix(col, fogColor, f), a);
+        vec3 col = rock * light * 2.2;
+        float f = 1. - exp(-uDensity * uDensity * dc * dc);
+        gl_FragColor = vec4(mix(col, uFog, f), 1.);
+      }`,
+  })));
+  tunnel.frustumCulled = false;
+  scene.add(tunnel);
+
+  // ------------------------------------------------------------------ crystals on the walls
+  const SLOTS = mobile ? 32 : 46, PER = 7, AHEAD = RINGS * DS - BEHIND - 4;
+  // crystals: lit from within, with facets catching the light as we pass
+  const cU = { uCam: tunnelU.uCam, uFog: { value: FOG }, uDensity: { value: scene.fog.density }, uBright: { value: 1 } };
+  const cMat = keep(new THREE.ShaderMaterial({
+    uniforms: cU, vertexColors: true, extensions: { derivatives: true },
+    vertexShader: `varying vec3 vC; varying vec3 vW; varying float vY;
+      void main(){
+        vec4 w = modelMatrix * instanceMatrix * vec4(position, 1.);
+        vC = color * instanceColor; vW = w.xyz; vY = position.y;
+        gl_Position = projectionMatrix * viewMatrix * w;
+      }`,
+    fragmentShader: `uniform vec3 uCam, uFog; uniform float uDensity, uBright; varying vec3 vC; varying vec3 vW; varying float vY;
+      void main(){
+        vec3 n = normalize(cross(dFdx(vW), dFdy(vW)));
+        vec3 v = uCam - vW; float d = length(v);
+        float facet = abs(dot(n, v / d));
+        vec3 col = vC * uBright * (.45 + 1.1 * facet * facet) + vC * pow(1. - facet, 4.) * .8;
+        float f = 1. - exp(-uDensity * uDensity * d * d);
+        gl_FragColor = vec4(mix(col, uFog, f), 1.);
       }`,
   }));
-  const lake = new THREE.Mesh(keep(new THREE.CircleGeometry(LAKE_R, 64)), lakeMat);
-  lake.rotation.x = -Math.PI / 2; lake.position.y = FLOOR;
-  scene.add(lake);
+  const crystals = new THREE.InstancedMesh(keep(crystalGeo()), cMat, SLOTS * PER);
+  crystals.frustumCulled = false;
+  scene.add(crystals);
+  const clusters = [];
+  const T = new THREE.Vector3(), R = new THREE.Vector3(), U = new THREE.Vector3(), C = new THREE.Vector3(), D = new THREE.Vector3();
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), q2 = new THREE.Quaternion(), v = new THREE.Vector3(), sc = new THREE.Vector3(), Y = new THREE.Vector3(0, 1, 0);
+  const tmpC = new THREE.Color();
+  let farthest = 4;
 
-  // ------------------------------------------------------------------ the shaft of moonlight and its dust
-  const shaftTex = keep((() => {
-    const c = document.createElement('canvas'); c.width = 128; c.height = 256;
-    const g = c.getContext('2d'), gr = g.createLinearGradient(0, 0, 0, 256);
-    gr.addColorStop(0, 'rgba(225,235,255,.7)'); gr.addColorStop(0.7, 'rgba(200,215,255,.2)'); gr.addColorStop(1, 'rgba(200,215,255,0)');
-    g.fillStyle = gr; g.fillRect(0, 0, 128, 256);
-    for (let k = 0; k < 14; k++) { g.fillStyle = `rgba(255,255,255,${0.03 + rand() * 0.04})`; g.fillRect(rand() * 128, 0, 2 + rand() * 6, 256); }
-    return new THREE.CanvasTexture(c);
-  })());
-  const shaftMat = keep(new THREE.MeshBasicMaterial({ map: shaftTex, transparent: true, opacity: 0.07, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false, toneMapped: false }));
-  const shaft = new THREE.Mesh(keep(new THREE.CylinderGeometry(2.5, 6, 40, 32, 1, true)), shaftMat);
-  shaft.position.set(2, 20, -3); shaft.rotation.z = 0.08;
-  scene.add(shaft);
+  function place(k, s) {
+    const cl = clusters[k] ?? (clusters[k] = { shade: [], pos: new THREE.Vector3(), glow: 0, lit: false });
+    // favour the sides and floor a little over the ceiling
+    let a = rand() * TAU;
+    if (Math.sin(a) > 0.6 && rand() < 0.5) a = -a;
+    const big = P.chamber(s) > 0.5 ? 1.6 : Math.min(1, P.wallR(s, a) / 5.2);
+    const size = (0.8 + rand() * 1.1) * big;
+    cl.s = s; cl.a = a; cl.color = palette[Math.floor(rand() * palette.length)]; cl.glow = 0.0; cl.lit = true;
+    P.frameAt(s, T, R, U);
+    for (let i = 0; i < PER; i++) {
+      // each crystal sits on the wall a little apart from its neighbours and points inward
+      const da = (rand() - 0.5) * 0.5 / big, dsI = (rand() - 0.5) * 1.6 * big;
+      const si = s + dsI, ai = a + da;
+      P.frameAt(si, T, R, U);
+      D.copy(R).multiplyScalar(Math.cos(ai)).addScaledVector(U, Math.sin(ai)); // outward
+      P.pathAt(si, C).addScaledVector(D, P.wallR(si, ai) - 0.05);
+      q.setFromUnitVectors(Y, v.copy(D).negate());
+      q2.setFromEuler(new THREE.Euler((rand() - 0.5) * 0.9, rand() * TAU, (rand() - 0.5) * 0.9));
+      q.multiply(q2);
+      const h = size * (0.5 + rand() * (i === 0 ? 1.2 : 0.8));
+      crystals.setMatrixAt(k * PER + i, m4.compose(C, q, sc.set(h * 0.85, h, h * 0.85)));
+      cl.shade[i] = cl.color.clone().multiplyScalar(0.4 + rand() * 0.25);
+      if (i === 0) cl.pos.copy(C).addScaledVector(D, -0.9 * size); // the light sits just off the wall
+    }
+    crystals.instanceMatrix.needsUpdate = true;
+  }
+  for (let k = 0; k < SLOTS; k++) { place(k, farthest); farthest += AHEAD / SLOTS * (0.6 + rand() * 0.8); }
+
+  // ------------------------------------------------------------------ dust and guiding motes
   const dot = keep(softDot());
-  const DUST = mobile ? 180 : 360;
+  const DUST = mobile ? 220 : 400;
   const dustGeo = keep(new THREE.BufferGeometry());
-  const dp = new Float32Array(DUST * 3), dSeed = new Float32Array(DUST);
-  for (let k = 0; k < DUST; k++) { const a = rand() * TAU, d = Math.sqrt(rand()) * 6; dp[k * 3] = 2 + Math.cos(a) * d; dp[k * 3 + 1] = rand() * 22; dp[k * 3 + 2] = -3 + Math.sin(a) * d; dSeed[k] = rand() * TAU; }
+  const dp = new Float32Array(DUST * 3), dS = new Float32Array(DUST);
+  function spawnDust(k, s) {
+    const a = rand() * TAU;
+    P.frameAt(s, T, R, U);
+    D.copy(R).multiplyScalar(Math.cos(a)).addScaledVector(U, Math.sin(a));
+    P.pathAt(s, C).addScaledVector(D, P.wallR(s, a) * Math.sqrt(rand()) * 0.85);
+    dp.set([C.x, C.y, C.z], k * 3); dS[k] = s;
+  }
+  for (let k = 0; k < DUST; k++) spawnDust(k, rand() * 70);
   dustGeo.setAttribute('position', new THREE.BufferAttribute(dp, 3));
-  const dust = new THREE.Points(dustGeo, keep(new THREE.PointsMaterial({ size: 0.09, map: dot, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, color: '#cfdcff', toneMapped: false, opacity: 0.8 })));
+  const dust = new THREE.Points(dustGeo, keep(new THREE.PointsMaterial({ size: 0.05, map: dot, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, color: '#9fb4ff', toneMapped: false, opacity: 0.6 })));
   dust.frustumCulled = false;
   scene.add(dust);
 
-  // ------------------------------------------------------------------ wisps over the water
-  const WISPS = mobile ? 26 : 44;
-  const wGeo = keep(new THREE.BufferGeometry());
-  const wp = new Float32Array(WISPS * 3), wc = new Float32Array(WISPS * 3), wSeed = [];
-  for (let k = 0; k < WISPS; k++) {
-    const col = new THREE.Color(palette[k % palette.length]);
-    wc.set([col.r, col.g, col.b], k * 3);
-    wSeed.push({ a: rand() * TAU, r: 3 + rand() * (LAKE_R + 8), h: 0.8 + rand() * 6, sp: (rand() - 0.5) * 0.05, ph: rand() * TAU });
+  const MOTES = 5;
+  const mGeo = keep(new THREE.BufferGeometry());
+  const mp = new Float32Array(MOTES * 3), mc = new Float32Array(MOTES * 3);
+  const motes = [];
+  for (let k = 0; k < MOTES; k++) {
+    const col = palette[k % palette.length];
+    mc.set([col.r, col.g, col.b], k * 3);
+    motes.push({ ahead: 9 + k * 3.5, a: rand() * TAU, r: 0.3 + rand() * 0.4, ph: rand() * TAU });
   }
-  wGeo.setAttribute('position', new THREE.BufferAttribute(wp, 3));
-  wGeo.setAttribute('color', new THREE.BufferAttribute(wc, 3));
-  const wisps = new THREE.Points(wGeo, keep(new THREE.PointsMaterial({ size: 0.55, map: dot, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false })));
-  wisps.frustumCulled = false;
-  scene.add(wisps);
+  mGeo.setAttribute('position', new THREE.BufferAttribute(mp, 3));
+  mGeo.setAttribute('color', new THREE.BufferAttribute(mc, 3));
+  const moteMesh = new THREE.Points(mGeo, keep(new THREE.PointsMaterial({ size: 0.5, map: dot, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false })));
+  moteMesh.frustumCulled = false;
+  scene.add(moteMesh);
 
-  // ------------------------------------------------------------------ motion
-  const cam = { a: rand() * TAU, r: 25 };
-  const look = new THREE.Vector3();
-  const tmpC = new THREE.Color();
+  // ------------------------------------------------------------------ motion and music
+  let s = 0, speed = 4;
+  const look = new THREE.Vector3(), camPos = new THREE.Vector3();
 
-  function flash(c, amount) { c.glow = Math.min(1.6, c.glow + amount); }
-
-  function onEvent(ev, t) {
+  function onEvent(ev) {
     if (ev.type === 'bell') {
-      // map pitch to a cluster so a melody walks around the cavern
-      const k = Math.abs(Math.floor(ev.midi * 7.3)) % clusters.length;
-      flash(clusters[k], 1);
-      flash(clusters[(k + 1) % clusters.length], 0.3);
+      // a cluster ahead, on the side the bell sounded from, flares up
+      const target = Math.PI / 2 * (1 - ev.pan) + ((ev.midi % 5) - 2) * 0.25;
+      let best = null, bestScore = Infinity;
+      for (const c of clusters) {
+        const ds = c.s - s;
+        if (ds < 5 || ds > 40) continue;
+        let da = Math.abs(((c.a - target) % TAU + TAU) % TAU); da = Math.min(da, TAU - da);
+        const score = da + ds * 0.02 + c.glow * 2;
+        if (score < bestScore) { bestScore = score; best = c; }
+      }
+      if (best) best.glow = Math.min(1.6, best.glow + 1);
     } else if (ev.type === 'drip') {
-      const a = ev.x * TAU, d = Math.sqrt((ev.x * 7.13) % 1) * (LAKE_R - 3);
-      lakeU.uRip.value[ripN++ % RIPPLES].set(Math.cos(a) * d, Math.sin(a) * d, t, 0.6);
+      const c = clusters[Math.floor(ev.x * clusters.length)];
+      if (c && c.s > s) c.glow = Math.min(1.6, c.glow + 0.3);
     } else if (ev.type === 'chord') {
-      for (const c of clusters) if (c.light) flash(c, 0.25);
+      for (const c of clusters) if (c.s > s && c.s < s + 25) c.glow = Math.min(1.6, c.glow + 0.12);
     }
   }
 
+  const lightPick = [];
   function update(t, dt, st) {
-    const calm = 0.55 + 0.45 * st.energy;
-    lakeU.uTime.value = t;
-    // the camera drifts round the lake, rising and falling a little
-    cam.a += dt * 0.018 * calm;
-    const r = cam.r + Math.sin(t * 0.021) * 4;
-    camera.position.set(Math.cos(cam.a) * r, FLOOR + 3.2 + Math.sin(t * 0.05) * 1.4, Math.sin(cam.a) * r);
-    look.set(Math.cos(cam.a + 2.4) * 6, FLOOR + 2.4 + Math.sin(t * 0.037) * 0.8, Math.sin(cam.a + 2.4) * 6);
-    camera.lookAt(look);
+    speed += ((2.2 + 3.6 * st.energy) - speed) * Math.min(1, dt * 0.3);
+    s += speed * dt;
+    tunnelU.uS.value = s;
 
-    // crystals glow when the bells ring, and fade back
+    // the camera rides the path, swaying gently, rolling into the bends
+    P.frameAt(s, T, R, U);
+    P.pathAt(s, camPos).addScaledVector(R, Math.sin(t * 0.13) * 0.7).addScaledVector(U, Math.sin(t * 0.09) * 0.45 - 0.3);
+    camera.position.copy(camPos);
+    P.pathAt(s + 11, look);
+    camera.up.set(0, 1, 0);
+    camera.lookAt(look);
+    const bend = P.pathAt(s + 9, v).x - 2 * camPos.x + P.pathAt(s - 9, C).x;
+    camera.rotateZ(Math.max(-0.25, Math.min(0.25, -bend * 0.03)));
+    tunnelU.uCam.value.copy(camPos);
+
+    // recycle clusters that are behind us to the far end
+    for (let k = 0; k < clusters.length; k++) {
+      if (clusters[k].s < s - BEHIND + 1) { place(k, farthest); farthest += AHEAD / SLOTS * (0.6 + rand() * 0.8); }
+    }
+    if (farthest < s + AHEAD - 10) farthest = s + AHEAD - 10;
+
+    // glow fades; crystals brighten with it
     let dirty = false;
-    for (const c of clusters) {
-      if (c.glow < 0.002 && !c.lit) continue;
-      c.glow *= Math.exp(-dt * 0.9);
+    for (let k = 0; k < clusters.length; k++) {
+      const c = clusters[k];
+      if (!c.lit && c.glow < 0.002) continue;
+      c.glow *= Math.exp(-dt * 0.8);
       c.lit = c.glow >= 0.002;
-      const boost = 1 + c.glow * 2.6;
-      for (let i = c.from; i < c.to; i++) crystals.setColorAt(i, tmpC.copy(c.shade[i - c.from]).multiplyScalar(boost));
-      if (c.light) c.light.intensity = c.light.userData.base * (1 + c.glow * 2.2);
+      const boost = 1 + c.glow * 2.8;
+      for (let i = 0; i < PER; i++) crystals.setColorAt(k * PER + i, tmpC.copy(c.shade[i]).multiplyScalar(boost));
       dirty = true;
     }
     if (dirty) crystals.instanceColor.needsUpdate = true;
-    cMat.color.setScalar(0.85 + 0.15 * Math.sin(t * 0.25));
-    shaftMat.opacity = 0.055 + 0.02 * Math.sin(t * 0.3);
+    cU.uBright.value = 0.85 + 0.15 * Math.sin(t * 0.3);
 
-    const p = dustGeo.attributes.position;
-    for (let k = 0; k < DUST; k++) {
-      let y = p.getY(k) - dt * 0.1;
-      if (y < 0) y = 22;
-      p.setY(k, y);
-      p.setX(k, p.getX(k) + Math.sin(t * 0.3 + dSeed[k]) * dt * 0.06);
+    // the rock is lit by the clusters nearest ahead, the flaring ones first
+    lightPick.length = 0;
+    for (const c of clusters) { const ds = c.s - s; if (ds > -3 && ds < 45) lightPick.push(c); }
+    lightPick.sort((a, b) => (a.s - s) * 0.05 - a.glow * 3 - ((b.s - s) * 0.05 - b.glow * 3));
+    for (let i = 0; i < NL; i++) {
+      const c = lightPick[i];
+      if (c) { tunnelU.uL.value[i].set(c.pos.x, c.pos.y, c.pos.z, 0.45 + c.glow * 3.4); tunnelU.uLC.value[i].copy(c.color); }
+      else tunnelU.uL.value[i].w = 0;
     }
-    p.needsUpdate = true;
-    for (let k = 0; k < WISPS; k++) {
-      const w = wSeed[k];
-      w.a += w.sp * dt * calm;
-      const rr = w.r + Math.sin(t * 0.13 + w.ph) * 2;
-      wp[k * 3] = Math.cos(w.a) * rr; wp[k * 3 + 1] = FLOOR + w.h + Math.sin(t * 0.4 + w.ph) * 0.5; wp[k * 3 + 2] = Math.sin(w.a) * rr;
+
+    // dust behind us is sprinkled again further ahead
+    for (let k = 0; k < DUST; k++) if (dS[k] < s - 2) spawnDust(k, s + 8 + rand() * 60);
+    dustGeo.attributes.position.needsUpdate = true;
+    for (let k = 0; k < MOTES; k++) {
+      const m = motes[k], ms = s + m.ahead + Math.sin(t * 0.21 + m.ph) * 2;
+      P.frameAt(ms, T, R, U);
+      const a = m.a + Math.sin(t * 0.15 + m.ph) * 1.2, r = P.wallR(ms, a) * m.r;
+      P.pathAt(ms, C).addScaledVector(R, Math.cos(a) * r).addScaledVector(U, Math.sin(a) * r);
+      mp.set([C.x, C.y, C.z], k * 3);
     }
-    wGeo.attributes.position.needsUpdate = true;
+    mGeo.attributes.position.needsUpdate = true;
   }
 
   return {
-    scene, camera, update, onEvent,
-    look: { toneMapping: THREE.ACESFilmicToneMapping, exposure: 1.1, bloom: [0.85, 0.55, 0.6] },
-    dispose() { for (const d of disposables) d.dispose?.(); spikes.dispose(); crystals.dispose(); lights.forEach((l) => l.dispose()); },
+    scene, camera, update, onEvent, portraitFov: 78,
+    look: { toneMapping: THREE.ACESFilmicToneMapping, exposure: 1.0, bloom: [0.85, 0.5, 0.55] },
+    dispose() { for (const d of disposables) d.dispose?.(); crystals.dispose(); },
   };
 }

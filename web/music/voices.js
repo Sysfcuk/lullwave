@@ -29,7 +29,7 @@ export function bell(A, ch, t, m, vel = 0.2, pan = 0, decay = 5) {
   const { ac } = A, f = mtof(m), dest = panned(A, ch, pan);
   const parts = [[1, 1, 1], [2, 0.3, 0.55], [2.76, 0.22, 0.4], [5.4, 0.07, 0.2], [8.93, 0.03, 0.1]];
   for (const [ratio, amp, life] of parts) {
-    if (f * ratio > 15000) continue;
+    if (f * ratio > Math.min(15000, ac.sampleRate * 0.45)) continue;
     const o = ac.createOscillator(), g = ac.createGain();
     o.frequency.value = f * ratio * (1 + (Math.random() - 0.5) * 0.002);
     const d = decay * life;
@@ -75,7 +75,7 @@ export function padChord(A, ch, t, notes, dur, opts = {}) {
       o.type = type;
       o.frequency.value = mtof(m);
       o.detune.value = voices === 1 ? 0 : (v / (voices - 1) - 0.5) * 2 * spread + (Math.random() - 0.5) * 3;
-      if (wobble) { wobble.connect(o.detune); o.onended = () => { try { wobble.disconnect(o.detune); } catch { /* already gone */ } }; }
+      if (wobble) wobble.connect(o.detune); // chunks are offline and thrown away whole, so no cleanup needed
       o.connect(filter);
       o.start(t); o.stop(end);
     }
