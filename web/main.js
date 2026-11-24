@@ -44,6 +44,8 @@ const S = {
   warm: store.get('warm', false),
   route: store.get('route3', 'direct'),
   stats: store.get('stats', false),
+  breathe: store.get('breathe', 0),
+  favs: store.get('favs', []),
   mix: { music: 0.8, rain: 0, waves: 0, pink: 0, brown: 0, ...store.get('mix', {}) },
 };
 function newSeed() { return 1 + Math.floor(Math.random() * 9999); }
@@ -63,10 +65,43 @@ function showWorld(animate = true) {
   };
   if (animate) { $('sceneName').classList.add('swap'); setTimeout(apply, 250); } else apply();
   $('seedLabel').textContent = '#' + S.seed;
+  paintFav();
   [...$('dots').children].forEach((d, k) => d.classList.toggle('on', k === S.world));
   view.setScene(w.id, S.seed);
   store.set('world', S.world); store.set('seed', S.seed);
 }
+
+// ------------------------------------------------------------------ favourites: worlds and variations worth keeping
+const isFav = () => S.favs.some((f) => f.w === WORLDS[S.world].id && f.s === S.seed);
+function paintFav() {
+  const on = isFav();
+  $('fav').classList.toggle('on', on); $('fav').setAttribute('aria-pressed', on);
+  $('favList').classList.toggle('hidden', !S.favs.length);
+  $('favCount').textContent = S.favs.length;
+}
+$('fav').onclick = () => {
+  const w = WORLDS[S.world].id;
+  if (isFav()) S.favs = S.favs.filter((f) => !(f.w === w && f.s === S.seed));
+  else { S.favs.unshift({ w, s: S.seed }); toast('Saved to favourites'); }
+  store.set('favs', S.favs); paintFav();
+};
+function renderFavs() {
+  const box = $('favItems'); box.innerHTML = '';
+  for (const f of S.favs) {
+    const k = WORLDS.findIndex((w) => w.id === f.w);
+    if (k < 0) continue;
+    const row = document.createElement('div'); row.className = 'fav-item';
+    const go = document.createElement('button'); go.className = 'go';
+    go.innerHTML = `${WORLDS[k].name}<small>#${f.s}</small>`;
+    go.onclick = () => { S.world = k; S.seed = f.s; showWorld(); $('favSheet').classList.add('hidden'); };
+    const x = document.createElement('button'); x.className = 'x'; x.textContent = '\u00d7'; x.setAttribute('aria-label', 'Remove');
+    x.onclick = () => { S.favs = S.favs.filter((g) => g !== f); store.set('favs', S.favs); paintFav(); if (!S.favs.length) $('favSheet').classList.add('hidden'); else renderFavs(); };
+    row.append(go, x); box.appendChild(row);
+  }
+}
+$('favList').onclick = () => { renderFavs(); $('favSheet').classList.remove('hidden'); };
+$('favClose').onclick = () => $('favSheet').classList.add('hidden');
+$('favSheet').onclick = (e) => { if (e.target === $('favSheet')) $('favSheet').classList.add('hidden'); };
 
 // ------------------------------------------------------------------ home UI
 function chips(el, items, isOn, onPick) {
@@ -129,6 +164,7 @@ $('customRow').classList.toggle('hidden', S.timer !== 'custom');
 $('customBtn').classList.toggle('on', S.timer === 'custom');
 $('customMin').value = S.custom;
 $('customMin').oninput = () => { S.custom = +$('customMin').value || 0; store.set('custom', S.custom); updateStart(); };
+chips($('breatheSet'), [[0, 'Off'], [2, '2m'], [5, '5m']], (v) => v === S.breathe, (v) => { S.breathe = v; store.set('breathe', v); });
 chips($('fade'), FADES, (v) => v === S.fade, (v) => { S.fade = v; store.set('fade', v); });
 chips($('route'), [['direct', 'Direct'], ['stream', 'Stream']], (v) => v === S.route, (v) => { S.route = v; store.set('route3', v); engine.setRoute(v); });
 // audio stats, for testing on a phone
@@ -190,6 +226,7 @@ function startSession() {
   showControls();
   setupMediaSession(w);
   lockScreenOn(true);
+  startBreathing();
   if (isBrave && !store.get('braveTip', false)) { store.set('braveTip', true); toast('Brave: turn on Settings → Media → Background play so the sound keeps going when the screen is off.'); }
 }
 
@@ -198,6 +235,7 @@ function endSession(finished) {
     $('ended').classList.add('show');
     view.stop();
     lockScreenOn(false);
+    stopBreathing();
     mode = 'ended';
     return;
   }
@@ -207,6 +245,7 @@ function endSession(finished) {
 
 function backHome() {
   mode = 'home';
+  stopBreathing();
   $('ended').classList.remove('show');
   $('session').classList.remove('show');
   $('home').classList.remove('away');
@@ -295,6 +334,37 @@ setInterval(() => {
   $('dim').style.opacity = dimLevel.toFixed(3);
   if (dimLevel > 0.985 && view.running) { view.stop(); lockScreenOn(false); }
 }, 250);
+
+// ------------------------------------------------------------------ the breathing guide
+// Six breaths a minute with a longer out-breath (4 s in, 6 s out). It follows the session's clock,
+// so it pauses with the music, and fades away once its few minutes are up.
+let breatheRaf = 0, breatheWord = '';
+const IN = 4, OUT = 6;
+function startBreathing() {
+  stopBreathing();
+  if (!S.breathe) return;
+  const until = S.breathe * 60;
+  const tick = () => {
+    breatheRaf = requestAnimationFrame(tick);
+    const el = engine.elapsed();
+    if (el > until) { stopBreathing(); return; }
+    const c = el % (IN + OUT);
+    const inhale = c < IN;
+    const k = inhale ? c / IN : 1 - (c - IN) / OUT;
+    const ease = 0.5 - 0.5 * Math.cos(Math.PI * k);
+    $('breatheRing').style.transform = `scale(${(0.55 + 0.45 * ease).toFixed(4)})`;
+    const word = inhale ? 'in' : 'out';
+    if (word !== breatheWord) { breatheWord = word; $('bIn').style.opacity = inhale ? 1 : 0; $('bOut').style.opacity = inhale ? 0 : 1; }
+    // fade in over the first few seconds, step back while the controls are up, soften at the end
+    const show = Math.min(1, el / 3, (until - el) / 10);
+    $('breathe').style.opacity = ($('session').classList.contains('show') ? 0.25 : 1) * show;
+  };
+  tick();
+}
+function stopBreathing() {
+  cancelAnimationFrame(breatheRaf); breatheRaf = 0; breatheWord = '';
+  $('breathe').style.opacity = 0;
+}
 
 // ------------------------------------------------------------------ install
 let deferredPrompt = null;

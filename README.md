@@ -27,6 +27,8 @@ Every session has a **variation** number (the seed): the same number gives the s
 
 - Sleep timer: 15 to 90 minutes, no timer, or a custom length; +15 minutes mid-session.
 - Ambience mixer: music, rain, waves, pink noise and brown noise, each with its own level.
+- Breathing guide (optional): a soft ring for the first 2 or 5 minutes, six breaths a minute with a longer out-breath.
+- Favourites: tap the heart to keep a world and variation you liked, and pick it again from the list.
 - The screen dims gently, then fades to black after a set time (5, 15 or 30 minutes, or never) and lets the phone sleep;
   the sound keeps playing. A warm-screen filter cuts blue light.
 - Lock-screen controls (Media Session), offline support (service worker), installable PWA.
