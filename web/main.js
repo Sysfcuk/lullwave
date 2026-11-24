@@ -32,6 +32,7 @@ const WORLDS = [
   { id: 'lost', group: 1, name: 'Lost on the Trail', tag: 'A hiker follows a glowing map line round a starlit wood, past signposts that cannot agree.' },
   { id: 'stardome', group: 1, name: 'The Stardome', tag: 'A glowing stage far below a vast starry sky. Soft beams sweep and lanterns rise.' },
   { id: 'bakery', group: 1, name: 'The Great Bread Bake', tag: 'Fresh loaves steam on the racks and flour drifts like snow, while the bakery cat sleeps by the oven.' },
+  { id: 'fever', group: 1, name: 'Pineapple Fever Dream', tag: 'A giant pineapple snoozes on an endless rolling checkerboard, while pineapples drift by under a pineapple moon.' },
 ];
 const GROUPS = ['Original worlds', 'Dream scenes'];
 // each world's colours, used across the interface
@@ -40,7 +41,7 @@ const THEMES = {
   rain: ['#ff7ab8', '#7ad7ff'], space: ['#c7a6ff', '#ffb38a'], eventing: ['#ffc58a', '#bde07a'], cotswold: ['#f2cf8c', '#a8d48a'], disco: ['#ff8fd8', '#8fe8ff'],
   meadow: ['#b8d8ff', '#c9f08a'], estate: ['#e9d29a', '#a8c8ff'], woolpack: ['#ffb27a', '#f2d08c'], canal: ['#a8c4ff', '#9fe0c8'], stables: ['#ffbf7a', '#d8b48a'],
   market: ['#ffd27a', '#ff8a8a'], trail: ['#ffc48a', '#9fd88a'], choir: ['#a8b8ff', '#ffd08a'], penny: ['#ffb070', '#d8c0a8'], pizza: ['#ff9a6a', '#f2e07a'],
-  lost: ['#8affb0', '#ff8a9a'], stardome: ['#ff8ae0', '#b39aff'], bakery: ['#ffcf8a', '#f2e6d0'],
+  lost: ['#8affb0', '#ff8a9a'], stardome: ['#ff8ae0', '#b39aff'], bakery: ['#ffcf8a', '#f2e6d0'], fever: ['#ffd84a', '#ff8ad0'],
 };
 const TIMERS = [15, 30, 45, 60, 90, 0];
 const FADES = [[5, '5m'], [15, '15m'], [30, '30m'], [0, 'Never']];

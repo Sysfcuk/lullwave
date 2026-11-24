@@ -14,5 +14,6 @@ export const PROFILES = {
   pizza: { mode: 'major', bpm: [56, 68], pad: 'strings', lead: 'mandolin', arp: true, ambience: { fire: 0.016, crackle: 1, murmur: 0.012 }, level: 1.2 },
   lost: { mode: 'dorian', bpm: [48, 58], pad: 'glass', lead: 'flute', ambience: { crickets: 1, owl: 1.2, wind: 0.02, steps: 0.5 }, level: 0.9 },
   stardome: { mode: 'lydian', bpm: [56, 70], pad: 'glass', lead: 'epiano', arp: true, beatsPerChord: 8, ambience: { wind: 0.01 }, level: 0.95 },
+  fever: { mode: 'lydian', bpm: [48, 58], pad: 'glass', lead: 'musicbox', arp: true, beatsPerChord: 8, verb: 1, ambience: { wind: 0.012, crickets: 0.4, gust: 0.4 }, level: 0.9 },
   bakery: { mode: 'major', bpm: [50, 60], pad: 'organ', lead: 'pluck', arp: true, ambience: { fire: 0.014, crackle: 0.9, birds: 0.5, room: 0.015 } },
 };

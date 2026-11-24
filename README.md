@@ -25,7 +25,7 @@ closes, and in the last stretch of the timer everything fades out.
 
 ### Dream scenes
 
-Thirteen smaller, cosier worlds: whimsical, slow and a little surreal. They share one ambient composer
+Fourteen smaller, cosier worlds: whimsical, slow and a little surreal. They share one ambient composer
 (`web/music/ambient.js`), each with its own profile in `web/music/profiles.js`: key and mode, pad, a lead that
 plays a new little tune each time, and a bed of sounds for the place (crickets, owls, water, a fire, a pub's
 murmur, footsteps, horses, ducks, a purring cat). It all thins out as the night goes on.
@@ -44,6 +44,7 @@ murmur, footsteps, horses, ducks, a purring cat). It all thins out as the night 
 | **The Pineapple Pizza Incident** | A pizzeria after closing: the oven glows, the chef kneads, the sign says no pineapple. A pineapple appears anyway, and sometimes one rolls across the floor. | Mandolin and strings; the oven crackling, a low murmur. |
 | **Lost on the Trail** | A hiker following a glowing map route round a starlit wood, past signposts that disagree; now and then they stop and scratch their head. | Glass pads and flute; crickets, owls, footsteps. |
 | **The Stardome** | A glowing stage far below a vast starry sky, soft beams sweeping slowly, lanterns rising, stars swelling with each chord. | Dreamy electric piano and arpeggios. |
+| **Pineapple Fever Dream** | The dream after the pizzeria: a giant pineapple fast asleep (Zs drifting up) on a checkerboard that rolls gently away for ever, under a pineapple-ring moon and a sky whose colours slowly wander; pineapples, rings and pineapple pizza slices tumble past, and the old NO PINEAPPLE sign floats by. | A lydian music box over glass pads and a gentle harp; soft wind, a few crickets. |
 | **The Great Bread Bake** | A village bakery in the small hours: the oven glows, loaves steam on the racks (a fresh one appears now and then), flour drifts like snow, a cat sleeps by the oven. | Organ and harp; the oven crackling, early birds. |
 
 The dream scenes are built from a shared kit: `web/scenes/kit.js` (stage, skies, terrain, water, buildings,
