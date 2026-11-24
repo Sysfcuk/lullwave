@@ -28,8 +28,12 @@ import { createSpace } from './music/space.js';
 import { createDisco } from './music/disco.js';
 import { createEventing } from './music/eventing.js';
 import { createCotswold } from './music/cotswold.js';
+import { createAmbient } from './music/ambient.js';
+import { PROFILES } from './music/profiles.js';
 
 const COMPOSERS = { cave: createCave, drive: createDrive, ocean: createOcean, aurora: createAurora, rain: createRain, space: createSpace, disco: createDisco, eventing: createEventing, cotswold: createCotswold };
+// the dream worlds share one ambient composer, each with its own profile
+for (const id of Object.keys(PROFILES)) COMPOSERS[id] = (o) => createAmbient(PROFILES[id], o);
 const CHUNK = 20;           // seconds of notes per chunk
 const TAIL = 24;            // extra seconds for notes, reverb and echoes to ring out (longest pad ~15 s + reverb)
 const AHEAD = 50;           // keep this much music rendered ahead (seconds)

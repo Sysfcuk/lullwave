@@ -18,11 +18,29 @@ const WORLDS = [
   { id: 'eventing', name: 'Cross Country', tag: 'Ride a cross-country course at sunset between your horse\u2019s ears. The canter eases to a walk.' },
   { id: 'cotswold', name: 'Cotswold Valley', tag: 'An evening walk above a steep valley of beech woods and honey-stone cottages, as the lights come on.' },
   { id: 'disco', name: 'Disco Cat', tag: 'A rainbow cat grooves under the mirror ball, then curls up and drifts off to a lullaby.' },
+  // the dream scenes: little worlds to drift off in
+  { id: 'meadow', group: 1, name: 'ET’s Midnight Meadow', tag: 'A horse grazes under a huge moon in a meadow full of fireflies. An owl calls from the oaks.' },
+  { id: 'estate', group: 1, name: 'The Rivals Estate', tag: 'A grand manor by moonlight, with a fountain, a striped lawn and a flamingo drifting on the pool.' },
+  { id: 'woolpack', group: 1, name: 'The Woolpack at Dusk', tag: 'A village pub glows in the dale at dusk. Chimney smoke curls, the sign creaks, the fire crackles.' },
+  { id: 'canal', group: 1, name: 'The Moonlit Canal', tag: 'A narrowboat drifts past willows and sleeping ducks under a big silver moon.' },
+  { id: 'stables', group: 1, name: 'The Midnight Stables', tag: 'Horses doze over their doors by lantern light. The yard cat sleeps on the hay.' },
+  { id: 'market', group: 1, name: 'The Christmas Market', tag: 'Snow falls on glowing stalls and a twinkling tree in a little market square.' },
+  { id: 'trail', group: 1, name: 'The Endless Hiking Trail', tag: 'Follow a small hiker along a path that never ends, towards mountains rising from a golden haze.' },
+  { id: 'choir', group: 1, name: 'The Midnight Choir', tag: 'Candlelight and stained glass in an old stone church, while a small choir sings softly.' },
+  { id: 'penny', group: 1, name: 'Penny’s Night Patrol', tag: 'Penny the cat does her rounds of a cosy sitting room, leaving glowing paw prints behind her.' },
+  { id: 'pizza', group: 1, name: 'The Pineapple Pizza Incident', tag: 'The oven glows, the chef kneads, and the sign says no pineapple. And yet.' },
+  { id: 'lost', group: 1, name: 'Lost on the Trail', tag: 'A hiker follows a glowing map line round a starlit wood, past signposts that cannot agree.' },
+  { id: 'stardome', group: 1, name: 'The Stardome', tag: 'A glowing stage far below a vast starry sky. Soft beams sweep and lanterns rise.' },
+  { id: 'bakery', group: 1, name: 'The Great Bread Bake', tag: 'Fresh loaves steam on the racks and flour drifts like snow, while the bakery cat sleeps by the oven.' },
 ];
+const GROUPS = ['Original worlds', 'Dream scenes'];
 // each world's colours, used across the interface
 const THEMES = {
   cave: ['#b9a4ff', '#7ee8ff'], drive: ['#ff6fd0', '#ffb36b'], ocean: ['#6fd0ff', '#7affc4'], aurora: ['#7dffb5', '#b48cff'],
   rain: ['#ff7ab8', '#7ad7ff'], space: ['#c7a6ff', '#ffb38a'], eventing: ['#ffc58a', '#bde07a'], cotswold: ['#f2cf8c', '#a8d48a'], disco: ['#ff8fd8', '#8fe8ff'],
+  meadow: ['#b8d8ff', '#c9f08a'], estate: ['#e9d29a', '#a8c8ff'], woolpack: ['#ffb27a', '#f2d08c'], canal: ['#a8c4ff', '#9fe0c8'], stables: ['#ffbf7a', '#d8b48a'],
+  market: ['#ffd27a', '#ff8a8a'], trail: ['#ffc48a', '#9fd88a'], choir: ['#a8b8ff', '#ffd08a'], penny: ['#ffb070', '#d8c0a8'], pizza: ['#ff9a6a', '#f2e07a'],
+  lost: ['#8affb0', '#ff8a9a'], stardome: ['#ff8ae0', '#b39aff'], bakery: ['#ffcf8a', '#f2e6d0'],
 };
 const TIMERS = [15, 30, 45, 60, 90, 0];
 const FADES = [[5, '5m'], [15, '15m'], [30, '30m'], [0, 'Never']];
@@ -225,6 +243,7 @@ function syncMixers() { for (const m of mixers) for (const k in m) { m[k].r.valu
 function openGallery() {
   const grid = $('gGrid'); grid.innerHTML = '';
   WORLDS.forEach((w, k) => {
+    if (k === 0 || (w.group || 0) !== (WORLDS[k - 1].group || 0)) { const h = document.createElement('div'); h.className = 'g-sec'; h.textContent = GROUPS[w.group || 0]; grid.appendChild(h); }
     const card = document.createElement('button');
     card.className = 'g-card' + (k === S.world ? ' on' : '');
     card.style.backgroundImage = `url(thumbs/${w.id}.jpg)`;

@@ -15,7 +15,7 @@ export function makeSky(U) {
       float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f); return mix(mix(h2(i), h2(i + vec2(1, 0)), f.x), mix(h2(i + vec2(0, 1)), h2(i + vec2(1, 1)), f.x), f.y); }
       void main(){
         vec3 d = normalize(vDir); float y = d.y;
-        vec3 col = mix(uHorizonCol, uZenithCol, smoothstep(-.02, .5, y));
+        vec3 col = mix(uHorizonCol, uZenithCol, pow(smoothstep(-.04, .95, y), .7));
         float sd = max(dot(d, normalize(uSunDir)), 0.);
         col += uSunCol * (pow(sd, 900.) * 3. + pow(sd, 18.) * .35 + pow(sd, 4.) * .12) * smoothstep(-.06, .02, y);
         // wisps of cloud catching the light

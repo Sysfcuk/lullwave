@@ -15,8 +15,22 @@ import { createSpaceScene } from './scenes/space.js';
 import { createDiscoScene } from './scenes/disco.js';
 import { createEventingScene } from './scenes/eventing.js';
 import { createCotswoldScene } from './scenes/cotswold.js';
+import { createMeadowScene } from './scenes/dream/meadow.js';
+import { createEstateScene } from './scenes/dream/estate.js';
+import { createWoolpackScene } from './scenes/dream/woolpack.js';
+import { createCanalScene } from './scenes/dream/canal.js';
+import { createStablesScene } from './scenes/dream/stables.js';
+import { createMarketScene } from './scenes/dream/market.js';
+import { createTrailScene } from './scenes/dream/trail.js';
+import { createChoirScene } from './scenes/dream/choir.js';
+import { createPennyScene } from './scenes/dream/penny.js';
+import { createPizzaScene } from './scenes/dream/pizza.js';
+import { createLostScene } from './scenes/dream/lost.js';
+import { createStardomeScene } from './scenes/dream/stardome.js';
+import { createBakeryScene } from './scenes/dream/bakery.js';
 
-const SCENES = { cave: createCaveScene, drive: createDriveScene, ocean: createOceanScene, aurora: createAuroraScene, rain: createRainScene, space: createSpaceScene, disco: createDiscoScene, eventing: createEventingScene, cotswold: createCotswoldScene };
+const SCENES = { cave: createCaveScene, drive: createDriveScene, ocean: createOceanScene, aurora: createAuroraScene, rain: createRainScene, space: createSpaceScene, disco: createDiscoScene, eventing: createEventingScene, cotswold: createCotswoldScene,
+  meadow: createMeadowScene, estate: createEstateScene, woolpack: createWoolpackScene, canal: createCanalScene, stables: createStablesScene, market: createMarketScene, trail: createTrailScene, choir: createChoirScene, penny: createPennyScene, pizza: createPizzaScene, lost: createLostScene, stardome: createStardomeScene, bakery: createBakeryScene };
 
 // The finishing pass, after tone mapping: a little chromatic aberration towards the edges, a
 // vignette, and fine animated grain, which also dithers away the banding that dark gradients
@@ -114,6 +128,7 @@ export function createRenderer(canvas, { mobile }) {
 
   return {
     setScene,
+    register(id, factory) { SCENES[id] = factory; },
     get active() { return active; },
     start() { if (running) return; running = true; last = performance.now(); raf = requestAnimationFrame(frame); },
     stop() { running = false; cancelAnimationFrame(raf); },
@@ -122,5 +137,6 @@ export function createRenderer(canvas, { mobile }) {
     setState(s) { state = { ...state, ...s }; },
     setEvents(src, clock) { eventSource = src; audioTime = clock; },
     snapshot() { composer.render(0); return canvas.toDataURL('image/png'); },
+    get memory() { return { ...renderer.info.memory, programs: renderer.info.programs?.length }; },
   };
 }

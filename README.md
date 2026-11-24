@@ -23,6 +23,34 @@ closes, and in the last stretch of the timer everything fades out.
 | **Cross Country** | Riding a cross-country course at sunset, seen between your horse's ears: logs, rails, brush fences and roll-tops flagged red and white, hedgerows and oaks. The canter eases to a walk round the fences as the sun sets and the stars come out. | Pastoral folk in a lilting 6/8: plucked arpeggios, strings, a flute with a new tune each time, soft hoofbeats in a canter rhythm, evening birds. |
 | **Cotswold Valley** | An evening walk high on the side of a steep valley (inspired by the Laurie Lee walk around Slad): beech woods, dry-stone walls, sheep, a stream, and a village of honey-stone cottages whose windows light up at dusk; glow-worms and stars under moonlight. | English pastoral strings, a wandering folk flute, blackbirds and a thrush, the stream, a church bell across the valley, a tawny owl after dark. |
 
+### Dream scenes
+
+Thirteen smaller, cosier worlds: whimsical, slow and a little surreal. They share one ambient composer
+(`web/music/ambient.js`), each with its own profile in `web/music/profiles.js`: key and mode, pad, a lead that
+plays a new little tune each time, and a bed of sounds for the place (crickets, owls, water, a fire, a pub's
+murmur, footsteps, horses, ducks, a purring cat). It all thins out as the night goes on.
+
+| Scene | What you see | What you hear |
+| --- | --- | --- |
+| **ET's Midnight Meadow** | A horse grazing in long moonlit grass under a huge moon; fireflies, oaks, a lantern on the stable. | Strings and a flute; crickets, an owl, a soft nicker now and then (and the horse looks up). |
+| **The Rivals Estate** | A grand manor by moonlight: portico, a fountain with a gilded horse, a striped lawn, a flamingo float drifting on the pool, a tennis court. | Lydian strings and harp; a fountain, crickets, a far-off owl. |
+| **The Woolpack at Dusk** | A village pub in a dale at dusk: lit windows, chimney smoke, a creaking sign, picnic tables, a footpath up the hill. | Folk organ and flute; a murmur of voices, a crackling fire, evening birds. |
+| **The Moonlit Canal** | A narrowboat (*The Dormouse*) drifting along a canal under a big moon, past willows, a hump bridge and sleeping ducks. | Glass pads and bells; lapping water, a sleepy quack. |
+| **The Midnight Stables** | Horses dozing over their half-doors by lantern light; moonlight shafts and dust; the yard cat asleep on the hay. | Dorian strings and flute; snorts and nickers, wind round the roof. |
+| **The Christmas Market** | Snow on glowing stalls, fairy lights, wreaths and swaying stars, steam, a tree twinkling in the square. | A music box and strings; distant sleigh bells, a church bell, footsteps in snow. |
+| **The Endless Hiking Trail** | A little hiker on a path that never ends, between stone walls and signposts to imaginary places, towards mountains rising out of a golden haze. | Pastoral strings and flute; footsteps, birds, gusts of wind. |
+| **The Midnight Choir** | An old stone church: candles, stained glass glowing with moonlight, shafts of light, a small choir swaying as it sings. | A slow choir in a big reverberant space. |
+| **Penny's Night Patrol** | Penny the cat does her rounds of a sitting room by the embers of the fire, leaving glowing paw prints that fade. | A music box over glass pads; purring, the fire, an owl outside. |
+| **The Pineapple Pizza Incident** | A pizzeria after closing: the oven glows, the chef kneads, the sign says no pineapple. A pineapple appears anyway, and sometimes one rolls across the floor. | Mandolin and strings; the oven crackling, a low murmur. |
+| **Lost on the Trail** | A hiker following a glowing map route round a starlit wood, past signposts that disagree; now and then they stop and scratch their head. | Glass pads and flute; crickets, owls, footsteps. |
+| **The Stardome** | A glowing stage far below a vast starry sky, soft beams sweeping slowly, lanterns rising, stars swelling with each chord. | Dreamy electric piano and arpeggios. |
+| **The Great Bread Bake** | A village bakery in the small hours: the oven glows, loaves steam on the racks (a fresh one appears now and then), flour drifts like snow, a cat sleeps by the oven. | Organ and harp; the oven crackling, early birds. |
+
+The dream scenes are built from a shared kit: `web/scenes/kit.js` (stage, skies, terrain, water, buildings,
+lanterns, fairy lights, motes, smoke, light shafts), `figures.js` (horse, cat, little people) and `interior.js`
+(rooms, windows, candles, fires). Each scene registers its own update and event handlers, and one sweep on
+`dispose()` frees its geometry, materials and textures.
+
 Every session has a **variation** number (the seed): the same number gives the same layout and the same tune.
 
 ## Features
@@ -75,4 +103,4 @@ GitHub Pages.
 | `web/audio.js` | Audio graph, reverb and delay, ambience layers, scheduler, session envelope. |
 | `web/music/*.js` | One composer per world, and the shared synth voices (`voices.js`). |
 | `web/render.js` | Renderer (multisampled), bloom, a finishing pass (grain/dither, vignette, chromatic aberration), frame loop (30 fps in a session), adaptive resolution. |
-| `web/scenes/*.js` | The 3D worlds. |
+| `web/scenes/*.js` | The 3D worlds; `web/scenes/dream/*.js` the dream scenes, built from `kit.js`, `figures.js` and `interior.js`. |
