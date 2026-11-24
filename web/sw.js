@@ -1,5 +1,5 @@
 // Offline support: network first (so updates show straight away), cached copy when offline.
-const CACHE = 'lullwave-v10';
+const CACHE = 'lullwave-v11';
 const J = './vendor/three/examples/jsm/';
 const CORE = ['./', './index.html', './main.js', './audio.js', './render.js',
   './music/voices.js', './music/cave.js', './music/drive.js', './music/ocean.js', './music/aurora.js', './music/rain.js', './music/space.js', './music/disco.js', './music/nature.js', './music/eventing.js', './music/cotswold.js', './scenes/cave.js', './scenes/drive.js', './scenes/ocean.js', './scenes/aurora.js', './scenes/rain.js', './scenes/space.js', './scenes/disco.js', './scenes/country.js', './scenes/eventing.js', './scenes/cotswold.js',
@@ -8,7 +8,7 @@ const CORE = ['./', './index.html', './main.js', './audio.js', './render.js',
   J + 'postprocessing/MaskPass.js', J + 'postprocessing/OutputPass.js', J + 'postprocessing/UnrealBloomPass.js', J + 'shaders/CopyShader.js',
   J + 'shaders/OutputShader.js', J + 'shaders/LuminosityHighPassShader.js',
   './manifest.webmanifest', './fonts.css', './fonts/Unbounded-1.woff2', './fonts/Outfit-0.woff2',
-  './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
+  './icons/icon.svg', './thumbs/cave.jpg', './thumbs/drive.jpg', './thumbs/ocean.jpg', './thumbs/aurora.jpg', './thumbs/rain.jpg', './thumbs/space.jpg', './thumbs/eventing.jpg', './thumbs/cotswold.jpg', './thumbs/disco.jpg', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => e.waitUntil(caches.open(CACHE).then((c) => c.addAll(CORE)).then(() => self.skipWaiting())));
 self.addEventListener('activate', (e) => e.waitUntil(

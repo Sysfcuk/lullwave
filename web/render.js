@@ -78,6 +78,7 @@ export function createRenderer(canvas, { mobile }) {
     active.camera.userData.fov0 = active.camera.fov;
     renderPass.scene = active.scene; renderPass.camera = active.camera;
     renderer.toneMapping = active.look.toneMapping; renderer.toneMappingExposure = active.look.exposure;
+    renderer.shadowMap.enabled = !!active.look.shadows; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     [bloom.strength, bloom.radius, bloom.threshold] = active.look.bloom;
     const f = active.look.finish ?? {};
     finish.uniforms.uVignette.value = f.vignette ?? 0.3; finish.uniforms.uGrain.value = f.grain ?? 0.02; finish.uniforms.uCA.value = f.ca ?? 0.4;

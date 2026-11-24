@@ -9,7 +9,7 @@ const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platfo
 const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 
 const WORLDS = [
-  { id: 'cave', name: 'Crystal Cave', tag: 'Glass bells and dripping water by an underground lake, deep under the mountain.' },
+  { id: 'cave', name: 'Crystal Cave', tag: 'Drift down a winding tunnel of glowing crystals. Glass bells chime and drops ripple the stream.' },
   { id: 'drive', name: 'Night Drive', tag: 'Slow synthwave on an endless neon road. The sun sinks as you drift off.' },
   { id: 'ocean', name: 'Deep Ocean', tag: 'Sink slowly through dark water among glowing jellyfish, while whales sing far away.' },
   { id: 'aurora', name: 'Aurora', tag: 'Northern lights ripple over a frozen lake as snow falls softly. A quiet choir sings.' },
@@ -19,6 +19,11 @@ const WORLDS = [
   { id: 'cotswold', name: 'Cotswold Valley', tag: 'An evening walk above a steep valley of beech woods and honey-stone cottages, as the lights come on.' },
   { id: 'disco', name: 'Disco Cat', tag: 'A rainbow cat grooves under the mirror ball, then curls up and drifts off to a lullaby.' },
 ];
+// each world's colours, used across the interface
+const THEMES = {
+  cave: ['#b9a4ff', '#7ee8ff'], drive: ['#ff6fd0', '#ffb36b'], ocean: ['#6fd0ff', '#7affc4'], aurora: ['#7dffb5', '#b48cff'],
+  rain: ['#ff7ab8', '#7ad7ff'], space: ['#c7a6ff', '#ffb38a'], eventing: ['#ffc58a', '#bde07a'], cotswold: ['#f2cf8c', '#a8d48a'], disco: ['#ff8fd8', '#8fe8ff'],
+};
 const TIMERS = [15, 30, 45, 60, 90, 0];
 const FADES = [[5, '5m'], [15, '15m'], [30, '30m'], [0, 'Never']];
 const ICONS = {
@@ -27,6 +32,7 @@ const ICONS = {
   waves: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 8c3 0 3-2 5-2s2 2 5 2 3-2 5-2 2 2 5 2M2 14c3 0 3-2 5-2s2 2 5 2 3-2 5-2 2 2 5 2M2 20c3 0 3-2 5-2s2 2 5 2 3-2 5-2 2 2 5 2"/></svg>',
   pink: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12h3l1.5-3 3 6 3-8 3 9 1.5-4H21"/></svg>',
   brown: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12h2l2-5 3 10 3-12 3 14 2-7h3"/></svg>',
+  moon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>',
   pause: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1.5"/><rect x="14" y="5" width="4" height="14" rx="1.5"/></svg>',
   play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.9l10.4-6.5a1 1 0 0 0 0-1.8L9.5 4.6A1 1 0 0 0 8 5.5z"/></svg>',
 };
@@ -59,18 +65,29 @@ const view = createRenderer($('view'), { mobile });
 view.setEvents(() => engine.drainEvents(), () => engine.ctx?.currentTime ?? 0);
 engine.setMix(S.mix);
 
+function applyTheme(id) {
+  const [a, b] = THEMES[id] || THEMES.cave;
+  document.documentElement.style.setProperty('--accent', a);
+  document.documentElement.style.setProperty('--accent-2', b);
+}
+let swapping = 0;
 function showWorld(animate = true) {
   const w = WORLDS[S.world];
   const apply = () => {
     $('sceneName').textContent = w.name; $('sceneTag').textContent = w.tag;
+    $('worldNum').textContent = `World ${S.world + 1} of ${WORLDS.length}`;
     $('sceneName').classList.remove('swap');
+    applyTheme(w.id);
+    view.setScene(w.id, S.seed);
   };
-  if (animate) { $('sceneName').classList.add('swap'); setTimeout(apply, 250); } else apply();
   $('seedLabel').textContent = '#' + S.seed;
   paintFav();
-  [...$('dots').children].forEach((d, k) => d.classList.toggle('on', k === S.world));
-  view.setScene(w.id, S.seed);
   store.set('world', S.world); store.set('seed', S.seed);
+  if (!animate) { apply(); return; }
+  // a quick dip to black between worlds
+  const my = ++swapping;
+  $('sceneName').classList.add('swap'); $('xfade').classList.add('on');
+  setTimeout(() => { if (my !== swapping) return; apply(); requestAnimationFrame(() => requestAnimationFrame(() => $('xfade').classList.remove('on'))); }, 230);
 }
 
 // ------------------------------------------------------------------ your nights: a simple log and streak (kept on this device)
@@ -110,13 +127,33 @@ $('nights').onclick = () => {
     const label = new Date(y, m - 1, d).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
     const w = WORLDS.find((x) => x.id === n.world);
     const row = document.createElement('div'); row.className = 'night';
-    row.innerHTML = `<span><b>${label}</b> · ${w ? w.name : n.world}</span><span class="num">${n.minutes} min</span>`;
+    row.innerHTML = `<span><b>${label}</b> · ${w ? w.name : n.world}</span><span class="num">${n.minutes} min${n.rating ? `<span class="rate">${'●'.repeat(n.rating)}${'○'.repeat(5 - n.rating)}</span>` : ''}</span>`;
     box.appendChild(row);
   }
   $('nightsSheet').classList.remove('hidden');
 };
 $('nightsClose').onclick = () => $('nightsSheet').classList.add('hidden');
 $('nightsSheet').onclick = (e) => { if (e.target === $('nightsSheet')) $('nightsSheet').classList.add('hidden'); };
+
+// the morning after: how did you sleep? (kept with the night, on this device)
+function morningCheck() {
+  const last = nights.find((n) => n.minutes >= 5);
+  const h = new Date().getHours();
+  const preview = location.search.includes('morning'); // ?morning shows it at any hour, for testing
+  if (!last || last.rating || last.skipped || (!preview && (last.night !== nightKey() || h < 4 || h >= 13))) return;
+  const w = WORLDS.find((x) => x.id === last.world);
+  $('mSub').textContent = `${last.minutes} minutes of ${w ? w.name : 'Lullwave'} last night`;
+  const box = $('moons'); box.innerHTML = '';
+  for (let k = 1; k <= 5; k++) {
+    const b = document.createElement('button');
+    b.innerHTML = ICONS.moon; b.setAttribute('aria-label', `${k} out of 5`);
+    b.onmouseenter = () => [...box.children].forEach((c, i) => c.classList.toggle('on', i < k));
+    b.onclick = () => { last.rating = k; store.set('nights', nights.filter((n) => n.minutes >= 1)); $('morning').classList.add('hidden'); toast(k >= 4 ? 'Lovely. Same again tonight?' : 'Thanks. Try a calmer world or a lower volume tonight.'); };
+    box.appendChild(b);
+  }
+  $('morning').classList.remove('hidden');
+}
+$('mSkip').onclick = () => { const last = nights.find((n) => n.minutes >= 5); if (last) { last.skipped = true; store.set('nights', nights.filter((n) => n.minutes >= 1)); } $('morning').classList.add('hidden'); };
 
 // ------------------------------------------------------------------ favourites: worlds and variations worth keeping
 const isFav = () => S.favs.some((f) => f.w === WORLDS[S.world].id && f.s === S.seed);
@@ -184,7 +221,22 @@ function mixer(el) {
 const mixers = [mixer($('homeMix')), mixer($('sessionMix'))];
 function syncMixers() { for (const m of mixers) for (const k in m) { m[k].r.value = Math.round(S.mix[k] * 100); m[k].paint(); } }
 
-$('dots').innerHTML = WORLDS.map(() => '<i></i>').join('');
+// the gallery of all worlds
+function openGallery() {
+  const grid = $('gGrid'); grid.innerHTML = '';
+  WORLDS.forEach((w, k) => {
+    const card = document.createElement('button');
+    card.className = 'g-card' + (k === S.world ? ' on' : '');
+    card.style.backgroundImage = `url(thumbs/${w.id}.jpg)`;
+    card.style.setProperty('--i', k);
+    card.innerHTML = `<span class="gc-t"><b>${w.name}</b><small>${w.tag.split('. ')[0].replace(/\.$/, '')}.</small></span>`;
+    card.onclick = () => { $('gallery').classList.add('hidden'); if (k !== S.world) { S.world = k; showWorld(); } };
+    grid.appendChild(card);
+  });
+  $('gallery').classList.remove('hidden');
+}
+$('allWorlds').onclick = openGallery;
+$('gClose').onclick = () => $('gallery').classList.add('hidden');
 $('prev').onclick = () => { S.world = (S.world + WORLDS.length - 1) % WORLDS.length; showWorld(); };
 $('next').onclick = () => { S.world = (S.world + 1) % WORLDS.length; showWorld(); };
 $('reroll').onclick = () => { S.seed = newSeed(); showWorld(false); };
@@ -267,16 +319,25 @@ async function lockScreenOn(on) {
 const isBrave = !!navigator.brave;
 if (isBrave) $('sHint').textContent = 'Brave: to keep the sound going with the screen off, turn on Background play in Brave’s Settings → Media.';
 
+let introTimer = 0;
 function startSession() {
   const w = WORLDS[S.world];
   engine.start({ scene: w.id, seed: S.seed, minutes: minutes() });
   logStart(w.id);
   mode = 'session';
+  document.body.classList.add('in-session');
   $('home').classList.add('away');
   $('sScene').textContent = w.name;
   view.setFps(30);
   visualsUntil = S.fade ? Date.now() + S.fade * 60000 : Infinity;
-  showControls();
+  try { navigator.vibrate?.(12); } catch { /* no haptics */ }
+  // a title card, like the opening of a film, then the world on its own
+  const m = minutes();
+  $('iName').textContent = w.name;
+  $('iSub').textContent = m ? `${m >= 60 && m % 60 === 0 ? m / 60 + (m === 60 ? ' hour' : ' hours') : m + ' minutes'} \u00b7 ends ${fmtClock(new Date(Date.now() + m * 60000))}` : 'No timer \u00b7 sleep well';
+  $('intro').classList.add('show');
+  clearTimeout(introTimer);
+  introTimer = setTimeout(() => $('intro').classList.remove('show'), 5200);
   setupMediaSession(w);
   lockScreenOn(true);
   startBreathing();
@@ -285,6 +346,8 @@ function startSession() {
 
 function endSession(finished) {
   if (finished) {
+    const w = WORLDS[S.world], k = streak();
+    $('endedSub').textContent = `${Math.round(engine.total() / 60) || ''} minutes of ${w.name}${k > 1 ? ` \u00b7 ${k} nights in a row` : ''}`.replace(/^ minutes of /, '');
     $('ended').classList.add('show');
     view.stop();
     lockScreenOn(false);
@@ -300,6 +363,8 @@ function endSession(finished) {
 
 function backHome() {
   mode = 'home';
+  document.body.classList.remove('in-session');
+  clearTimeout(introTimer); $('intro').classList.remove('show');
   stopBreathing();
   $('ended').classList.remove('show');
   $('session').classList.remove('show');
@@ -393,7 +458,7 @@ setInterval(() => {
   const el = engine.elapsed(), total = engine.total();
   $('sTime').textContent = total ? fmt(total - el) : fmt(el);
   $('sSub').textContent = total ? `left · ends ${fmtClock(new Date(Date.now() + (total - el) * 1000))}` : 'playing · no timer';
-  $('sBar').style.width = total ? (100 * el / total).toFixed(2) + '%' : '0%';
+  $('pProg').style.strokeDashoffset = total ? (295.3 * Math.min(1, el / total)).toFixed(1) : '0';
   view.setState({ energy: energyCurve(el, total) });
   if (Math.floor(el) % 30 === 0) logProgress(el / 60);
 
@@ -421,7 +486,9 @@ function startBreathing() {
   const until = S.breathe * 60;
   const tick = () => {
     breatheRaf = requestAnimationFrame(tick);
-    const el = engine.elapsed();
+    // starts once the title card has faded
+    const el = engine.elapsed() - 6;
+    if (el < 0) { $('breathe').style.opacity = 0; return; }
     if (el > until) { stopBreathing(); return; }
     const c = el % (IN + OUT);
     const inhale = c < IN;
@@ -476,6 +543,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && mo
 showWorld(false);
 updateStart();
 paintNights();
+setTimeout(morningCheck, 1200);
 view.setFps(mobile ? 30 : 60);
 view.start();
 requestAnimationFrame(() => requestAnimationFrame(() => { $('loader').style.opacity = 0; setTimeout(() => $('loader').remove(), 1000); }));

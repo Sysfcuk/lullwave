@@ -5,7 +5,7 @@
 // walk and goes round the fences instead, the sun sets, and the stars come out.
 import * as THREE from 'three';
 import { mulberry32 } from '../audio.js';
-import { TAU, makeSky, lightAt, lightDir, treeGeo, paint, mergeAll, grassMaterial } from './country.js';
+import { TAU, makeSky, lightAt, lightDir, treeGeo, paint, mergeAll, grassMaterial, makeGrass, updateGrass, setupShadows } from './country.js';
 
 const P = 900; // the course repeats every P metres
 
@@ -28,6 +28,7 @@ export function createEventingScene({ mobile, seed }) {
   const sky = keep(makeSky(U)); sky.renderOrder = -1; scene.add(sky);
   const hemi = new THREE.HemisphereLight('#fff', '#888', 1); scene.add(hemi);
   const sun = new THREE.DirectionalLight('#fff', 1); scene.add(sun); scene.add(sun.target);
+  setupShadows(sun, mobile);
   scene.fog = new THREE.Fog('#e6b892', 120, 900);
 
   // ------------------------------------------------------------------ the fields
@@ -51,6 +52,7 @@ export function createEventingScene({ mobile, seed }) {
     gGeo.computeVertexNormals();
   }
   const groundMesh = new THREE.Mesh(gGeo, keep(grassMaterial(null)));
+  groundMesh.receiveShadow = true;
   scene.add(groundMesh);
 
   // place things on two copies of the course: this stretch and the next
@@ -62,7 +64,7 @@ export function createEventingScene({ mobile, seed }) {
       q.setFromAxisAngle(up, it.ry ?? 0);
       mesh.setMatrixAt(n++, m4.compose(v.set(it.x, ground(it.x, it.z + tile) + (it.dy ?? 0), it.z + tile), q, s.setScalar(it.s ?? 1)));
     }
-    mesh.frustumCulled = false;
+    mesh.frustumCulled = false; mesh.castShadow = true; mesh.receiveShadow = true;
     scene.add(mesh);
     return mesh;
   }
@@ -130,6 +132,18 @@ export function createEventingScene({ mobile, seed }) {
     if (list.length) instanced(keep(fenceGeo(k)), list, fenceMat);
   }
 
+  // ------------------------------------------------------------------ long grass round about, short on the course
+  U.uPhE = { value: new THREE.Vector3(...ph) };
+  const grass = makeGrass({
+    count: mobile ? 16000 : 26000, box: 26, U, rand, tint: '#5c8a33',
+    groundGLSL: `uniform vec3 uPhE;
+      float groundH(float x, float z){ float w1 = 6.2831853 / ${P}.; return 5. * sin(z * w1 * 3. + uPhE.z) * cos(x * .012) + 2.4 * sin(z * w1 * 7. + x * .025) + 7. * sin(x * .006 + 1.2) * sin(z * w1); }
+      float pathXg(float z){ float w1 = 6.2831853 / ${P}.; return 22. * sin(z * w1 * 2. + uPhE.x) + 9. * sin(z * w1 * 5. + uPhE.y); }`,
+    shortGLSL: 'float shortK(float x, float z){ return mix(.22, 1., smoothstep(2.5, 6.5, abs(x - pathXg(z)))); }',
+  });
+  keep(grass.geometry); keep(grass.material);
+  scene.add(grass);
+
   // ------------------------------------------------------------------ your horse, seen from the saddle
   // The neck runs forward and up from the withers below you to the poll; the mane lies along its
   // crest; the head angles down beyond the poll, and the ears stand up at the top of it.
@@ -176,6 +190,7 @@ export function createEventingScene({ mobile, seed }) {
   const bit = muzzle.clone().add(new THREE.Vector3(0, 0.08, 0.06));
   reinGeo.setAttribute('position', new THREE.Float32BufferAttribute([bit.x - 0.1, bit.y, bit.z, -0.3, -1.1, -0.35, bit.x + 0.1, bit.y, bit.z, 0.3, -1.1, -0.35], 3));
   horse.add(new THREE.LineSegments(reinGeo, keep(new THREE.LineBasicMaterial({ color: '#24160e' }))));
+  horse.traverse((o) => { if (o.isMesh) o.castShadow = true; });
 
   // ------------------------------------------------------------------ motion
   let t = 0, s0 = 30, speed = 7, dusk = 0, stridePh = 0, strideDur = 0.75, gaitK = 1, sway = 0, earFlick = 0;
@@ -198,7 +213,7 @@ export function createEventingScene({ mobile, seed }) {
     dusk += ((1 - e) * 1.15 - dusk) * Math.min(1, dt * 0.05);
     const L = lightAt(Math.min(1, Math.max(0, dusk)));
     U.uDusk.value = Math.min(1, dusk); U.uHorizonCol.value.copy(L.horizon); U.uZenithCol.value.copy(L.zenith); U.uSunCol.value.copy(L.sun);
-    U.uSunDir.value.set(0.35, 0.09 - dusk * 0.16, -1).normalize();
+    U.uSunDir.value.set(0.16, 0.08 - dusk * 0.15, -1).normalize();
     hemi.color.copy(L.hemiSky); hemi.groundColor.copy(L.hemiGround); hemi.intensity = L.hemiI;
     sun.color.copy(L.sun); sun.intensity = L.sunI;
     scene.fog.color.copy(L.fog); scene.background = scene.fog.color;
@@ -224,6 +239,7 @@ export function createEventingScene({ mobile, seed }) {
     camera.updateMatrixWorld();
     sun.position.copy(cam).addScaledVector(lightDir(U.uSunDir.value, Math.min(1, dusk), keyDir), 400); sun.target.position.copy(cam);
     sky.position.copy(cam);
+    updateGrass(grass, { cam, hemi, sun, fog: scene.fog });
 
     // the horse's neck rocks with the canter and stretches over the jumps; ears flick now and then
     horse.rotation.x = Math.sin(stridePh * TAU + 0.6) * 0.035 * gaitK - lift * 0.06;
@@ -235,7 +251,7 @@ export function createEventingScene({ mobile, seed }) {
 
   return {
     scene, camera, update, onEvent, portraitFov: 72,
-    look: { toneMapping: THREE.ACESFilmicToneMapping, exposure: 1.0, bloom: [0.35, 0.5, 0.85], finish: { vignette: 0.4, grain: 0.02, ca: 0.3 } },
+    look: { shadows: true, toneMapping: THREE.ACESFilmicToneMapping, exposure: 1.05, bloom: [0.4, 0.55, 0.8], finish: { vignette: 0.4, grain: 0.02, ca: 0.3 } },
     dispose() { for (const d of disposables) d.dispose?.(); },
   };
 }

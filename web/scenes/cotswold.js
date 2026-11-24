@@ -5,7 +5,7 @@
 // in the valley, glow-worms appear in the verges, and the stars come out.
 import * as THREE from 'three';
 import { mulberry32 } from '../audio.js';
-import { TAU, makeSky, lightAt, lightDir, treeGeo, paint, mergeAll, grassMaterial } from './country.js';
+import { TAU, makeSky, lightAt, lightDir, treeGeo, paint, mergeAll, grassMaterial, makeGrass, updateGrass, setupShadows } from './country.js';
 
 const P = 760; // the valley repeats every P metres
 
@@ -34,6 +34,7 @@ export function createCotswoldScene({ mobile, seed }) {
   const sky = keep(makeSky(U)); sky.renderOrder = -1; scene.add(sky);
   const hemi = new THREE.HemisphereLight('#fff', '#888', 1); scene.add(hemi);
   const sun = new THREE.DirectionalLight('#fff', 1); scene.add(sun); scene.add(sun.target);
+  setupShadows(sun, mobile);
   scene.fog = new THREE.Fog('#e6b892', 140, 1000);
 
   // ------------------------------------------------------------------ the land
@@ -59,7 +60,9 @@ export function createCotswoldScene({ mobile, seed }) {
     gGeo.setAttribute('color', new THREE.BufferAttribute(col, 3));
     gGeo.computeVertexNormals();
   }
-  scene.add(new THREE.Mesh(gGeo, keep(grassMaterial(null))));
+  const land = new THREE.Mesh(gGeo, keep(grassMaterial(null)));
+  land.receiveShadow = true;
+  scene.add(land);
 
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), s = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
   function instanced(geo, items, material) {
@@ -70,7 +73,7 @@ export function createCotswoldScene({ mobile, seed }) {
       const sc = it.sv ?? [it.s ?? 1, it.s ?? 1, it.s ?? 1];
       mesh.setMatrixAt(n++, m4.compose(v.set(it.x, (it.y ?? ground(it.x, it.z)) + (it.dy ?? 0), it.z + tile), q, s.set(...sc)));
     }
-    mesh.frustumCulled = false;
+    mesh.frustumCulled = false; mesh.castShadow = true; mesh.receiveShadow = true;
     scene.add(mesh);
     return mesh;
   }
@@ -225,6 +228,26 @@ export function createCotswoldScene({ mobile, seed }) {
   glow.frustumCulled = false;
   scene.add(glow);
 
+  // ------------------------------------------------------------------ meadow grass round about, short on the lane
+  U.uPhC = { value: new THREE.Vector4(...ph) };
+  const grass = makeGrass({
+    count: mobile ? 14000 : 22000, box: 26, U, rand, tint: '#5f8a36',
+    groundGLSL: `uniform vec4 uPhC;
+      float W(float k){ return k * 6.2831853 / ${P}.; }
+      float streamXg(float z){ return 18. * sin(z * W(2.) + uPhC.x) + 7. * sin(z * W(5.) + uPhC.y); }
+      float groundH(float x, float z){
+        float dx = x - streamXg(z), a = abs(dx);
+        float side = pow(min(1., a / 230.), 1.25) * 95.;
+        float combe = 1. - .35 * max(0., sin(z * W(4.) + uPhC.z + (dx > 0. ? 1.7 : 0.)));
+        float roll = 3. * sin(z * W(9.) + x * .03) + 2. * sin(x * .05 + z * W(6.));
+        return side * combe + roll * min(1., a / 40.) + min(a, 6.) * .15;
+      }
+      float pathXg(float z){ return streamXg(z) - 70. - 10. * sin(z * W(3.) + uPhC.w); }`,
+    shortGLSL: 'float shortK(float x, float z){ return mix(.12, 1., smoothstep(1.6, 3.6, abs(x - pathXg(z)))); }',
+  });
+  keep(grass.geometry); keep(grass.material);
+  scene.add(grass);
+
   // ------------------------------------------------------------------ the walk
   let t = 0, s0 = 20, dusk = 0, stepPh = 0, gaze = 0.35, gazeTarget = 0.35, nextGaze = 12;
   const look = new THREE.Vector3(), cam = new THREE.Vector3(), keyDir = new THREE.Vector3();
@@ -245,7 +268,7 @@ export function createCotswoldScene({ mobile, seed }) {
     const dd = Math.min(1, Math.max(0, dusk));
     const L = lightAt(dd);
     U.uDusk.value = dd; U.uHorizonCol.value.copy(L.horizon); U.uZenithCol.value.copy(L.zenith); U.uSunCol.value.copy(L.sun);
-    U.uSunDir.value.set(0.25, 0.1 - dd * 0.17, -1).normalize();
+    U.uSunDir.value.set(0.12, 0.09 - dd * 0.16, -1).normalize();
     hemi.color.copy(L.hemiSky); hemi.groundColor.copy(L.hemiGround); hemi.intensity = L.hemiI;
     sun.color.copy(L.sun); sun.intensity = L.sunI;
     scene.fog.color.copy(L.fog); scene.background = scene.fog.color;
@@ -266,11 +289,12 @@ export function createCotswoldScene({ mobile, seed }) {
     camera.rotateZ(Math.sin(stepPh * Math.PI) * 0.004);
     sun.position.copy(cam).addScaledVector(lightDir(U.uSunDir.value, Math.min(1, dusk), keyDir), 400); sun.target.position.copy(cam);
     sky.position.copy(cam);
+    updateGrass(grass, { cam, hemi, sun, fog: scene.fog });
   }
 
   return {
     scene, camera, update, onEvent, portraitFov: 70,
-    look: { toneMapping: THREE.ACESFilmicToneMapping, exposure: 1.0, bloom: [0.4, 0.5, 0.8], finish: { vignette: 0.4, grain: 0.02, ca: 0.3 } },
+    look: { shadows: true, toneMapping: THREE.ACESFilmicToneMapping, exposure: 1.05, bloom: [0.45, 0.55, 0.78], finish: { vignette: 0.4, grain: 0.02, ca: 0.3 } },
     dispose() { for (const d of disposables) d.dispose?.(); },
   };
 }

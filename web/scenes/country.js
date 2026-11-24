@@ -115,3 +115,76 @@ export function grassMaterial(trackAt) {
   };
   return m;
 }
+
+/**
+ * Grass: thousands of blades around the camera, each a single tapered triangle swaying in the
+ * wind. The patch wraps round the camera in the vertex shader, so it costs nothing to move, and
+ * every blade stands on the ground using the world's own height function (GLSL `groundH`).
+ * `shortGLSL` returns a 0..1 factor to cut the grass short (a mown track, a lane).
+ */
+export function makeGrass({ count, box = 34, groundGLSL, shortGLSL = 'float shortK(float x, float z){ return 1.; }', U, tint = '#6f9a3c', rand }) {
+  const pos = new Float32Array(count * 3 * 3), corner = new Float32Array(count * 3), seedA = new Float32Array(count * 3);
+  for (let k = 0; k < count; k++) {
+    const x = (rand() - 0.5) * box, z = (rand() - 0.5) * box, sd = rand();
+    for (let c = 0; c < 3; c++) { pos.set([x, 0, z], (k * 3 + c) * 3); corner[k * 3 + c] = c; seedA[k * 3 + c] = sd; }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('aCorner', new THREE.BufferAttribute(corner, 1));
+  g.setAttribute('aSeed', new THREE.BufferAttribute(seedA, 1));
+  const mat = new THREE.ShaderMaterial({
+    uniforms: { ...U, uGrass: { value: new THREE.Color(tint) }, uLightCol: { value: new THREE.Color('#fff') }, uAmb: { value: new THREE.Color('#888') }, uCamP: { value: new THREE.Vector3() }, uFogC: { value: new THREE.Color() }, uFogNear: { value: 100 }, uFogFar: { value: 900 } },
+    side: THREE.DoubleSide,
+    vertexShader: `attribute float aCorner, aSeed; uniform float uTime; uniform vec3 uCamP, uSunDir;
+      ${groundGLSL}
+      ${shortGLSL}
+      varying float vTip, vShade; varying float vDist;
+      void main(){
+        vec2 rel = mod(position.xz - uCamP.xz + ${(box / 2).toFixed(1)}, ${box.toFixed(1)}) - ${(box / 2).toFixed(1)};
+        vec2 b = uCamP.xz + rel;
+        float h = (.18 + aSeed * .32) * shortK(b.x, b.y);
+        float ang = aSeed * 31.4;
+        vec2 side = vec2(cos(ang), sin(ang)) * .032;
+        float wind = sin(uTime * 1.3 + b.x * .35 + b.y * .22) * .5 + sin(uTime * 2.1 + aSeed * 20.) * .2;
+        vec3 p = vec3(b.x, groundH(b.x, b.y), b.y);
+        if (aCorner < .5) p.xz -= side;
+        else if (aCorner < 1.5) p.xz += side;
+        else { p.y += h; p.xz += vec2(.35, .2) * wind * h; }
+        vTip = aCorner > 1.5 ? 1. : 0.;
+        vShade = .75 + .5 * aSeed;
+        vec4 mv = viewMatrix * vec4(p, 1.); vDist = -mv.z;
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: `uniform vec3 uGrass, uLightCol, uAmb, uFogC; uniform float uFogNear, uFogFar; varying float vTip, vShade, vDist;
+      void main(){
+        vec3 base = uGrass * .5, tip = uGrass * 1.02 + vec3(.03, .025, 0.);
+        vec3 col = mix(base, tip, vTip) * vShade * (uAmb + uLightCol * (.35 + .65 * vTip));
+        float f = smoothstep(uFogNear, uFogFar, vDist);
+        float edge = smoothstep(${(box * 0.5).toFixed(1)}, ${(box * 0.32).toFixed(1)}, vDist);
+        if (edge < .02) discard;
+        gl_FragColor = vec4(mix(col, uFogC, f), 1.);
+      }`,
+  });
+  const mesh = new THREE.Mesh(g, mat);
+  mesh.frustumCulled = false;
+  return mesh;
+}
+
+/** Feed the grass the scene's current light, fog and camera. */
+export function updateGrass(grass, { cam, hemi, sun, fog }) {
+  const u = grass.material.uniforms;
+  u.uCamP.value.copy(cam);
+  u.uLightCol.value.copy(sun.color).multiplyScalar(sun.intensity * 0.55);
+  u.uAmb.value.copy(hemi.color).lerp(hemi.groundColor, 0.4).multiplyScalar(hemi.intensity * 0.6);
+  u.uFogC.value.copy(fog.color); u.uFogNear.value = fog.near; u.uFogFar.value = fog.far;
+}
+
+/** Long golden-hour shadows from the key light, in a box that follows the camera. */
+export function setupShadows(sun, mobile) {
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(mobile ? 1024 : 2048, mobile ? 1024 : 2048);
+  const c = sun.shadow.camera;
+  c.left = -55; c.right = 55; c.top = 55; c.bottom = -55; c.near = 50; c.far = 900;
+  sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.6;
+  sun.shadow.radius = 3;
+}
