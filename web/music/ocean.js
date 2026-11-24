@@ -21,6 +21,7 @@ export function createOcean({ rng }) {
   const bpm = (e) => 40 + 8 * e;
 
   return {
+    level: 1.15, // trim so every world plays at about the same loudness
     delayTime: (60 / bpm(1)) * 1.5,
 
     live(ac, dest, t0) {

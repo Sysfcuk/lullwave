@@ -22,8 +22,11 @@
 import { createCave } from './music/cave.js';
 import { createDrive } from './music/drive.js';
 import { createOcean } from './music/ocean.js';
+import { createAurora } from './music/aurora.js';
+import { createRain } from './music/rain.js';
+import { createSpace } from './music/space.js';
 
-const COMPOSERS = { cave: createCave, drive: createDrive, ocean: createOcean };
+const COMPOSERS = { cave: createCave, drive: createDrive, ocean: createOcean, aurora: createAurora, rain: createRain, space: createSpace };
 const CHUNK = 20;           // seconds of notes per chunk
 const TAIL = 24;            // extra seconds for notes, reverb and echoes to ring out (longest pad ~15 s + reverb)
 const AHEAD = 50;           // keep this much music rendered ahead (seconds)
@@ -267,7 +270,7 @@ export function createEngine({ mobile = false } = {}) {
     if (session !== s) return; // stopped meanwhile
     cleanUp(buffer);
     const src = ac.createBufferSource(); src.buffer = buffer;
-    src.connect(buses.music);
+    src.connect(s.trim);
     const at = s.t0 + from, now = ac.currentTime;
     if (at >= now + 0.02) src.start(at);
     else if (now - at < CHUNK + TAIL) src.start(now + 0.02, now + 0.02 - at); // late: join in step
@@ -326,6 +329,7 @@ export function createEngine({ mobile = false } = {}) {
     if (s) {
       for (const src of s.sources) { try { src.stop(); } catch { /* not started */ } }
       s.live?.stop(ac.currentTime);
+      setTimeout(() => { try { s.trim.disconnect(); } catch { /* fine */ } }, 300);
     }
     composer = null; events = [];
     worker?.postMessage(0);
@@ -367,9 +371,10 @@ export function createEngine({ mobile = false } = {}) {
       media(true);
       composer = COMPOSERS[scene]({ rng: mulberry32(seed), mobile });
       const t0 = ac.currentTime + 0.25;
-      session = { t0, total: minutes ? minutes * 60 : 0, scene, next: 0, rendering: false, sources: new Set(), live: null };
+      const trim = ac.createGain(); trim.gain.value = composer.level ?? 1; trim.connect(buses.music);
+      session = { t0, total: minutes ? minutes * 60 : 0, scene, next: 0, rendering: false, sources: new Set(), live: null, trim };
       paused = false;
-      session.live = composer.live(ac, buses.music, t0);
+      session.live = composer.live(ac, trim, t0);
       master.gain.cancelScheduledValues(ac.currentTime);
       master.gain.setValueAtTime(0, ac.currentTime);
       scheduleEnvelope(t0);

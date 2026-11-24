@@ -37,6 +37,7 @@ export function createCave({ rng }) {
   }
 
   return {
+    level: 1.1, // trim so every world plays at about the same loudness
     delayTime: (60 / bpm(1)) * 0.75,
 
     live(ac, dest, t0) {

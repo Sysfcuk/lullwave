@@ -26,6 +26,7 @@ function panned(A, ch, pan) {
 
 /** A glassy bell: a few inharmonic sine partials, the upper ones dying away first. */
 export function bell(A, ch, t, m, vel = 0.2, pan = 0, decay = 5) {
+  t = Math.max(0, t); // jittered notes can land a hair before a chunk starts
   const { ac } = A, f = mtof(m), dest = panned(A, ch, pan);
   const parts = [[1, 1, 1], [2, 0.3, 0.55], [2.76, 0.22, 0.4], [5.4, 0.07, 0.2], [8.93, 0.03, 0.1]];
   for (const [ratio, amp, life] of parts) {
@@ -43,6 +44,7 @@ export function bell(A, ch, t, m, vel = 0.2, pan = 0, decay = 5) {
 
 /** A water drip: a short sine whose pitch bends upward as it dies (the "bloop" of a drop). */
 export function drip(A, ch, t, f, vel = 0.12, pan = 0) {
+  t = Math.max(0, t); // jittered notes can land a hair before a chunk starts
   const { ac } = A, dest = panned(A, ch, pan);
   const o = ac.createOscillator(), g = ac.createGain();
   o.frequency.setValueAtTime(f, t);
@@ -59,6 +61,7 @@ export function drip(A, ch, t, f, vel = 0.12, pan = 0) {
  * lowpass, with a slow swell in and out. Returns the filter so a composer can sweep it.
  */
 export function padChord(A, ch, t, notes, dur, opts = {}) {
+  t = Math.max(0, t); // jittered notes can land a hair before a chunk starts
   const { ac } = A;
   const { type = 'triangle', voices = 2, spread = 8, attack = 3, release = 4, vol = 0.05, cutoff = 1200, q = 0.5, wobble = null } = opts;
   const filter = ac.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = cutoff; filter.Q.value = q;
@@ -85,6 +88,7 @@ export function padChord(A, ch, t, notes, dur, opts = {}) {
 
 /** A soft pluck: triangle plus a quiet square, through a lowpass that closes quickly. */
 export function pluck(A, ch, t, m, vel = 0.1, pan = 0, { bright = 2400, decay = 0.35 } = {}) {
+  t = Math.max(0, t); // jittered notes can land a hair before a chunk starts
   const { ac } = A, f = mtof(m), dest = panned(A, ch, pan);
   const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 2;
   lp.frequency.setValueAtTime(bright, t);
@@ -104,6 +108,7 @@ export function pluck(A, ch, t, m, vel = 0.1, pan = 0, { bright = 2400, decay = 
 
 /** A round bass note: sine plus a little triangle, lowpassed. */
 export function bass(A, ch, t, m, dur, vel = 0.2) {
+  t = Math.max(0, t); // jittered notes can land a hair before a chunk starts
   const { ac } = A, f = mtof(m);
   const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 320;
   const g = ac.createGain();
@@ -122,6 +127,7 @@ export function bass(A, ch, t, m, dur, vel = 0.2) {
 
 /** A hollow lead: a filtered square with a delayed vibrato, gliding from the previous note. */
 export function lead(A, ch, t, m, dur, vel = 0.06, from = null) {
+  t = Math.max(0, t); // jittered notes can land a hair before a chunk starts
   const { ac } = A, f = mtof(m);
   const o = ac.createOscillator(), o2 = ac.createOscillator();
   o.type = 'square'; o2.type = 'sawtooth'; o2.detune.value = 7;
@@ -147,6 +153,7 @@ export function lead(A, ch, t, m, dur, vel = 0.06, from = null) {
 
 /** A soft kick: a sine dropping in pitch. */
 export function kick(A, ch, t, vel = 0.3) {
+  t = Math.max(0, t); // jittered notes can land a hair before a chunk starts
   const { ac } = A;
   const o = ac.createOscillator(), g = ac.createGain();
   o.frequency.setValueAtTime(110, t);
@@ -160,6 +167,7 @@ export function kick(A, ch, t, vel = 0.3) {
 
 /** A noise hit (hat, rim, brush), shaped by a filter. */
 export function noiseHit(A, ch, t, { vel = 0.05, type = 'highpass', freq = 7000, q = 0.7, decay = 0.05, pan = 0 } = {}) {
+  t = Math.max(0, t); // jittered notes can land a hair before a chunk starts
   const { ac } = A, dest = panned(A, ch, pan);
   const s = ac.createBufferSource(); s.buffer = A.whiteBuffer;
   s.playbackRate.value = 0.9 + Math.random() * 0.2;
@@ -174,6 +182,7 @@ export function noiseHit(A, ch, t, { vel = 0.05, type = 'highpass', freq = 7000,
 
 /** A slow swell of filtered noise: wind through the cave, a car passing in the night. */
 export function swell(A, ch, t, { dur = 10, vel = 0.05, freq = 500, freq2 = null, q = 1, pan = 0, pan2 = null } = {}) {
+  t = Math.max(0, t); // jittered notes can land a hair before a chunk starts
   const { ac } = A;
   const s = ac.createBufferSource(); s.buffer = A.whiteBuffer; s.loop = true;
   const f = ac.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = q;
@@ -195,6 +204,7 @@ export function swell(A, ch, t, { dur = 10, vel = 0.05, freq = 500, freq2 = null
  * in a long slow moan, with a vibrato that comes in as it sustains.
  */
 export function whale(A, ch, t, m, dur = 6, vel = 0.06, pan = 0) {
+  t = Math.max(0, t); // jittered notes can land a hair before a chunk starts
   const { ac } = A, f = mtof(m), dest = panned(A, ch, pan);
   const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 2.5;
   const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1400;
@@ -222,4 +232,64 @@ export function whale(A, ch, t, m, dur = 6, vel = 0.06, pan = 0) {
   bp.frequency.exponentialRampToValueAtTime(f * 2.4, t + dur * 0.4);
   bp.frequency.exponentialRampToValueAtTime(f * 1.2, t + dur);
   vib.start(t); vib.stop(t + dur + 0.1);
+}
+
+/**
+ * A soft choir: every note is a pair of detuned saws, all sung through two vowel formants
+ * (bandpass filters) that drift slowly from "ah" towards "oh", with a slow swell in and out.
+ */
+export function choir(A, ch, t, notes, dur, { vol = 0.03, attack = 3, release = 5, bright = 1 } = {}) {
+  t = Math.max(0, t); // jittered notes can land a hair before a chunk starts
+  const { ac } = A;
+  const end = t + Math.max(attack, dur) + release;
+  const env = ac.createGain();
+  env.gain.setValueAtTime(0, t);
+  env.gain.linearRampToValueAtTime(vol, t + attack);
+  env.gain.setValueAtTime(vol, t + Math.max(attack, dur));
+  env.gain.linearRampToValueAtTime(0, end);
+  env.connect(ch.input);
+  const mix = ac.createGain();
+  for (const [f0, f1, q, amp] of [[760, 560, 5, 1], [1180, 900, 7, 0.55 * bright], [2600, 2400, 9, 0.18 * bright]]) {
+    const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = q;
+    bp.frequency.setValueAtTime(f0, t); bp.frequency.linearRampToValueAtTime(f1, end);
+    const g = ac.createGain(); g.gain.value = amp;
+    mix.connect(bp); bp.connect(g); g.connect(env);
+  }
+  for (const m of notes) {
+    for (const det of [-9, 8]) {
+      const o = ac.createOscillator();
+      o.type = 'sawtooth'; o.frequency.value = mtof(m); o.detune.value = det + (Math.random() - 0.5) * 4;
+      const a = ac.createGain(); a.gain.value = 0.5;
+      o.connect(a); a.connect(mix);
+      o.start(t); o.stop(end + 0.05);
+    }
+  }
+}
+
+/** A warm electric piano: a sine with a bell-like tine on the attack and a gentle tremolo. */
+export function epiano(A, ch, t, m, vel = 0.06, pan = 0, dur = 2.5) {
+  t = Math.max(0, t); // jittered notes can land a hair before a chunk starts
+  const { ac } = A, f = mtof(m), dest = panned(A, ch, pan);
+  const out = ac.createGain();
+  out.gain.setValueAtTime(0, t);
+  out.gain.linearRampToValueAtTime(vel, t + 0.006);
+  out.gain.setTargetAtTime(vel * 0.35, t + 0.006, 0.5);
+  out.gain.setTargetAtTime(0, t + dur, 0.35);
+  // tremolo
+  const trem = ac.createOscillator(), tg = ac.createGain();
+  trem.frequency.value = 4.6; tg.gain.value = vel * 0.12;
+  trem.connect(tg); tg.connect(out.gain);
+  const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = Math.min(5000, f * 6);
+  lp.connect(out); out.connect(dest);
+  const end = t + dur + 1.5;
+  for (const [ratio, amp, decay] of [[1, 1, 0], [2.001, 0.22, 0.9], [7.02, 0.07, 0.07]]) {
+    if (f * ratio > ac.sampleRate * 0.45) continue;
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.frequency.value = f * ratio;
+    g.gain.setValueAtTime(amp, t);
+    if (decay) g.gain.setTargetAtTime(0, t, decay / 3);
+    o.connect(g); g.connect(lp);
+    o.start(t); o.stop(end);
+  }
+  trem.start(t); trem.stop(end);
 }

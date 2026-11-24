@@ -12,6 +12,9 @@ const WORLDS = [
   { id: 'cave', name: 'Crystal Cave', tag: 'Glass bells and dripping water by an underground lake, deep under the mountain.' },
   { id: 'drive', name: 'Night Drive', tag: 'Slow synthwave on an endless neon road. The sun sinks as you drift off.' },
   { id: 'ocean', name: 'Deep Ocean', tag: 'Sink slowly through dark water among glowing jellyfish, while whales sing far away.' },
+  { id: 'aurora', name: 'Aurora', tag: 'Northern lights ripple over a frozen lake as snow falls softly. A quiet choir sings.' },
+  { id: 'rain', name: 'Neon Rain', tag: 'Rain runs down the window of a city night. Lo-fi keys, soft beats, distant thunder.' },
+  { id: 'space', name: 'Stardust', tag: 'Drift through glowing nebulae past a ringed giant, to slow cosmic ambient.' },
 ];
 const TIMERS = [15, 30, 45, 60, 90, 0];
 const FADES = [[5, '5m'], [15, '15m'], [30, '30m'], [0, 'Never']];

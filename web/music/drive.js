@@ -99,6 +99,7 @@ export function createDrive({ rng, mobile }) {
   }
 
   return {
+    level: 0.75, // trim so every world plays at about the same loudness
     delayTime: (60 / bpm(1)) * 0.75,
 
     live(ac, dest, t0) {
