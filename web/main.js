@@ -169,6 +169,10 @@ async function lockScreenOn(on) {
   } catch { /* not allowed right now */ }
 }
 
+// Brave pauses audio when the screen goes off unless its Background play setting is on
+const isBrave = !!navigator.brave;
+if (isBrave) $('sHint').textContent = 'Brave: to keep the sound going with the screen off, turn on Background play in Brave’s Settings → Media.';
+
 function startSession() {
   const w = WORLDS[S.world];
   engine.start({ scene: w.id, seed: S.seed, minutes: minutes() });
@@ -180,6 +184,7 @@ function startSession() {
   showControls();
   setupMediaSession(w);
   lockScreenOn(true);
+  if (isBrave && !store.get('braveTip', false)) { store.set('braveTip', true); toast('Brave: turn on Settings → Media → Background play so the sound keeps going when the screen is off.'); }
 }
 
 function endSession(finished) {
@@ -304,7 +309,7 @@ $('iosSheet').onclick = (e) => { if (e.target === $('iosSheet')) $('iosSheet').c
 let toastTimer = 0;
 function toast(msg) {
   $('toast').textContent = msg; $('toast').classList.add('show');
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => $('toast').classList.remove('show'), 3500);
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => $('toast').classList.remove('show'), Math.max(3500, msg.length * 70));
 }
 
 document.addEventListener('keydown', (e) => {

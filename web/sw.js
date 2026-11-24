@@ -1,5 +1,5 @@
 // Offline support: network first (so updates show straight away), cached copy when offline.
-const CACHE = 'lullwave-v3';
+const CACHE = 'lullwave-v4';
 const J = './vendor/three/examples/jsm/';
 const CORE = ['./', './index.html', './main.js', './audio.js', './render.js',
   './music/voices.js', './music/cave.js', './music/drive.js', './scenes/cave.js', './scenes/drive.js',
