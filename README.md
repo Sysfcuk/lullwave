@@ -19,16 +19,23 @@ closes, and in the last stretch of the timer everything fades out.
 | **Aurora** | Northern lights ripple and fold over a snowy tundra, mirrored in a still lake; snow-laden pines, falling snow, a low moon. Chords brighten the aurora, chimes send a shimmer along it. | A hushed choir over a drone, glassy chimes, wind across the snow. |
 | **Neon Rain** | Rain runs down a window over a city at night: out-of-focus neon and street lights, traffic far below, each drop a tiny lens; lightning before the thunder. | Lo-fi: electric piano jazz chords, upright-ish bass, brushed swing beat, rain on the glass, distant thunder. |
 | **Stardust** | Drifting through deep space: a swirling nebula with dust lanes, nearer clouds drifting past, streaming stars, a ringed gas giant lit by a far sun, the odd comet. | Evolving pads with breathing filters, a slow echoing arpeggio, a sub drone, radio-like sweeps. |
+| **Disco Cat** | A rainbow cat on a light-up dance floor under a spinning mirror ball, nodding to the beat; as the night winds down the disco dims and the cat closes its eyes and drifts off, Zs floating up. | A soft disco groove (gentle kick, octave bass, offbeat keys, strings) that winds down into a music-box lullaby. |
 
 Every session has a **variation** number (the seed): the same number gives the same layout and the same tune.
 
 ## Features
 
 - Sleep timer: 15 to 90 minutes, no timer, or a custom length; +15 minutes mid-session.
-- Ambience mixer: music, rain, waves and brown noise, each with its own level.
+- Ambience mixer: music, rain, waves, pink noise and brown noise, each with its own level.
 - The screen dims gently, then fades to black after a set time (5, 15 or 30 minutes, or never) and lets the phone sleep;
   the sound keeps playing. A warm-screen filter cuts blue light.
 - Lock-screen controls (Media Session), offline support (service worker), installable PWA.
+
+## Grounded in sleep research
+
+What helps and what doesn't, and how Lullwave follows it: see [docs/RESEARCH.md](docs/RESEARCH.md). In short: slow,
+soft, instrumental music for 25–60 minutes with a gradual fade; no catchy repeating hooks; no sudden loud sounds
+late in the night; a dim screen; low volume. The app's settings include a short tips sheet.
 
 ## How the music plays smoothly
 

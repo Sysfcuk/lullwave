@@ -50,7 +50,7 @@ export function createDrive({ rng, mobile }) {
         type: 'sawtooth', voices: mobile ? 2 : 3, spread: 11, attack: 1.8, release: 3, vol: 0.022, cutoff: 700 + 1500 * e, q: 0.8, wobble: c.wobAmt,
       });
       A.emit('chord', tm, { index: chordIdx });
-      if (chordIdx === 0 && (bar % 16 === 0 || !hook.length)) hook = newHook();
+      if (!hook.length) hook = newHook();
     }
 
     // bass: long notes when it's quiet, a gentle eighth-note pulse when there's energy
@@ -70,7 +70,9 @@ export function createDrive({ rng, mobile }) {
     }
 
     // the lead sings the hook on two bars out of every eight
-    if (e > 0.45 && bar % 8 >= 4 && bar % 8 < 6) {
+    // a new melody each time, so no one tune repeats enough to become an earworm
+    if (bar % 8 === 3 && step % 16 === 0) hook = newHook();
+    if (e > 0.6 && bar % 8 >= 4 && bar % 8 < 6) {
       const pos = (bar % 8 - 4) * 8 + step % 16 / 2; // eighths into the phrase
       if (step % 2 === 0) for (const nt of hook) {
         if (nt.at === pos) {
@@ -88,9 +90,9 @@ export function createDrive({ rng, mobile }) {
     if (e > 0.5 && sub === 2) noiseHit(A, c.drumCh, t, { vel: 0.018 + 0.02 * (e - 0.5), freq: 8000, decay: 0.04, pan: 0.2 });
 
     // a car passing on the other side of the road
-    if (tm >= nextCar) {
+    if (tm >= nextCar && e > 0.35) {
       const side = rng() < 0.5 ? -0.8 : 0.8;
-      swell(A, c.fxCh, t, { dur: 5 + rng() * 3, vel: 0.06, freq: 300, freq2: 140, q: 0.7, pan: side, pan2: -side });
+      swell(A, c.fxCh, t, { dur: 6 + rng() * 3, vel: 0.02 + 0.035 * e, freq: 300, freq2: 140, q: 0.7, pan: side, pan2: -side });
       A.emit('car', tm, { side });
       nextCar = tm + 25 + rng() * 50;
     }

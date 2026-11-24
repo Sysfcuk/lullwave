@@ -25,8 +25,9 @@ import { createOcean } from './music/ocean.js';
 import { createAurora } from './music/aurora.js';
 import { createRain } from './music/rain.js';
 import { createSpace } from './music/space.js';
+import { createDisco } from './music/disco.js';
 
-const COMPOSERS = { cave: createCave, drive: createDrive, ocean: createOcean, aurora: createAurora, rain: createRain, space: createSpace };
+const COMPOSERS = { cave: createCave, drive: createDrive, ocean: createOcean, aurora: createAurora, rain: createRain, space: createSpace, disco: createDisco };
 const CHUNK = 20;           // seconds of notes per chunk
 const TAIL = 24;            // extra seconds for notes, reverb and echoes to ring out (longest pad ~15 s + reverb)
 const AHEAD = 50;           // keep this much music rendered ahead (seconds)
@@ -71,6 +72,16 @@ const white = (d) => { for (let i = 0; i < d.length; i++) d[i] = Math.random() *
 function brown(d) {
   let b = 0;
   for (let i = 0; i < d.length; i++) { b = (b + 0.02 * (Math.random() * 2 - 1)) / 1.02; d[i] = b * 3.5; }
+}
+// pink noise (equal energy per octave), with Paul Kellet's filter
+function pink(d) {
+  let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+  for (let i = 0; i < d.length; i++) {
+    const w = Math.random() * 2 - 1;
+    b0 = 0.99886 * b0 + w * 0.0555179; b1 = 0.99332 * b1 + w * 0.0750759; b2 = 0.969 * b2 + w * 0.153852;
+    b3 = 0.8665 * b3 + w * 0.3104856; b4 = 0.55 * b4 + w * 0.5329522; b5 = -0.7616 * b5 - w * 0.016898;
+    d[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + w * 0.5362) * 0.11; b6 = w * 0.115926;
+  }
 }
 function rain(d, sr) {
   // a soft hiss, a low patter and individual drops (tiny decaying chirps) at random times
@@ -137,7 +148,7 @@ export function createEngine({ mobile = false } = {}) {
   let events = [];
   let composer = null, worker = null, session = null, paused = false;
   let verbIR = null, whiteBuffer = null;
-  const mix = { music: 0.8, rain: 0, waves: 0, brown: 0 };
+  const mix = { music: 0.8, rain: 0, waves: 0, pink: 0, brown: 0 };
   let onEnd = () => {}, wantRoute = 'direct';
   const stats = { chunks: 0, lastRenderMs: 0 };
 
@@ -149,8 +160,10 @@ export function createEngine({ mobile = false } = {}) {
     try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch { /* not supported */ }
     master = ac.createGain(); master.gain.value = 0;
     limiter = ac.createDynamicsCompressor();
-    limiter.threshold.value = -10; limiter.knee.value = 10; limiter.ratio.value = 3; limiter.attack.value = 0.02; limiter.release.value = 0.4;
-    master.connect(limiter);
+    // gentle compression: brief loud peaks are what rouse a sleeper, so keep the level even
+    limiter.threshold.value = -20; limiter.knee.value = 14; limiter.ratio.value = 3.5; limiter.attack.value = 0.008; limiter.release.value = 0.5;
+    const makeup = ac.createGain(); makeup.gain.value = 1.5;
+    master.connect(makeup); makeup.connect(limiter);
     buses.music = ac.createGain(); buses.music.connect(master);
 
     const lsr = ac.sampleRate;
@@ -178,6 +191,10 @@ export function createEngine({ mobile = false } = {}) {
         lfo.start();
       }
       src.connect(lp); lp.connect(g); g.connect(out);
+    });
+    layer('pink', noiseBuffer(lsr, 8, pink), (src, out) => {
+      const g = ac.createGain(); g.gain.value = 0.6;
+      src.connect(g); g.connect(out);
     });
     layer('brown', noiseBuffer(lsr, 8, brown), (src, out) => {
       const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 700;
@@ -233,6 +250,7 @@ export function createEngine({ mobile = false } = {}) {
     buses.rain.gain.setTargetAtTime(curve(mix.rain) * 0.5, now, ramp);
     buses.waves.gain.setTargetAtTime(curve(mix.waves) * 0.6, now, ramp);
     buses.brown.gain.setTargetAtTime(curve(mix.brown) * 0.5, now, ramp);
+    buses.pink.gain.setTargetAtTime(curve(mix.pink) * 0.35, now, ramp);
   }
 
   // ------------------------------------------------------------------ chunk rendering

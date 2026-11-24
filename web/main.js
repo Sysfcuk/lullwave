@@ -15,6 +15,7 @@ const WORLDS = [
   { id: 'aurora', name: 'Aurora', tag: 'Northern lights ripple over a frozen lake as snow falls softly. A quiet choir sings.' },
   { id: 'rain', name: 'Neon Rain', tag: 'Rain runs down the window of a city night. Lo-fi keys, soft beats, distant thunder.' },
   { id: 'space', name: 'Stardust', tag: 'Drift through glowing nebulae past a ringed giant, to slow cosmic ambient.' },
+  { id: 'disco', name: 'Disco Cat', tag: 'A rainbow cat grooves under the mirror ball, then curls up and drifts off to a lullaby.' },
 ];
 const TIMERS = [15, 30, 45, 60, 90, 0];
 const FADES = [[5, '5m'], [15, '15m'], [30, '30m'], [0, 'Never']];
@@ -22,11 +23,12 @@ const ICONS = {
   music: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>',
   rain: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 15a5 5 0 1 1 9.6-2H18a3 3 0 0 1 0 6M8 19l-1 2m5-2-1 2m5-2-1 2"/></svg>',
   waves: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 8c3 0 3-2 5-2s2 2 5 2 3-2 5-2 2 2 5 2M2 14c3 0 3-2 5-2s2 2 5 2 3-2 5-2 2 2 5 2M2 20c3 0 3-2 5-2s2 2 5 2 3-2 5-2 2 2 5 2"/></svg>',
+  pink: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12h3l1.5-3 3 6 3-8 3 9 1.5-4H21"/></svg>',
   brown: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12h2l2-5 3 10 3-12 3 14 2-7h3"/></svg>',
   pause: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1.5"/><rect x="14" y="5" width="4" height="14" rx="1.5"/></svg>',
   play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.9l10.4-6.5a1 1 0 0 0 0-1.8L9.5 4.6A1 1 0 0 0 8 5.5z"/></svg>',
 };
-const MIX = [['music', 'Music'], ['rain', 'Rain'], ['waves', 'Waves'], ['brown', 'Brown noise']];
+const MIX = [['music', 'Music'], ['rain', 'Rain'], ['waves', 'Waves'], ['pink', 'Pink noise'], ['brown', 'Brown noise']];
 
 // ------------------------------------------------------------------ settings (remembered)
 const store = {
@@ -42,7 +44,7 @@ const S = {
   warm: store.get('warm', false),
   route: store.get('route3', 'direct'),
   stats: store.get('stats', false),
-  mix: { music: 0.8, rain: 0, waves: 0, brown: 0, ...store.get('mix', {}) },
+  mix: { music: 0.8, rain: 0, waves: 0, pink: 0, brown: 0, ...store.get('mix', {}) },
 };
 function newSeed() { return 1 + Math.floor(Math.random() * 9999); }
 const minutes = () => (S.timer === 'custom' ? Math.max(1, Math.min(720, S.custom | 0)) : S.timer);
@@ -284,7 +286,7 @@ setInterval(() => {
   // the screen dims gently from the start, then fades to black when the visuals time runs out
   // (or as the music fades out at the end of the timer)
   const sinceStart = el / 60;
-  let target = Math.min(0.45, sinceStart * 0.03);
+  let target = Math.min(0.55, sinceStart * 0.07) + (S.warm ? 0.12 : 0);
   const now = Date.now();
   if (now > visualsUntil) target = Math.min(1, (now - visualsUntil) / 45000);
   if (total && total - el < 60) target = Math.max(target, 1 - (total - el) / 60);
@@ -308,6 +310,9 @@ $('install').onclick = async () => {
   } else $('iosSheet').classList.remove('hidden');
 };
 $('iosClose').onclick = () => $('iosSheet').classList.add('hidden');
+$('tipsBtn').onclick = () => $('tipsSheet').classList.remove('hidden');
+$('tipsClose').onclick = () => $('tipsSheet').classList.add('hidden');
+$('tipsSheet').onclick = (e) => { if (e.target === $('tipsSheet')) $('tipsSheet').classList.add('hidden'); };
 $('iosSheet').onclick = (e) => { if (e.target === $('iosSheet')) $('iosSheet').classList.add('hidden'); };
 
 let toastTimer = 0;

@@ -153,7 +153,7 @@ export function createRainScene({ mobile, seed }) {
     // a lightning flash: two or three flickers, then gone
     const a = t - flashAt;
     flash = a > 0 && a < 1.2 ? Math.max(0, Math.sin(a * 22) * Math.exp(-a * 3.5)) + (a < 0.12 ? 0.6 : 0) : 0;
-    U.uFlash.value = flash;
+    U.uFlash.value = flash * (0.25 + 0.75 * st.energy); // softer flashes as the night goes on
     hue += (hueTarget - hue) * Math.min(1, dt * 0.2);
     U.uHue.value = hue;
   }

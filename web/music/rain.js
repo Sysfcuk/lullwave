@@ -87,9 +87,10 @@ export function createRain({ rng }) {
         }
 
         // thunder far off: the flash comes first, the roll a few seconds later
-        if (tm >= nextThunder) {
+        // thunder only early on, and soft: sudden loud sounds rouse sleepers
+        if (tm >= nextThunder && e > 0.45) {
           A.emit('lightning', tm, {});
-          swell(A, fxCh, t + 2.5, { dur: 7 + rng() * 4, vel: 0.11, freq: 70, freq2: 45, q: 0.8, pan: (rng() - 0.5), pan2: (rng() - 0.5) });
+          swell(A, fxCh, t + 2.5, { dur: 9 + rng() * 4, vel: 0.03 + 0.05 * e, freq: 70, freq2: 45, q: 0.8, pan: (rng() - 0.5), pan2: (rng() - 0.5) });
           nextThunder = tm + 60 + rng() * 80;
         }
         step++;

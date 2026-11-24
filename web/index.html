@@ -138,6 +138,11 @@
     transition: opacity .4s, transform .4s var(--ease); pointer-events: none; z-index: 20; max-width: calc(100% - 32px); text-align: center; }
   #toast.show { opacity: 1; transform: translate(-50%, 0); }
   #stats { position: fixed; left: 8px; bottom: calc(var(--safe-b) + 6px); margin: 0; padding: 6px 8px; border-radius: 8px; background: rgba(0, 0, 0, .6); color: #9fe; font: 11px/1.4 ui-monospace, monospace; z-index: 40; pointer-events: none; white-space: pre; }
+  .tips ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 9px; max-height: 58vh; overflow-y: auto; }
+  .tips li { color: var(--ink-2); font-size: 14.5px; line-height: 1.45; }
+  .tips li b { color: var(--ink); font-weight: 600; }
+  .tips .fine { font-size: 12.5px; color: var(--ink-3); }
+  .ghost.small { padding: 8px 14px; font-size: 14px; flex: none; }
   #loader { position: fixed; inset: 0; background: #05040c; display: grid; place-items: center; transition: opacity 1s; z-index: 30; }
   #loader .brand { animation: breathe 2.4s ease-in-out infinite; }
   @keyframes breathe { 50% { opacity: .35; } }
@@ -194,12 +199,16 @@
         <div class="mini-chips" id="fade"></div>
       </div>
       <div class="row">
-        <div class="t">Warm screen<small>Filters out blue light</small></div>
+        <div class="t">Warm screen<small>Cuts blue light and dims a little more</small></div>
         <button class="toggle" id="warmToggle" aria-label="Warm screen"></button>
       </div>
       <div class="row">
         <div class="t">Audio output<small>If the sound stops when you lock the phone, try Stream</small></div>
         <div class="mini-chips" id="route"></div>
+      </div>
+      <div class="row">
+        <div class="t">Sleeping well with sound<small>What the research says, and how to use Lullwave</small></div>
+        <button class="ghost small" id="tipsBtn">Read</button>
       </div>
       <div class="row">
         <div class="t">Audio stats<small>For testing: shows what the sound engine is doing</small></div>
@@ -244,6 +253,22 @@
       <li>Tap <b>Add</b>.</li>
     </ol>
     <button class="ghost" id="iosClose">Got it</button>
+  </div>
+</div>
+
+<div class="modal hidden" id="tipsSheet">
+  <div class="sheet glass tips">
+    <h3>Sleeping well with sound</h3>
+    <ul>
+      <li><b>Keep it quiet.</b> Set the volume as low as you can still hear it, quieter than a soft conversation. Loud or sudden sounds can rouse you without fully waking you.</li>
+      <li><b>Use the timer.</b> The studies that found music helps used 25 to 60 minutes at bedtime. Lullwave slows, softens and fades out on its own, so nothing stops abruptly.</li>
+      <li><b>Make it a habit.</b> The benefits showed up when people listened every night for a few weeks.</li>
+      <li><b>Let the screen go dark.</b> Dimming matters more than warm colours. Let the visuals fade, and put the phone face down.</li>
+      <li><b>Noise is optional.</b> Pink or brown noise can mask disturbing sounds, but the evidence is mixed. If you use it, keep it low.</li>
+      <li><b>No earworms.</b> The music here is composed as it plays and never repeats a tune, so there is no catchy hook to get stuck in your head.</li>
+    </ul>
+    <p class="fine">Lullwave is a relaxation aid, not medical treatment. If poor sleep goes on for weeks, talk to a doctor; CBT for insomnia is the recommended first treatment.</p>
+    <button class="ghost" id="tipsClose">Close</button>
   </div>
 </div>
 

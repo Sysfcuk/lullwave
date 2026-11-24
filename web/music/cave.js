@@ -78,7 +78,7 @@ export function createCave({ rng }) {
           });
           padChord(A, padCh, t, notes.slice(1, 3).map((m) => m + 12), BEATS_PER_CHORD * beatLen, { type: 'sine', voices: 1, attack: 5, release: 5, vol: 0.012 * (0.4 + e), cutoff: 4000 });
           A.emit('chord', tm, { index: chordIdx, name });
-          if (chordIdx === 0 || !motif.length) motif = newMotif();
+          motif = newMotif(); // a new phrase every chord: nothing repeats enough to stick
         }
 
         if (step % 2 === 0) {
