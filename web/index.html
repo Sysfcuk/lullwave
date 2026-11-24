@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#05040c">
+<meta name="description" content="Lullwave: generative sleep music with slow, dreamy 3D worlds. A crystal cave, a night drive, and more.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Lullwave">
+<title>Lullwave</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preload" href="fonts/Outfit-0.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="fonts.css">
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/build/three.module.js", "three/addons/": "./vendor/three/examples/jsm/" } }
+</script>
+<style>
+  :root {
+    --ink: #eef0ff; --ink-2: #a8acd0; --ink-3: #6f7399;
+    --glass: rgba(14, 12, 30, .62); --edge: rgba(190, 180, 255, .14);
+    --accent: #b9a4ff; --accent-2: #7ee8ff;
+    --safe-t: env(safe-area-inset-top, 0px); --safe-b: env(safe-area-inset-bottom, 0px);
+    --ease: cubic-bezier(.2, .8, .2, 1);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #05040c; color: var(--ink);
+    font-family: 'Outfit', system-ui, sans-serif; font-weight: 500; user-select: none; -webkit-user-select: none; -webkit-font-smoothing: antialiased; }
+  button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; padding: 0; }
+  .hidden { display: none !important; }
+  #view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  #warm { position: fixed; inset: 0; pointer-events: none; background: #ff7a2a; mix-blend-mode: multiply; opacity: 0; transition: opacity 1.2s; }
+  #warm.on { opacity: .42; }
+  #dim { position: fixed; inset: 0; pointer-events: none; background: #000; opacity: 0; }
+  .glass { background: var(--glass); border: 1px solid var(--edge); backdrop-filter: blur(18px) saturate(1.2); -webkit-backdrop-filter: blur(18px) saturate(1.2); }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* ------------------------------------------------------------ home */
+  #home { position: fixed; inset: 0; display: flex; flex-direction: column; padding: calc(var(--safe-t) + 14px) 16px calc(var(--safe-b) + 14px);
+    transition: opacity .8s var(--ease), transform .8s var(--ease); }
+  #home.away { opacity: 0; transform: translateY(14px); pointer-events: none; }
+  .top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .brand { font-family: 'Unbounded', 'Outfit', sans-serif; font-weight: 400; font-size: 17px; letter-spacing: .32em; text-transform: lowercase; color: var(--ink);
+    text-shadow: 0 0 18px rgba(185, 164, 255, .6); padding-left: 2px; }
+  .chip-btn { display: inline-flex; align-items: center; gap: 7px; padding: 8px 13px; border-radius: 999px; font-size: 14px; font-weight: 600; }
+  .chip-btn svg { width: 16px; height: 16px; }
+  .scene-pick { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 10px; min-height: 0; }
+  .scene-name { font-family: 'Unbounded', 'Outfit', sans-serif; font-weight: 300; font-size: clamp(30px, 9vw, 52px); letter-spacing: .02em; line-height: 1.05; margin: 0;
+    text-shadow: 0 0 30px rgba(0, 0, 0, .7), 0 0 24px rgba(185, 164, 255, .35); transition: opacity .35s, transform .35s var(--ease); }
+  .scene-name.swap { opacity: 0; transform: translateY(8px); }
+  .scene-tag { margin: 0; color: var(--ink-2); font-size: 16px; max-width: 30ch; text-shadow: 0 1px 12px rgba(0, 0, 0, .9); }
+  .scene-nav { display: flex; align-items: center; gap: 14px; margin-top: 6px; }
+  .arrow { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; }
+  .arrow svg { width: 18px; height: 18px; }
+  .dots { display: flex; gap: 8px; }
+  .dots i { width: 7px; height: 7px; border-radius: 50%; background: rgba(255, 255, 255, .25); transition: background .3s, transform .3s; }
+  .dots i.on { background: var(--ink); transform: scale(1.25); }
+  .seed { font-size: 13px; color: var(--ink-3); display: inline-flex; gap: 6px; align-items: center; padding: 6px 10px; border-radius: 999px; }
+  .seed svg { width: 14px; height: 14px; }
+
+  .sheet { border-radius: 26px; padding: 16px 16px 14px; display: flex; flex-direction: column; gap: 14px; width: min(520px, 100%); align-self: center; }
+  .label { font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 8px; display: flex; justify-content: space-between; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip { flex: 1 1 0; min-width: 0; padding: 10px 8px; border-radius: 14px; background: rgba(255, 255, 255, .05); border: 1px solid transparent; font-size: 15px; font-weight: 600; color: var(--ink-2);
+    transition: background .2s, color .2s, border-color .2s; }
+  .chip.on { background: rgba(185, 164, 255, .18); border-color: rgba(185, 164, 255, .45); color: var(--ink); }
+  .custom-row { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+  .custom-row input { flex: 1; min-width: 0; background: rgba(255, 255, 255, .06); border: 1px solid var(--edge); color: var(--ink); border-radius: 12px; padding: 10px 12px; font: inherit; font-size: 16px; }
+  .custom-row span { color: var(--ink-2); font-size: 14px; }
+  details { border-top: 1px solid rgba(255, 255, 255, .06); padding-top: 10px; }
+  summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; color: var(--ink-2); font-size: 15px; font-weight: 600; }
+  summary::-webkit-details-marker { display: none; }
+  summary svg { width: 18px; height: 18px; transition: transform .3s; }
+  details[open] summary svg { transform: rotate(180deg); }
+  .mix { display: grid; grid-template-columns: auto 1fr; gap: 10px 12px; align-items: center; margin-top: 12px; }
+  .mix label { white-space: nowrap; font-size: 14px; color: var(--ink-2); display: flex; align-items: center; gap: 8px; }
+  .mix label svg { width: 16px; height: 16px; opacity: .8; }
+  input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 30px; background: transparent; margin: 0; }
+  input[type=range]::-webkit-slider-runnable-track { height: 4px; border-radius: 4px; background: linear-gradient(90deg, var(--accent) var(--v, 50%), rgba(255, 255, 255, .12) var(--v, 50%)); }
+  input[type=range]::-moz-range-track { height: 4px; border-radius: 4px; background: rgba(255, 255, 255, .12); }
+  input[type=range]::-moz-range-progress { height: 4px; border-radius: 4px; background: var(--accent); }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%; background: #fff; margin-top: -8px; box-shadow: 0 0 0 4px rgba(185, 164, 255, .25), 0 2px 8px rgba(0, 0, 0, .5); }
+  input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border: 0; border-radius: 50%; background: #fff; box-shadow: 0 0 0 4px rgba(185, 164, 255, .25); }
+  .row { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 14px; }
+  .row .t { font-size: 14px; color: var(--ink-2); }
+  .row .t small { display: block; color: var(--ink-3); font-size: 12px; margin-top: 2px; }
+  .toggle { width: 46px; height: 28px; border-radius: 999px; background: rgba(255, 255, 255, .12); position: relative; flex: none; transition: background .2s; }
+  .toggle::after { content: ''; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; transition: transform .25s var(--ease); }
+  .toggle.on { background: var(--accent); }
+  .toggle.on::after { transform: translateX(18px); }
+  .mini-chips { display: flex; gap: 4px; }
+  .mini-chips .chip { flex: none; min-width: 0; padding: 7px 9px; font-size: 13px; border-radius: 10px; }
+  .start { width: 100%; padding: 16px; border-radius: 18px; font-size: 18px; font-weight: 600; letter-spacing: .02em;
+    background: linear-gradient(135deg, #c9b6ff, #8fd8ff); color: #120c2a; box-shadow: 0 10px 30px rgba(150, 140, 255, .35), inset 0 1px 0 rgba(255, 255, 255, .6);
+    display: flex; align-items: center; justify-content: center; gap: 10px; transition: transform .1s; }
+  .start small { font-size: 13px; font-weight: 500; opacity: .65; }
+  .link { font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); padding: 2px 0 2px 10px; }
+  .link.on { color: var(--ink); text-decoration: underline; text-underline-offset: 4px; }
+  .start:active { transform: scale(.98); }
+  .start svg { width: 20px; height: 20px; }
+
+  /* ------------------------------------------------------------ session */
+  #session { position: fixed; inset: 0; display: flex; flex-direction: column; justify-content: space-between; align-items: center; text-align: center;
+    padding: calc(var(--safe-t) + 24px) 20px calc(var(--safe-b) + 24px); opacity: 0; pointer-events: none; transition: opacity .6s var(--ease); }
+  #session.show { opacity: 1; pointer-events: auto; }
+  #tapzone { position: fixed; inset: 0; }
+  #session > * { position: relative; }
+  .s-scene { font-size: 13px; letter-spacing: .2em; text-transform: uppercase; color: var(--ink-2); }
+  .s-time { font-family: 'Unbounded', 'Outfit', sans-serif; font-weight: 300; font-size: clamp(44px, 14vw, 72px); margin: 8px 0 2px; text-shadow: 0 0 30px rgba(0, 0, 0, .8); }
+  .s-sub { color: var(--ink-2); font-size: 15px; }
+  .bar { width: min(280px, 70vw); height: 3px; border-radius: 3px; background: rgba(255, 255, 255, .12); margin: 14px auto 0; overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
+  .s-mid { display: flex; align-items: center; gap: 22px; }
+  .round { width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; }
+  .round svg { width: 22px; height: 22px; }
+  .round.big { width: 84px; height: 84px; }
+  .round.big svg { width: 30px; height: 30px; }
+  .s-bottom { width: min(440px, 100%); border-radius: 22px; padding: 12px 16px; }
+  .s-bottom .mix { margin-top: 0; }
+  .s-hint { font-size: 13px; color: var(--ink-3); margin-top: 10px; }
+
+  #ended { position: fixed; inset: 0; display: grid; place-items: center; text-align: center; color: var(--ink-3); font-size: 15px; opacity: 0; pointer-events: none; transition: opacity 2s; background: #000; }
+  #ended.show { opacity: 1; pointer-events: auto; }
+  #ended b { display: block; font-family: 'Unbounded', sans-serif; font-weight: 300; font-size: 22px; color: var(--ink-2); margin-bottom: 8px; letter-spacing: .05em; }
+
+  /* ------------------------------------------------------------ sheets & toasts */
+  .modal { position: fixed; inset: 0; background: rgba(0, 0, 0, .55); display: flex; align-items: flex-end; justify-content: center; padding: 16px 16px calc(var(--safe-b) + 16px); z-index: 10; }
+  .modal .sheet { gap: 10px; }
+  .modal h3 { margin: 0; font-weight: 600; font-size: 19px; }
+  .modal p, .modal li { color: var(--ink-2); font-size: 15px; line-height: 1.45; margin: 0; }
+  .modal ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+  .modal .ico { display: inline-block; width: 18px; height: 18px; vertical-align: -3px; }
+  .ghost { padding: 12px; border-radius: 14px; background: rgba(255, 255, 255, .07); font-weight: 600; }
+  #toast { position: fixed; left: 50%; top: calc(var(--safe-t) + 16px); transform: translate(-50%, -20px); opacity: 0; padding: 10px 16px; border-radius: 14px; font-size: 14px; color: var(--ink);
+    transition: opacity .4s, transform .4s var(--ease); pointer-events: none; z-index: 20; max-width: calc(100% - 32px); text-align: center; }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+  #loader { position: fixed; inset: 0; background: #05040c; display: grid; place-items: center; transition: opacity 1s; z-index: 30; }
+  #loader .brand { animation: breathe 2.4s ease-in-out infinite; }
+  @keyframes breathe { 50% { opacity: .35; } }
+  /* with the settings open, the world picker steps aside and the sheet scrolls if it must */
+  #home.expanded .scene-tag, #home.expanded .scene-nav, #home.expanded .seed { display: none; }
+  #home.expanded .scene-name { font-size: 26px; }
+  #home .sheet { max-height: calc(100dvh - var(--safe-t) - var(--safe-b) - 110px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
+  @media (min-height: 760px) { .sheet { gap: 16px; } }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<canvas id="view"></canvas>
+<div id="warm"></div>
+<div id="dim"></div>
+
+<main id="home">
+  <div class="top">
+    <div class="brand">lullwave</div>
+    <button id="install" class="chip-btn glass hidden" aria-label="Install as an app">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4-4m4 4 4-4M5 21h14"/></svg>
+      <span>Install app</span>
+    </button>
+  </div>
+
+  <section class="scene-pick">
+    <h1 class="scene-name" id="sceneName">Crystal Cave</h1>
+    <p class="scene-tag" id="sceneTag"></p>
+    <div class="scene-nav">
+      <button class="arrow glass" id="prev" aria-label="Previous world"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <div class="dots" id="dots"></div>
+      <button class="arrow glass" id="next" aria-label="Next world"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
+    </div>
+    <button class="seed glass" id="reroll" aria-label="New variation">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/></svg>
+      <span>Variation <b class="num" id="seedLabel"></b></span>
+    </button>
+  </section>
+
+  <section class="sheet glass">
+    <div>
+      <div class="label"><span>Sleep timer</span><button class="link" id="customBtn">Custom</button></div>
+      <div class="chips" id="timer"></div>
+      <div class="custom-row hidden" id="customRow">
+        <input id="customMin" type="number" inputmode="numeric" min="1" max="720" placeholder="Minutes">
+        <span>minutes</span>
+      </div>
+    </div>
+    <details id="more">
+      <summary>Sound &amp; screen <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></summary>
+      <div class="mix" id="homeMix"></div>
+      <div class="row">
+        <div class="t">Visuals fade to black<small>Lets the screen sleep; the sound keeps playing</small></div>
+        <div class="mini-chips" id="fade"></div>
+      </div>
+      <div class="row">
+        <div class="t">Warm screen<small>Filters out blue light</small></div>
+        <button class="toggle" id="warmToggle" aria-label="Warm screen"></button>
+      </div>
+      <div class="row">
+        <div class="t">Background audio<small>If you hear nothing, try Direct</small></div>
+        <div class="mini-chips" id="route"></div>
+      </div>
+    </details>
+    <button class="start" id="start">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+      <span id="startLabel">Start</span><small id="endsAt" class="num"></small>
+    </button>
+  </section>
+</main>
+
+<div id="session">
+  <div id="tapzone"></div>
+  <div>
+    <div class="s-scene" id="sScene"></div>
+    <div class="s-time num" id="sTime">45:00</div>
+    <div class="s-sub" id="sSub">left</div>
+    <div class="bar"><i id="sBar"></i></div>
+  </div>
+  <div class="s-mid">
+    <button class="round glass" id="sStop" aria-label="Stop"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg></button>
+    <button class="round big glass" id="sPause" aria-label="Pause"></button>
+    <button class="round glass" id="sPlus" aria-label="Add 15 minutes"><span style="font-weight:600;font-size:15px">+15</span></button>
+  </div>
+  <div class="s-bottom glass">
+    <div class="mix" id="sessionMix"></div>
+    <div class="s-hint" id="sHint">Lock your phone whenever you like. The sound keeps playing.</div>
+  </div>
+</div>
+
+<div id="ended"><div><b>Sweet dreams</b>Tap to go back</div></div>
+
+<div class="modal hidden" id="iosSheet">
+  <div class="sheet glass">
+    <h3>Install Lullwave</h3>
+    <p>Add it to your home screen to open it full screen, like an app.</p>
+    <ol>
+      <li>Tap <b>Share</b> <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v13M8 7l4-4 4 4M5 12v8h14v-8"/></svg> in Safari's toolbar.</li>
+      <li>Scroll down and tap <b>Add to Home Screen</b>.</li>
+      <li>Tap <b>Add</b>.</li>
+    </ol>
+    <button class="ghost" id="iosClose">Got it</button>
+  </div>
+</div>
+
+<div id="toast" class="glass"></div>
+<div id="loader"><div class="brand">lullwave</div></div>
+
+<script type="module" src="main.js"></script>
+</body>
+</html>

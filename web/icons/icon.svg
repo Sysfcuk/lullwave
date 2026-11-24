@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1a1240"/><stop offset=".62" stop-color="#3a1458"/><stop offset="1" stop-color="#0b0820"/></linearGradient>
+    <linearGradient id="moon" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e6dcff"/><stop offset="1" stop-color="#8fd8ff"/></linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#b9a4ff" stop-opacity=".55"/><stop offset="1" stop-color="#b9a4ff" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <circle cx="256" cy="210" r="170" fill="url(#glow)"/>
+  <path d="M318 112a110 110 0 1 0 88 150 90 90 0 0 1-88-150z" fill="url(#moon)"/>
+  <g fill="none" stroke-linecap="round" stroke-width="16">
+    <path d="M86 350c34 0 34-24 68-24s34 24 68 24 34-24 68-24 34 24 68 24 34-24 68-24" stroke="#ff6fd0"/>
+    <path d="M86 404c34 0 34-24 68-24s34 24 68 24 34-24 68-24 34 24 68 24 34-24 68-24" stroke="#7ee8ff" opacity=".8"/>
+  </g>
+  <g fill="#fff"><circle cx="140" cy="130" r="5"/><circle cx="196" cy="88" r="3.5"/><circle cx="110" cy="214" r="3"/><circle cx="420" cy="120" r="4"/></g>
+</svg>
