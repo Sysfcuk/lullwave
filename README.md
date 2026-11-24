@@ -15,6 +15,7 @@ closes, and in the last stretch of the timer everything fades out.
 | --- | --- | --- |
 | **Crystal Cave** | A slow flight down an endless winding tunnel of wet, bump-mapped rock. Faceted crystals grow from the walls, their light glowing in the damp air and mirrored in a stream along the floor; a cluster flares on the side each bell rings from, and drips ripple the water. Stalactites, glinting mineral veins, dust lit by the crystals. | Lydian pads, glass bells answering across the cavern, a drone, water drops, wind. |
 | **Night Drive** | An endless rain-wet neon road through wireframe mountains, towards a striped sun behind far ranges and a city skyline. The sun sinks as the night goes on; kicks roll rings of light across the grid; passing cars, thin clouds, swaying palms, shooting stars. | Slow synthwave: detuned saw pads with tape wobble, bass, arpeggio, a sung hook, a soft beat, passing cars. |
+| **Deep Ocean** | Sinking slowly through dark water: glowing jellyfish pulse and trail their tentacles, marine snow drifts, shafts of light from the surface fade through the night, plankton flare in rings at each sonar ping, bubbles rise, and a whale glides past when one sings. | Muffled Dorian pads, a slowly beating sub drone, sonar pings echoing away, whale song, strings of bubbles. |
 
 Every session has a **variation** number (the seed): the same number gives the same layout and the same tune.
 
@@ -55,6 +56,6 @@ GitHub Pages.
 | --- | --- |
 | `web/main.js` | Screens, settings, the session (timer, dimming, wake lock, lock-screen controls), install button. |
 | `web/audio.js` | Audio graph, reverb and delay, ambience layers, scheduler, session envelope. |
-| `web/music/*.js` | The composers (`cave.js`, `drive.js`) and shared synth voices (`voices.js`). |
+| `web/music/*.js` | The composers (`cave.js`, `drive.js`, `ocean.js`) and shared synth voices (`voices.js`). |
 | `web/render.js` | Renderer (multisampled), bloom, a finishing pass (grain/dither, vignette, chromatic aberration), frame loop (30 fps in a session), adaptive resolution. |
 | `web/scenes/*.js` | The 3D worlds. |

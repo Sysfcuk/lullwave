@@ -8,8 +8,9 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { createCaveScene } from './scenes/cave.js';
 import { createDriveScene } from './scenes/drive.js';
+import { createOceanScene } from './scenes/ocean.js';
 
-const SCENES = { cave: createCaveScene, drive: createDriveScene };
+const SCENES = { cave: createCaveScene, drive: createDriveScene, ocean: createOceanScene };
 
 // The finishing pass, after tone mapping: a little chromatic aberration towards the edges, a
 // vignette, and fine animated grain, which also dithers away the banding that dark gradients

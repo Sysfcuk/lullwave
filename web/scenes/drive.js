@@ -156,7 +156,9 @@ export function createDriveScene({ mobile, seed }) {
 
   // ------------------------------------------------------------------ terrain
   const W = 640, L = 900;
-  const tGeo = keep(new THREE.PlaneGeometry(W, L, mobile ? 120 : 170, mobile ? 170 : 240));
+  // rows a multiple of 3, so a whole number of rows fits in one lap (no jump when the scroll wraps)
+  const SEGZ = mobile ? 168 : 240, DZ = L / SEGZ;
+  const tGeo = keep(new THREE.PlaneGeometry(W, L, mobile ? 120 : 170, SEGZ));
   tGeo.rotateX(-Math.PI / 2); tGeo.translate(0, 0, -L / 2 + 40);
   const terrain = new THREE.Mesh(tGeo, keep(new THREE.ShaderMaterial({
     uniforms: shared, extensions: { derivatives: true },
@@ -169,8 +171,13 @@ export function createDriveScene({ mobile, seed }) {
         return valley * (m * m * 90. + 3.);
       }
       void main(){
+        // the ground moves under the car, but each vertex must keep sampling the same ground
+        // point or the mountains swim: scroll the samples in whole rows and slide the mesh by
+        // the remainder (when a row is skipped the vertices land exactly on the next row's points)
+        float rows = floor(uScroll / ${DZ.toFixed(6)}) * ${DZ.toFixed(6)};
         vec3 p = position;
-        vec2 g = vec2(p.x, p.z - uScroll); // ground coordinates move under the car
+        vec2 g = vec2(p.x, p.z - rows);
+        p.z += uScroll - rows;
         p.y = height(g) - .2;
         vH = p.y;
         p.y -= ${DROP('p.z')};

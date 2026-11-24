@@ -21,8 +21,9 @@
 // - Chunks are rendered further ahead while the page is hidden.
 import { createCave } from './music/cave.js';
 import { createDrive } from './music/drive.js';
+import { createOcean } from './music/ocean.js';
 
-const COMPOSERS = { cave: createCave, drive: createDrive };
+const COMPOSERS = { cave: createCave, drive: createDrive, ocean: createOcean };
 const CHUNK = 20;           // seconds of notes per chunk
 const TAIL = 24;            // extra seconds for notes, reverb and echoes to ring out (longest pad ~15 s + reverb)
 const AHEAD = 50;           // keep this much music rendered ahead (seconds)

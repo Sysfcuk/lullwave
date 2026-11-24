@@ -1,8 +1,8 @@
 // Offline support: network first (so updates show straight away), cached copy when offline.
-const CACHE = 'lullwave-v5';
+const CACHE = 'lullwave-v6';
 const J = './vendor/three/examples/jsm/';
 const CORE = ['./', './index.html', './main.js', './audio.js', './render.js',
-  './music/voices.js', './music/cave.js', './music/drive.js', './scenes/cave.js', './scenes/drive.js',
+  './music/voices.js', './music/cave.js', './music/drive.js', './music/ocean.js', './scenes/cave.js', './scenes/drive.js', './scenes/ocean.js',
   './vendor/three/build/three.module.js', J + 'utils/BufferGeometryUtils.js',
   J + 'postprocessing/EffectComposer.js', J + 'postprocessing/Pass.js', J + 'postprocessing/RenderPass.js', J + 'postprocessing/ShaderPass.js',
   J + 'postprocessing/MaskPass.js', J + 'postprocessing/OutputPass.js', J + 'postprocessing/UnrealBloomPass.js', J + 'shaders/CopyShader.js',

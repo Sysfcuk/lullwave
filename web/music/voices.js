@@ -189,3 +189,37 @@ export function swell(A, ch, t, { dur = 10, vel = 0.05, freq = 500, freq2 = null
   s.connect(f); f.connect(g); g.connect(p); p.connect(ch.input);
   s.start(t, Math.random() * 2); s.stop(t + dur + 0.1);
 }
+
+/**
+ * Whale song: a breathy sine-and-triangle voice through a resonant band, rising then sinking
+ * in a long slow moan, with a vibrato that comes in as it sustains.
+ */
+export function whale(A, ch, t, m, dur = 6, vel = 0.06, pan = 0) {
+  const { ac } = A, f = mtof(m), dest = panned(A, ch, pan);
+  const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 2.5;
+  const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1400;
+  const g = ac.createGain();
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(vel, t + dur * 0.25);
+  g.gain.setValueAtTime(vel, t + dur * 0.6);
+  g.gain.linearRampToValueAtTime(0, t + dur);
+  bp.connect(lp); lp.connect(g); g.connect(dest);
+  const vib = ac.createOscillator(), vg = ac.createGain();
+  vib.frequency.value = 2.7;
+  vg.gain.setValueAtTime(0, t); vg.gain.linearRampToValueAtTime(22, t + dur * 0.5);
+  vib.connect(vg);
+  for (const [type, amp, det] of [['sine', 1, 0], ['triangle', 0.5, 6]]) {
+    const o = ac.createOscillator(), a = ac.createGain();
+    o.type = type; o.detune.value = det; a.gain.value = amp;
+    o.frequency.setValueAtTime(f * 0.82, t);
+    o.frequency.exponentialRampToValueAtTime(f * 1.22, t + dur * 0.38);
+    o.frequency.exponentialRampToValueAtTime(f * 0.68, t + dur);
+    vg.connect(o.detune);
+    o.connect(a); a.connect(bp);
+    o.start(t); o.stop(t + dur + 0.1);
+  }
+  bp.frequency.setValueAtTime(f * 1.6, t);
+  bp.frequency.exponentialRampToValueAtTime(f * 2.4, t + dur * 0.4);
+  bp.frequency.exponentialRampToValueAtTime(f * 1.2, t + dur);
+  vib.start(t); vib.stop(t + dur + 0.1);
+}
