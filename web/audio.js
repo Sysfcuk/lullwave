@@ -30,10 +30,18 @@ import { createEventing } from './music/eventing.js';
 import { createCotswold } from './music/cotswold.js';
 import { createAmbient } from './music/ambient.js';
 import { PROFILES } from './music/profiles.js';
+import { createXmas } from './music/xmas.js';
+import { createChoirSong } from './music/choirsong.js';
+import { createPizzeria } from './music/pizzeria.js';
+import { createFeverSong } from './music/feversong.js';
+import { createCanalSong } from './music/canalsong.js';
+import { createPennySong } from './music/pennysong.js';
 
 const COMPOSERS = { cave: createCave, drive: createDrive, ocean: createOcean, aurora: createAurora, rain: createRain, space: createSpace, disco: createDisco, eventing: createEventing, cotswold: createCotswold };
 // the dream worlds share one ambient composer, each with its own profile
 for (const id of Object.keys(PROFILES)) COMPOSERS[id] = (o) => createAmbient(PROFILES[id], o);
+// ...and the dream worlds that are still on get music written for them
+Object.assign(COMPOSERS, { market: createXmas, choir: createChoirSong, pizza: createPizzeria, fever: createFeverSong, canal: createCanalSong, penny: createPennySong });
 const CHUNK = 20;           // seconds of notes per chunk
 const TAIL = 24;            // extra seconds for notes, reverb and echoes to ring out (longest pad ~15 s + reverb)
 const AHEAD = 50;           // keep this much music rendered ahead (seconds)

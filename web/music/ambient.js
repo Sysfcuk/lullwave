@@ -23,10 +23,10 @@ const PROGS = {
 };
 
 // ------------------------------------------------------------------ small sounds of the night
-function panned(A, ch, pan) { if (!pan) return ch.input; const p = A.ac.createStereoPanner(); p.pan.value = Math.max(-1, Math.min(1, pan)); p.connect(ch.input); return p; }
+export function panned(A, ch, pan) { if (!pan) return ch.input; const p = A.ac.createStereoPanner(); p.pan.value = Math.max(-1, Math.min(1, pan)); p.connect(ch.input); return p; }
 
 /** A cricket: a few quick bright chirps. */
-function cricket(A, ch, t, { vel = 0.012, pan = 0, f = 4300 } = {}) {
+export function cricket(A, ch, t, { vel = 0.012, pan = 0, f = 4300 } = {}) {
   const { ac } = A, dest = panned(A, ch, pan);
   const n = 3 + Math.floor(Math.random() * 3);
   for (let k = 0; k < n; k++) {
@@ -37,7 +37,7 @@ function cricket(A, ch, t, { vel = 0.012, pan = 0, f = 4300 } = {}) {
   }
 }
 /** A horse breathing out: a soft fluttering snort. */
-function snort(A, ch, t, { vel = 0.05, pan = 0 } = {}) {
+export function snort(A, ch, t, { vel = 0.05, pan = 0 } = {}) {
   const { ac } = A, dest = panned(A, ch, pan);
   const s = ac.createBufferSource(); s.buffer = A.whiteBuffer;
   const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.2;
@@ -49,7 +49,7 @@ function snort(A, ch, t, { vel = 0.05, pan = 0 } = {}) {
   s.start(t, Math.random() * 2); s.stop(t + 0.75); flut.start(t); flut.stop(t + 0.75);
 }
 /** A low, gentle nicker. */
-function nicker(A, ch, t, { vel = 0.035, pan = 0 } = {}) {
+export function nicker(A, ch, t, { vel = 0.035, pan = 0 } = {}) {
   const { ac } = A, dest = panned(A, ch, pan);
   const o = ac.createOscillator(), g = ac.createGain(), lp = ac.createBiquadFilter(), am = ac.createOscillator(), ag = ac.createGain();
   o.type = 'sawtooth'; o.frequency.setValueAtTime(115, t); o.frequency.linearRampToValueAtTime(95, t + 0.9);
@@ -60,7 +60,7 @@ function nicker(A, ch, t, { vel = 0.035, pan = 0 } = {}) {
   for (const x of [o, am]) { x.start(t); x.stop(t + 1); }
 }
 /** A sleepy duck: one soft, muffled quack. */
-function quack(A, ch, t, { vel = 0.025, pan = 0 } = {}) {
+export function quack(A, ch, t, { vel = 0.025, pan = 0 } = {}) {
   const { ac } = A, dest = panned(A, ch, pan);
   const o = ac.createOscillator(), g = ac.createGain(), bp = ac.createBiquadFilter();
   o.type = 'sawtooth'; o.frequency.setValueAtTime(380, t); o.frequency.exponentialRampToValueAtTime(300, t + 0.16);
@@ -69,23 +69,23 @@ function quack(A, ch, t, { vel = 0.025, pan = 0 } = {}) {
   o.connect(bp); bp.connect(g); g.connect(dest); o.start(t); o.stop(t + 0.22);
 }
 /** A footstep: on gravel (crunch) or snow (a soft squeak). */
-function footstep(A, ch, t, { vel = 0.03, pan = 0, surface = 'gravel' } = {}) {
+export function footstep(A, ch, t, { vel = 0.03, pan = 0, surface = 'gravel' } = {}) {
   noiseHit(A, ch, t, { vel, type: surface === 'snow' ? 'bandpass' : 'highpass', freq: surface === 'snow' ? 1800 : 2500, q: surface === 'snow' ? 2 : 0.7, decay: surface === 'snow' ? 0.14 : 0.09, pan });
   noiseHit(A, ch, t + 0.01, { vel: vel * 0.8, type: 'lowpass', freq: 400, decay: 0.06, pan });
 }
 /** A log settling in the fire: a few tiny crackles. */
-function crackle(A, ch, t, { vel = 0.02, pan = 0 } = {}) {
+export function crackle(A, ch, t, { vel = 0.02, pan = 0 } = {}) {
   const n = 2 + Math.floor(Math.random() * 5);
   for (let k = 0; k < n; k++) noiseHit(A, ch, t + Math.random() * 0.35, { vel: vel * (0.4 + Math.random()), type: 'highpass', freq: 1500 + Math.random() * 3000, decay: 0.004 + Math.random() * 0.01, pan: pan + (Math.random() - 0.5) * 0.3 });
 }
 /** Sleigh-ish bells, far off and soft. */
-function jingle(A, ch, t, { vel = 0.012, pan = 0 } = {}) {
+export function jingle(A, ch, t, { vel = 0.012, pan = 0 } = {}) {
   for (let k = 0; k < 6; k++) bell(A, ch, t + k * 0.11 + Math.random() * 0.03, 96 + Math.floor(Math.random() * 6), vel, pan, 0.6);
 }
 
 // ------------------------------------------------------------------ a few more instruments
 /** A marimba: a soft woody sine with its bright fourth partial, dying away quickly. */
-function marimba(A, ch, t, m, vel = 0.05, pan = 0) {
+export function marimba(A, ch, t, m, vel = 0.05, pan = 0) {
   t = Math.max(0, t);
   const { ac } = A, dest = panned(A, ch, pan), f = mtof(m);
   for (const [mul, amp, dec] of [[1, 1, 0.9], [4, 0.25, 0.18], [10, 0.05, 0.05]]) {
@@ -95,14 +95,14 @@ function marimba(A, ch, t, m, vel = 0.05, pan = 0) {
   }
 }
 /** A light pluck for fast repeats (a mandolin's tremolo): one oscillator, no filter. */
-function tick(A, ch, t, m, vel, pan, decay = 0.18) {
+export function tick(A, ch, t, m, vel, pan, decay = 0.18) {
   t = Math.max(0, t);
   const { ac } = A, o = ac.createOscillator(), g = ac.createGain(); o.type = 'triangle'; o.frequency.value = mtof(m);
   g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vel, t + 0.004); g.gain.setTargetAtTime(0, t + 0.004, decay / 3);
   o.connect(g); g.connect(panned(A, ch, pan)); o.start(t); o.stop(t + decay + 0.02);
 }
 /** A soft whistle: a near-pure tone that slides from the last note and warms into a vibrato. */
-function whistle(A, ch, t, m, dur, vel = 0.04, pan = 0, from = null) {
+export function whistle(A, ch, t, m, dur, vel = 0.04, pan = 0, from = null) {
   t = Math.max(0, t);
   const { ac } = A, dest = panned(A, ch, pan), f = mtof(m);
   const o = ac.createOscillator(), g = ac.createGain(), vib = ac.createOscillator(), vg = ac.createGain();

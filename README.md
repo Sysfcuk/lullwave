@@ -11,6 +11,11 @@ closes, and in the last stretch of the timer everything fades out.
 
 ## Worlds
 
+Twelve worlds are on: Crystal Cave, Night Drive, Deep Ocean, Aurora, Cotswold Valley, Disco Cat, and six dream
+scenes (Moonlit Canal, Christmas Market, Midnight Choir, Penny's Night Patrol, Pineapple Pizza Incident, Pineapple
+Fever Dream). The others are switched off with `off: true` in `WORLDS` in `web/main.js`; their code is kept, and
+flipping the flag brings one back.
+
 | World | Visuals | Music |
 | --- | --- | --- |
 | **Crystal Cave** | A slow flight down an endless winding tunnel of wet, bump-mapped rock. Faceted crystals grow from the walls, their light glowing in the damp air and mirrored in a stream along the floor; a cluster flares on the side each bell rings from, and drips ripple the water. Stalactites, glinting mineral veins, dust lit by the crystals. | Lydian pads, glass bells answering across the cavern, a drone, water drops, wind. |
@@ -25,7 +30,23 @@ closes, and in the last stretch of the timer everything fades out.
 
 ### Dream scenes
 
-Fourteen smaller, cosier worlds: whimsical, slow and a little surreal. They share one ambient composer
+The six dream scenes that are on each have their own hand-written composer, with its own original tunes, band and
+sounds of the place (built on `web/music/bespoke.js`):
+
+| Scene | Music |
+| --- | --- |
+| **The Moonlit Canal** (`canalsong.js`) | A barcarolle in rocking 6/8: a clarinet sings over a harp that rocks up and down each chord like the boat; water laps the hull, a narrowboat engine putters far off, ducks, drips, an owl. |
+| **The Christmas Market** (`xmas.js`) | A carol-like waltz on celesta and music box over warm strings and pizzicato; sleigh bells on the beat, handbells ringing rounds, the church clock, the market's murmur, footsteps in snow. |
+| **The Midnight Choir** (`choirsong.js`) | Plainsong: a cantor sings a slow modal line and the choir answers "amen", over a humming choir and an organ pedal in a long stone echo; the tower bell tolls. No beat. |
+| **Penny's Night Patrol** (`pennysong.js`) | A late-night jazz trio: vibraphone tune, electric piano comping, walking bass and brushes, swung, round a ii-V-I; Penny purrs, the embers settle, the grandfather clock ticks and chimes, the odd sleepy mew. |
+| **The Pineapple Pizza Incident** (`pizzeria.js`) | A slow tarantella in A minor: mandolin tremolo, accordion on the off-beats, guitar bass, a whispered tambourine; the oven's fire, the chef kneading, plates clinking. |
+| **Pineapple Fever Dream** (`feversong.js`) | A warped tropical lullaby: steel pan in a whole-tone scale, a marimba echo, wobbling augmented chords, celesta twinkles, the odd boing. |
+
+The switched-off dream scenes use the shared ambient composer described below.
+
+#### The shared ambient composer
+
+The other dream scenes share one ambient composer
 (`web/music/ambient.js`), but each profile in `web/music/profiles.js` makes it a different little band: its own key
 and mode (including pentatonic and whole-tone), time signature (waltzes and lilting 6/8s), swing, chord colour,
 accompaniment (harp arpeggios, strummed guitar, oom-pah-pah, Alberti, a rocking boat, twinkles), bass line (held,

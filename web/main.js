@@ -8,33 +8,41 @@ const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigat
 const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 
-const WORLDS = [
+const ALL_WORLDS = [
   { id: 'cave', name: 'Crystal Cave', tag: 'Drift down a winding tunnel of glowing crystals. Glass bells chime and drops ripple the stream.' },
   { id: 'drive', name: 'Night Drive', tag: 'Slow synthwave on an endless neon road. The sun sinks as you drift off.' },
   { id: 'ocean', name: 'Deep Ocean', tag: 'Sink slowly through dark water among glowing jellyfish, while whales sing far away.' },
   { id: 'aurora', name: 'Aurora', tag: 'Northern lights ripple over a frozen lake as snow falls softly. A quiet choir sings.' },
-  { id: 'rain', name: 'Neon Rain', tag: 'Rain runs down the window of a city night. Lo-fi keys, soft beats, distant thunder.' },
-  { id: 'space', name: 'Stardust', tag: 'Drift through glowing nebulae past a ringed giant, to slow cosmic ambient.' },
-  { id: 'eventing', name: 'Cross Country', tag: 'Ride a cross-country course at sunset between your horse\u2019s ears. The canter eases to a walk.' },
+  { id: 'rain', off: true, name: 'Neon Rain', tag: 'Rain runs down the window of a city night. Lo-fi keys, soft beats, distant thunder.' },
+  { id: 'space', off: true, name: 'Stardust', tag: 'Drift through glowing nebulae past a ringed giant, to slow cosmic ambient.' },
+  { id: 'eventing', off: true, name: 'Cross Country', tag: 'Ride a cross-country course at sunset between your horse\u2019s ears. The canter eases to a walk.' },
   { id: 'cotswold', name: 'Cotswold Valley', tag: 'An evening walk above a steep valley of beech woods and honey-stone cottages, as the lights come on.' },
   { id: 'disco', name: 'Disco Cat', tag: 'A rainbow cat grooves under the mirror ball, then curls up and drifts off to a lullaby.' },
   // the dream scenes: little worlds to drift off in
-  { id: 'meadow', group: 1, name: 'ET’s Midnight Meadow', tag: 'A horse grazes under a huge moon in a meadow full of fireflies. An owl calls from the oaks.' },
-  { id: 'estate', group: 1, name: 'The Rivals Estate', tag: 'A grand manor by moonlight, with a fountain, a striped lawn and a flamingo drifting on the pool.' },
-  { id: 'woolpack', group: 1, name: 'The Woolpack at Dusk', tag: 'A village pub glows in the dale at dusk. Chimney smoke curls, the sign creaks, the fire crackles.' },
+  { id: 'meadow', group: 1, off: true, name: 'ET’s Midnight Meadow', tag: 'A horse grazes under a huge moon in a meadow full of fireflies. An owl calls from the oaks.' },
+  { id: 'estate', group: 1, off: true, name: 'The Rivals Estate', tag: 'A grand manor by moonlight, with a fountain, a striped lawn and a flamingo drifting on the pool.' },
+  { id: 'woolpack', group: 1, off: true, name: 'The Woolpack at Dusk', tag: 'A village pub glows in the dale at dusk. Chimney smoke curls, the sign creaks, the fire crackles.' },
   { id: 'canal', group: 1, name: 'The Moonlit Canal', tag: 'A narrowboat drifts past willows and sleeping ducks under a big silver moon.' },
-  { id: 'stables', group: 1, name: 'The Midnight Stables', tag: 'Horses doze over their doors by lantern light. The yard cat sleeps on the hay.' },
+  { id: 'stables', group: 1, off: true, name: 'The Midnight Stables', tag: 'Horses doze over their doors by lantern light. The yard cat sleeps on the hay.' },
   { id: 'market', group: 1, name: 'The Christmas Market', tag: 'Snow falls on glowing stalls and a twinkling tree in a little market square.' },
-  { id: 'trail', group: 1, name: 'The Endless Hiking Trail', tag: 'Follow a small hiker along a path that never ends, towards mountains rising from a golden haze.' },
+  { id: 'trail', group: 1, off: true, name: 'The Endless Hiking Trail', tag: 'Follow a small hiker along a path that never ends, towards mountains rising from a golden haze.' },
   { id: 'choir', group: 1, name: 'The Midnight Choir', tag: 'Candlelight and stained glass in an old stone church, while a small choir sings softly.' },
   { id: 'penny', group: 1, name: 'Penny’s Night Patrol', tag: 'Penny the cat does her rounds of a cosy sitting room, leaving glowing paw prints behind her.' },
   { id: 'pizza', group: 1, name: 'The Pineapple Pizza Incident', tag: 'The oven glows, the chef kneads, and the sign says no pineapple. And yet.' },
-  { id: 'lost', group: 1, name: 'Lost on the Trail', tag: 'A hiker follows a glowing map line round a starlit wood, past signposts that cannot agree.' },
-  { id: 'stardome', group: 1, name: 'The Stardome', tag: 'A glowing stage far below a vast starry sky. Soft beams sweep and lanterns rise.' },
-  { id: 'bakery', group: 1, name: 'The Great Bread Bake', tag: 'Fresh loaves steam on the racks and flour drifts like snow, while the bakery cat sleeps by the oven.' },
+  { id: 'lost', group: 1, off: true, name: 'Lost on the Trail', tag: 'A hiker follows a glowing map line round a starlit wood, past signposts that cannot agree.' },
+  { id: 'stardome', group: 1, off: true, name: 'The Stardome', tag: 'A glowing stage far below a vast starry sky. Soft beams sweep and lanterns rise.' },
+  { id: 'bakery', group: 1, off: true, name: 'The Great Bread Bake', tag: 'Fresh loaves steam on the racks and flour drifts like snow, while the bakery cat sleeps by the oven.' },
   { id: 'fever', group: 1, name: 'Pineapple Fever Dream', tag: 'A giant pineapple snoozes on an endless rolling checkerboard, while pineapples drift by under a pineapple moon.' },
 ];
 const GROUPS = ['Original worlds', 'Dream scenes'];
+// worlds marked off are kept in the code but not offered (fewer, better worlds)
+const WORLDS = ALL_WORLDS.filter((w) => !w.off);
+// the world is remembered by id; older versions remembered its place in the full list
+function savedWorld() {
+  let id = store.get('worldId', null);
+  if (!id) { const old = ALL_WORLDS[store.get('world', 0) % ALL_WORLDS.length]; id = old && old.id; }
+  return Math.max(0, WORLDS.findIndex((w) => w.id === id));
+}
 // each world's colours, used across the interface
 const THEMES = {
   cave: ['#b9a4ff', '#7ee8ff'], drive: ['#ff6fd0', '#ffb36b'], ocean: ['#6fd0ff', '#7affc4'], aurora: ['#7dffb5', '#b48cff'],
@@ -63,7 +71,7 @@ const store = {
   set(k, v) { try { localStorage.setItem('lw.' + k, JSON.stringify(v)); } catch { /* private mode */ } },
 };
 const S = {
-  world: store.get('world', 0) % WORLDS.length,
+  world: 0,
   seed: store.get('seed', newSeed()),
   timer: store.get('timer', 45),
   custom: store.get('custom', 120),
@@ -75,6 +83,7 @@ const S = {
   favs: store.get('favs', []),
   mix: { music: 0.8, rain: 0, waves: 0, pink: 0, brown: 0, ...store.get('mix', {}) },
 };
+S.world = savedWorld();
 function newSeed() { return 1 + Math.floor(Math.random() * 9999); }
 const minutes = () => (S.timer === 'custom' ? Math.max(1, Math.min(720, S.custom | 0)) : S.timer);
 
@@ -101,7 +110,7 @@ function showWorld(animate = true) {
   };
   $('seedLabel').textContent = '#' + S.seed;
   paintFav();
-  store.set('world', S.world); store.set('seed', S.seed);
+  store.set('worldId', WORLDS[S.world].id); store.set('seed', S.seed);
   if (!animate) { apply(); return; }
   // a quick dip to black between worlds
   const my = ++swapping;
@@ -144,7 +153,7 @@ $('nights').onclick = () => {
   for (const n of nights.filter((x) => x.minutes >= 5).slice(0, 30)) {
     const [y, m, d] = n.night.split('-').map(Number);
     const label = new Date(y, m - 1, d).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
-    const w = WORLDS.find((x) => x.id === n.world);
+    const w = ALL_WORLDS.find((x) => x.id === n.world);
     const row = document.createElement('div'); row.className = 'night';
     row.innerHTML = `<span><b>${label}</b> · ${w ? w.name : n.world}</span><span class="num">${n.minutes} min${n.rating ? `<span class="rate">${'●'.repeat(n.rating)}${'○'.repeat(5 - n.rating)}</span>` : ''}</span>`;
     box.appendChild(row);
@@ -160,7 +169,7 @@ function morningCheck() {
   const h = new Date().getHours();
   const preview = location.search.includes('morning'); // ?morning shows it at any hour, for testing
   if (!last || last.rating || last.skipped || (!preview && (last.night !== nightKey() || h < 4 || h >= 13))) return;
-  const w = WORLDS.find((x) => x.id === last.world);
+  const w = ALL_WORLDS.find((x) => x.id === last.world);
   $('mSub').textContent = `${last.minutes} minutes of ${w ? w.name : 'Lullwave'} last night`;
   const box = $('moons'); box.innerHTML = '';
   for (let k = 1; k <= 5; k++) {
@@ -179,8 +188,9 @@ const isFav = () => S.favs.some((f) => f.w === WORLDS[S.world].id && f.s === S.s
 function paintFav() {
   const on = isFav();
   $('fav').classList.toggle('on', on); $('fav').setAttribute('aria-pressed', on);
-  $('favList').classList.toggle('hidden', !S.favs.length);
-  $('favCount').textContent = S.favs.length;
+  const shown = S.favs.filter((f) => WORLDS.some((w) => w.id === f.w)).length;
+  $('favList').classList.toggle('hidden', !shown);
+  $('favCount').textContent = shown;
 }
 $('fav').onclick = () => {
   const w = WORLDS[S.world].id;
