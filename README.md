@@ -26,8 +26,12 @@ closes, and in the last stretch of the timer everything fades out.
 ### Dream scenes
 
 Fourteen smaller, cosier worlds: whimsical, slow and a little surreal. They share one ambient composer
-(`web/music/ambient.js`), each with its own profile in `web/music/profiles.js`: key and mode, pad, a lead that
-plays a new little tune each time, and a bed of sounds for the place (crickets, owls, water, a fire, a pub's
+(`web/music/ambient.js`), but each profile in `web/music/profiles.js` makes it a different little band: its own key
+and mode (including pentatonic and whole-tone), time signature (waltzes and lilting 6/8s), swing, chord colour,
+accompaniment (harp arpeggios, strummed guitar, oom-pah-pah, Alberti, a rocking boat, twinkles), bass line (held,
+walking, pulsing), the softest percussion (brushes, a shaker, a heartbeat, a ticking clock), a lead that plays a new
+little tune each time (flute, whistle, celesta, marimba, mandolin, electric piano, choir; sometimes echoed in canon),
+and a bed of sounds for the place (crickets, owls, water, a fire, a pub's
 murmur, footsteps, horses, ducks, a purring cat). It all thins out as the night goes on.
 
 | Scene | What you see | What you hear |

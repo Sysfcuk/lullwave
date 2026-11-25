@@ -102,7 +102,7 @@ export function pluck(A, ch, t, m, vel = 0.1, pan = 0, { bright = 2400, decay = 
     const o = ac.createOscillator(), a = ac.createGain();
     o.type = type; o.frequency.value = f; a.gain.value = amp;
     o.connect(a); a.connect(lp);
-    o.start(t); o.stop(t + decay * 3);
+    o.start(t); o.stop(t + decay * 2 + 0.05); // by then it is below -40 dB; stopping saves render time
   }
 }
 
