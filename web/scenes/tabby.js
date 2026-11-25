@@ -125,6 +125,7 @@ export function tabby(stage, { coat = '#8a6446', stripe = null, belly = '#efe2cc
     sit: { y: 0.1, pitch: -0.62, fU: 0.62, fL: 0, bU: -0.78, bL: 2.0, head: 0.12, lift: 0, wrap: 1, eyes: 1, hide: 0 },
     loaf: { y: 0.075, pitch: 0, fU: -1.4, fL: 2.4, bU: -1.5, bL: 2.4, head: 0.05, lift: 0, wrap: 1.2, eyes: 0.55, hide: 1 },
     curl: { y: 0.06, pitch: 0, fU: -1.4, fL: 2.4, bU: -1.5, bL: 2.4, head: 0.5, lift: 0, wrap: 1.6, eyes: 0, hide: 1 },
+    squat: { y: 0.15, pitch: -0.32, fU: 0.3, fL: 0, bU: -1.25, bL: 2.05, head: 0.05, lift: 0.45, wrap: 0, eyes: 0.6, hide: 0 },
     rear: { y: 0.27, pitch: -1.15, fU: -0.3, fL: -0.2, bU: 0.95, bL: 0.35, head: 0.2, lift: 0.4, wrap: 0, eyes: 1, hide: 0 },
     jump: { y: 0.23, pitch: 0, fU: -0.85, fL: 0, bU: 0.75, bL: 0.05, head: -0.1, lift: 0.6, wrap: 0, eyes: 1, hide: 0 },
   };
@@ -139,7 +140,7 @@ export function tabby(stage, { coat = '#8a6446', stripe = null, belly = '#efe2cc
     moving: 0, // 0..1: how much she is moving (drives the gait)
     speed: 1, // gait rate
     look: null, // a world point to look at, or null to look about
-    action: null, // 'groom' | 'drink' | 'scratch' | null
+    action: null, // 'groom' | 'drink' | 'scratch' | 'dig' | null
     twitch: 0, // tail-tip twitching (stalking, watching)
     swipe() { swipeT = 0; }, // bat with the right front paw
     wiggle(d = 1.2) { wiggleT = d; }, // the bottom-wiggle before a pounce
@@ -177,6 +178,7 @@ export function tabby(stage, { coat = '#8a6446', stripe = null, belly = '#efe2cc
     let hx = -P.pitch * 0.9 + P.head + (asleep ? 0 : lookPitch), hy = asleep ? 1.1 : lookYaw, hz = asleep ? 0.35 : 0;
     if (api.action === 'groom') { hx += 0.35 + Math.sin(t * 7) * 0.08; hy += 0.35; }
     if (api.action === 'drink') hx += Math.sin(t * 9) * 0.06;
+    if (api.action === 'dig') hx += 0.45 + Math.sin(t * 5.5) * 0.05; // looking down at her work
     head.rotation.set(hx, hy, hz);
     head.position.set(P.wrap > 1 ? 0.07 * (P.wrap - 1) : 0, 0.13 - (P.wrap > 1 ? 0.1 * (P.wrap - 1) : 0), 0.37);
     ears.forEach((e, i) => { e.rotation.x = -0.15 + Math.max(0, Math.sin(t * 0.7 + i * 2) - 0.96) * 6 + (cur === 'stalk' || cur === 'crouch' ? 0.25 : 0); });
@@ -195,6 +197,7 @@ export function tabby(stage, { coat = '#8a6446', stripe = null, belly = '#efe2cc
       if (L.front) { up = P.fU + s * 0.38 * gait; low = P.fL - lift * 0.65 * gait; }
       else { up = P.bU - s * 0.34 * gait; low = P.bL + lift * 0.7 * gait; }
       if (L.front && api.action === 'scratch') { const a = Math.sin(t * 9 + (i === 0 ? 0 : Math.PI)); up = -0.35 + a * 0.22; low = -0.15 - Math.max(0, a) * 0.35; }
+      if (L.front && api.action === 'dig') { const a = Math.sin(t * 11 + (i === 0 ? 0 : Math.PI)); up = -0.25 + a * 0.45; low = 0.25 + Math.max(0, a) * 0.6; }
       if (i === 1 && api.action === 'groom') { up = -1.35; low = 1.9 + Math.sin(t * 3) * 0.2; }
       if (i === 1 && swipeT >= 0 && swipeT < 0.5) { const u = swipeT / 0.5; up = lerp(-1.35, -0.25, u * u); low = lerp(0.6, -0.2, u); }
       L.top.rotation.x = up; L.mid.rotation.x = low;

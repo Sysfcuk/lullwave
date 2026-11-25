@@ -31,6 +31,7 @@ export function createPennyScene({ mobile, seed }) {
     { x0: 3.77, x1: 4.23, z0: -1.18, z1: -0.72 }, // the scratching post
     { x0: -3.7, x1: -3.1, z0: 2.51, z1: 2.99 }, // the box
     { x: 3.4, z: -3.5, r: 0.28 }, // the birdcage stand
+    { x0: -4.24, x1: -3.76, z0: 0.63, z1: 1.27 }, // the litter tray
   ];
   const spots = {
     basket: { perch: [-1.85, 0.09, -3.2], approach: [-1.85, -2.65] },
@@ -40,6 +41,7 @@ export function createPennyScene({ mobile, seed }) {
     water: { x: -2.65, z: -3.62 }, food: { x: -3.1, z: -3.62 },
     post: { x: 4.0, z: -0.95 },
     cage: { x: 3.4, z: -3.5 },
+    litter: { x: -4.0, z: 0.95, perch: [-4.0, 0.08, 0.95], approach: [-3.36, 0.95] },
     yarn: [0.9, -1.4],
     holes: [{ x: 1.75, z: -D / 2, ry: 0 }, { x: W / 2, z: -1.9, ry: -Math.PI / 2 }],
     perches: [[-0.6, 1.53, -3.62], [0.7, 1.53, -3.62], [-4.02, 2.13, -3.52], [-4.15, 2.43, -1.4], [4.38, 3.14, 1.2], [4.25, 0.63, 1.85], [-1.62, 0.74, 0.8], [0, 2.83, -3.96]],

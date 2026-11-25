@@ -5,7 +5,7 @@
 //  - The things in the room: a ball of yarn that rolls and bounces when she bats it, water and
 //    food bowls, a scratching post, a cardboard box, a mouse that peeks out of its hole (and now
 //    and then dashes to the other one), and a canary in a cage that sometimes slips out and
-//    flutters round the room.
+//    flutters round the room; and a litter tray, which she uses like a proper cat.
 //  - Her mind: needs that rise and fall (sleep, thirst, hunger, play, curiosity), a choice of what
 //    to do next weighed from them, and interruptions when the mouse or the bird appears. As the
 //    night goes on she gets sleepier, and by the small hours she mostly dozes. She never catches
@@ -241,6 +241,57 @@ function canaryAndCage(S, { stand, perches, rand }) {
   return st;
 }
 
+// ------------------------------------------------------------------ the litter tray
+function litterTray(S, { spot, rand }) {
+  const g = new THREE.Group(); g.position.set(spot.x, 0, spot.z); S.add(g);
+  const W = 0.46, L = 0.62, H = 0.13, plastic = S.mat('#7f9db4'), rimM = S.mat('#93b1c6');
+  const wall = (w, h, d, x, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), plastic); m.position.set(x, h / 2, z); g.add(m); };
+  wall(W, 0.012, L, 0, 0); wall(0.02, H, L, -W / 2, 0); wall(0.02, H, L, W / 2, 0); wall(W, H, 0.02, 0, -L / 2); wall(W, H, 0.02, 0, L / 2);
+  const rimGeo = new THREE.TorusGeometry(1, 0.012, 6, 4); rimGeo.rotateZ(Math.PI / 4); // a square ring, edges along the axes
+  const rim = new THREE.Mesh(rimGeo, rimM); rim.rotation.x = Math.PI / 2; rim.scale.set(W * 0.7071, L * 0.7071, 1); rim.position.y = H; g.add(rim);
+  const sand = canvasTexture(S, 128, 128, (c, w, h) => { c.fillStyle = '#d8cdb4'; c.fillRect(0, 0, w, h); for (let k = 0; k < 1400; k++) { const v = 170 + Math.random() * 70; c.fillStyle = `rgb(${v},${v * 0.95},${v * 0.84})`; c.fillRect(Math.random() * w, Math.random() * h, 1.5 + Math.random() * 1.5, 1.5 + Math.random() * 1.5); } });
+  sand.wrapS = sand.wrapT = THREE.RepeatWrapping; sand.repeat.set(2, 3);
+  const sandM = new THREE.MeshLambertMaterial({ map: sand });
+  const fill = new THREE.Mesh(new THREE.PlaneGeometry(W - 0.03, L - 0.03), sandM); fill.rotation.x = -Math.PI / 2; fill.position.y = 0.075; g.add(fill);
+  // a little heap she makes, and then carefully smooths over
+  const mound = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 8, 0, TAU, 0, Math.PI / 2), sandM); mound.scale.set(0.001, 0.001, 0.001); g.add(mound);
+  // the scoop, leaning by the tray
+  const scoop = new THREE.Group(); scoop.position.set(W / 2 + 0.14, 0.01, L / 2 - 0.05); scoop.rotation.y = 0.4; g.add(scoop);
+  { const pad = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.008, 0.13), S.mat('#e8a04a')); pad.position.y = 0.004; scoop.add(pad); const hd = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.012, 0.12), S.mat('#e8a04a')); hd.position.set(0, 0.006, 0.12); scoop.add(hd); }
+  // litter flung over the side while she digs: little bits that fly, land and stay
+  const MAX = 90, bits = new THREE.InstancedMesh(new THREE.BoxGeometry(0.01, 0.007, 0.01), S.mat('#cfc3a8'), MAX); bits.frustumCulled = false; S.add(bits);
+  const P = Array.from({ length: MAX }, () => ({ p: new THREE.Vector3(0, -5, 0), v: new THREE.Vector3(), flying: false, rot: 0 }));
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), one = new THREE.Vector3(1, 1, 1), up = new THREE.Vector3(0, 1, 0);
+  let next = 0, acc = 0, moundLevel = 0, moundTarget = 0;
+  const inTray = (x, z) => Math.abs(x - spot.x) < W / 2 && Math.abs(z - spot.z) < L / 2;
+  S.on((t, dt) => {
+    for (let i = 0; i < MAX; i++) {
+      const b = P[i]; if (!b.flying) continue;
+      b.v.y -= 9.8 * dt; b.p.addScaledVector(b.v, dt);
+      if (b.p.y <= 0.004) { b.flying = false; if (inTray(b.p.x, b.p.z)) b.p.y = -5; else b.p.y = 0.004; }
+      bits.setMatrixAt(i, m4.compose(b.p, q.setFromAxisAngle(up, b.rot), one));
+    }
+    bits.instanceMatrix.needsUpdate = true;
+    moundLevel = lerp(moundLevel, moundTarget, Math.min(1, dt * 0.8));
+    const m = Math.max(0.001, moundLevel); mound.scale.set(0.07 * m, 0.03 * m, 0.07 * m);
+  });
+  return {
+    /** Dig: fling a few bits of litter backwards from where she stands (dir = the way they fly). */
+    dig(dt, from, dir, strength = 1) {
+      acc += dt * 7 * strength;
+      while (acc > 1) {
+        acc -= 1; if (rand() > 0.55) continue;
+        const b = P[next]; next = (next + 1) % MAX;
+        const a = dir + (rand() - 0.5) * 1.4, sp = 0.35 + rand() * 0.6;
+        b.p.set(from.x + (rand() - 0.5) * 0.1, 0.1, from.z + (rand() - 0.5) * 0.1);
+        b.v.set(Math.sin(a) * sp, 0.6 + rand() * 0.8, Math.cos(a) * sp); b.flying = true; b.rot = rand() * TAU;
+      }
+    },
+    /** The heap: 1 to show it, 0 to smooth it away. */
+    heap(level, x, z) { moundTarget = level; if (x != null) mound.position.set(x - spot.x, 0.075, z - spot.z); },
+  };
+}
+
 // ------------------------------------------------------------------ Penny's mind
 /**
  * Wire it all up. `cat` is the tabby; `places` lists the furniture footprints and the props'
@@ -252,6 +303,7 @@ export function pennyLife(S, { cat, rand, W, D, obstacles, spots }) {
   const yarn = yarnBall(S, { pos: spots.yarn, nav, W, D });
   const mouse = mouseAndHoles(S, { holes: spots.holes, rand });
   const bird = canaryAndCage(S, { stand: spots.cage, perches: spots.perches, rand });
+  const tray = litterTray(S, { spot: spots.litter, rand });
 
   // the bowls: water that ripples when she laps, and a little kibble
   for (const [b, water] of [[spots.water, true], [spots.food, false]]) {
@@ -290,9 +342,9 @@ export function pennyLife(S, { cat, rand, W, D, obstacles, spots }) {
   // ---------------------------------------------------------------- moving about
   const me = { pos: new THREE.Vector3(spots.basket.perch[0], spots.basket.perch[1], spots.basket.perch[2]), yaw: 0.6, walking: false, on: 'basket', bird, mouse };
   let queue = [], step = null, stepT = 0, path = null, jumpFrom = null, jumpTo = null;
-  const need = { energy: 0.35, thirst: 0.8, hunger: 0.85, fun: 0.6, curious: 0.6 };
+  const need = { energy: 0.35, thirst: 0.8, hunger: 0.85, fun: 0.6, curious: 0.6, toilet: 0.75 };
   let last = 'sleep', justWoke = 0, sinceMeal = 99, focus = null, lastEventT = -99;
-  const SPEED = { walk: 0.34, trot: 0.75, stalk: 0.14 };
+  const SPEED = { walk: 0.34, trot: 0.75, stalk: 0.14, dash: 1.5 };
 
   const go = (x, z, speed = 'walk', look = null) => ({ type: 'go', x, z, speed, look });
   const jump = (x, y, z, dur = 0.7, land = 'floor') => ({ type: 'jump', to: new THREE.Vector3(x, y, z), dur, land });
@@ -309,7 +361,7 @@ export function pennyLife(S, { cat, rand, W, D, obstacles, spots }) {
   const BEHAVIOURS = {
     sleep(e) { const where = rand() < 0.5 ? 'basket' : rand() < 0.6 ? 'sofa' : 'box'; const p = where === 'sofa' ? [lerp(-0.6, 0.2, rand()), spots.sofa.perch[1], spots.sofa.perch[2]] : null; const dur = 35 + rand() * 40 + (1 - e) * 80; return [...goToSpot(where, p), act(where === 'box' ? 'loaf' : 'curl', 2, { face: rand() * TAU }), act(where === 'box' ? 'loaf' : 'curl', dur, { sleep: true }), call(() => { justWoke = 1; })]; },
     drink() { const b = spots.water; return [...floorTo(b.x, b.z + 0.3), act('drink', 5 + rand() * 4, { face: Math.PI, action: 'drink', bowl: b, onEnd: () => { need.thirst = 1; b.still(); } })]; },
-    eat() { const b = spots.food; return [...floorTo(b.x, b.z + 0.3), act('drink', 6 + rand() * 4, { face: Math.PI, action: 'drink', onEnd: () => { need.hunger = 1; sinceMeal = 0; } })]; },
+    eat() { const b = spots.food; return [...floorTo(b.x, b.z + 0.3), act('drink', 6 + rand() * 4, { face: Math.PI, action: 'drink', onEnd: () => { need.hunger = 1; sinceMeal = 0; need.toilet = Math.max(0, need.toilet - 0.25); } })]; },
     play() {
       const out = [...getDown()];
       const rounds = 3 + Math.floor(rand() * 4);
@@ -326,6 +378,17 @@ export function pennyLife(S, { cat, rand, W, D, obstacles, spots }) {
     window() { const z = lerp(0.8, 1.55, rand()); return [...goToSpot('window', [spots.window.perch[0], spots.window.perch[1], z]), act('sit', 10 + rand() * 12, { face: Math.PI / 2, look: new THREE.Vector3(8, 2.2, z) })]; },
     cage() { const c = spots.cage; return [...floorTo(c.x - 0.75, c.z + 0.35), act('sit', 8 + rand() * 6, { lookBird: true, twitch: 0.6 })]; },
     box() { return [...goToSpot('box'), act('loaf', 10 + rand() * 12)]; },
+    litter() {
+      // step in, dig a little hollow, squat, turn round and cover it up thoroughly, step out
+      const L = spots.litter, wall = -Math.PI / 2, room = Math.PI / 2, x = L.perch[0] + (rand() - 0.5) * 0.08, z = L.perch[2] + (rand() - 0.5) * 0.16;
+      const digging = (dur, face, heap) => act('stand', dur, { face, action: 'dig', onTick: (t, dt) => { tray.dig(dt, me.pos, me.yaw + Math.PI, 1); if (heap != null) tray.heap(heap); } });
+      const out = [...floorTo(L.approach[0], L.approach[1]), jump(x, L.perch[1], z, 0.45, 'litter'),
+        digging(2.5 + rand() * 2, wall), act('squat', 5 + rand() * 3, { face: room, look: null, onTick: () => tray.heap(1, me.pos.x - 0.12, me.pos.z) }),
+        digging(3.5 + rand() * 2.5, wall, 0), act('stand', 0.8, { face: room }), jump(L.approach[0], 0, L.approach[1], 0.45, 'floor'), call(() => { need.toilet = 1; })];
+      // and sometimes, the zoomies
+      if (rand() < 0.45) for (let k = 0; k < 3; k++) { const p = nav.snap((rand() - 0.5) * (W - 1.5), (rand() - 0.5) * (D - 1.5)); out.push(go(p.x, p.z, 'dash')); }
+      return out;
+    },
     hole() { const h = spots.holes[Math.floor(rand() * 2)]; return [...floorTo(h.x + Math.sin(h.ry) * 0.6, h.z + Math.cos(h.ry) * 0.6), act('sit', 8 + rand() * 6, { look: new THREE.Vector3(h.x, 0.04, h.z), twitch: 0.5 })]; },
     wander() { const p = nav.snap((rand() - 0.5) * (W - 1), (rand() - 0.5) * (D - 1)); return [...floorTo(p.x, p.z), act(rand() < 0.5 ? 'sit' : 'stand', 3 + rand() * 4)]; },
   };
@@ -334,7 +397,7 @@ export function pennyLife(S, { cat, rand, W, D, obstacles, spots }) {
     const scores = {
       sleep: sleepy, drink: (1 - need.thirst) * 1.3, eat: (1 - need.hunger) * 1.2,
       play: (1 - need.fun) * (0.4 + e * 0.8), scratch: 0.14 + justWoke * 0.7, groom: 0.3 + (sinceMeal < 30 ? 0.6 : 0) + justWoke * 0.4,
-      window: 0.16 + (1 - need.curious) * 0.3, cage: bird.free ? 0 : 0.24 + (1 - need.curious) * 0.25, box: 0.24, hole: 0.18 + (1 - need.curious) * 0.2, wander: 0.26,
+      window: 0.16 + (1 - need.curious) * 0.3, cage: bird.free ? 0 : 0.24 + (1 - need.curious) * 0.25, box: 0.24, hole: 0.18 + (1 - need.curious) * 0.2, wander: 0.26, litter: Math.pow(1 - need.toilet, 1.5) * 2.2,
     };
     let best = 'wander', bs = -1;
     for (const [k, v] of Object.entries(scores)) { const s = v * (0.65 + rand() * 0.7) * (k === last ? 0.35 : 1); if (s > bs) { bs = s; best = k; } }
@@ -371,7 +434,7 @@ export function pennyLife(S, { cat, rand, W, D, obstacles, spots }) {
     // needs drift
     need.energy = Math.max(0, Math.min(1, need.energy + dt * (asleep ? 0.01 : -0.0022)));
     need.thirst = Math.max(0, need.thirst - dt * 0.0011); need.hunger = Math.max(0, need.hunger - dt * 0.0007);
-    need.fun = Math.max(0, need.fun - dt * 0.0028); need.curious = Math.max(0, need.curious - dt * 0.003); sinceMeal += dt;
+    need.fun = Math.max(0, need.fun - dt * 0.0028); need.curious = Math.max(0, need.curious - dt * 0.003); need.toilet = Math.max(0, need.toilet - dt * (asleep ? 0.0002 : 0.0007)); sinceMeal += dt;
 
     // the mouse: she may notice it (less likely the sleepier she is, never in deep sleep)
     if (mouse.visible && !wasMouse && focus !== 'mouse' && t - lastEventT > 8 && !airborne()) {
@@ -405,8 +468,8 @@ export function pennyLife(S, { cat, rand, W, D, obstacles, spots }) {
     switch (step.type) {
       case 'go': case 'chaseBall': {
         const sp = SPEED[step.speed || 'walk'] * (step.speed === 'walk' ? 0.8 + 0.4 * e : 1);
-        cat.pose = step.speed === 'stalk' ? 'stalk' : step.speed === 'trot' ? 'trot' : 'walk';
-        cat.speed = step.speed === 'trot' ? 1.8 : step.speed === 'stalk' ? 0.55 : 0.75 + 0.35 * e;
+        cat.pose = step.speed === 'stalk' ? 'stalk' : step.speed === 'trot' || step.speed === 'dash' ? 'trot' : 'walk';
+        cat.speed = step.speed === 'dash' ? 3.2 : step.speed === 'trot' ? 1.8 : step.speed === 'stalk' ? 0.55 : 0.75 + 0.35 * e;
         if (step.look === 'mouse') cat.look = mouse.visible ? mouse.pos : null;
         if (step.look === 'bird') cat.look = bird.pos;
         if (step.type === 'chaseBall') cat.look = yarn.pos;
@@ -444,7 +507,7 @@ export function pennyLife(S, { cat, rand, W, D, obstacles, spots }) {
         if (step.lookBird) cat.look = bird.pos;
         if (step.lookMouse) cat.look = mouse.pos;
         if (step.bowl && step.bowl.ripple) step.bowl.ripple(t);
-        if (step.onTick) step.onTick(t);
+        if (step.onTick) step.onTick(t, dt);
         // a sleeping cat stays asleep until she's slept enough, or the night ends
         if (stepT > step.dur) { if (step.onEnd) step.onEnd(); cat.action = null; cat.twitch = 0; step = null; }
         break;
