@@ -69,6 +69,11 @@ export function createFeverScene({ mobile, seed }) {
   // the giant pineapple on its little hill, pink sparkles rising from its crown
   const pg = pineappleGeo();
   const home = new THREE.Group(); S.add(home);
+  // a soft shadow beneath it that follows the rolling floor, so it sits on its hill rather than floating
+  const shTex = canvasTexture(S, 128, 128, (g) => { const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64); gr.addColorStop(0, 'rgba(18,8,30,.9)'); gr.addColorStop(0.5, 'rgba(18,8,30,.72)'); gr.addColorStop(0.8, 'rgba(18,8,30,.28)'); gr.addColorStop(1, 'rgba(18,8,30,0)'); g.fillStyle = gr; g.fillRect(0, 0, 128, 128); });
+  const shGeo = new THREE.PlaneGeometry(14, 17, 20, 24); shGeo.rotateX(-Math.PI / 2); shGeo.translate(1, 0, 2.6); // cast away from the moon
+  const shadow = new THREE.Mesh(shGeo, new THREE.MeshBasicMaterial({ map: shTex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 })); shadow.renderOrder = 1; S.add(shadow);
+  const shBase = Float32Array.from(shGeo.attributes.position.array);
   const house = new THREE.Mesh(pg, S.vmat); house.scale.setScalar(9); home.add(house);
   // ...who is fast asleep: closed eyes, rosy cheeks, Zs drifting up
   const onShell = (ang, h, out = 0.06) => { const R = 4.5 * Math.sqrt(Math.max(0, 1 - (h / 6.08) ** 2)) + out; return new THREE.Vector3(Math.sin(ang) * R, h, Math.cos(ang) * R); };
@@ -128,6 +133,7 @@ export function createFeverScene({ mobile, seed }) {
       lastWave = t;
       for (let i = 0; i < fp.count; i++) { const x = base[i * 3], z = base[i * 3 + 2]; fp.array[i * 3 + 1] = wave(x, z, t); }
       fp.needsUpdate = true; floorGeo.computeVertexNormals();
+      const sp = shGeo.attributes.position; for (let i = 0; i < sp.count; i++) sp.array[i * 3 + 1] = wave(shBase[i * 3], shBase[i * 3 + 2], t) + 0.08; sp.needsUpdate = true;
     }
     home.position.y = wave(0, 0, t) + 5.4 + Math.sin(t * 0.3) * 0.05;
     const br = Math.sin(t * 0.35); // slow sleepy breathing

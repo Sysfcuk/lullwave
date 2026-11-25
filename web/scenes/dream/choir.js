@@ -4,13 +4,30 @@
 // the aisle towards them, and back.
 import { createStage, motes, shaft, box, cyl, canvasTexture, THREE, TAU } from '../kit.js';
 import { person } from '../figures.js';
-import { surface, room, candle } from '../interior.js';
+import { surface, room, candle, softBox } from '../interior.js';
 
 export function createChoirScene({ mobile, seed }) {
   const S = createStage({ mobile, seed, salt: 0xc401, bg: '#07070c', fog: { color: '#120f16', near: 8, far: 55 }, exposure: 1.1, bloom: [0.75, 0.55, 0.55], finish: { vignette: 0.52, grain: 0.024, ca: 0.35 }, fov: 56 });
   const { rand } = S;
-  const W = 13, L = 32, H = 10;
-  room(S, { w: W, d: L, h: H, floor: surface(S, 'stone', { color: '#5c574e' }), walls: surface(S, 'stone', { color: '#8a8070' }), ceiling: surface(S, 'planks', { color: '#2c2219' }) });
+  const W = 13, L = 32, H = 12.5;
+  room(S, { w: W, d: L, h: H, floor: surface(S, 'stone', { color: '#5c574e' }), walls: surface(S, 'stone', { color: '#8a8070' }), ceiling: surface(S, 'planks', { color: '#4a3a2c' }) });
+  // the nave's stone vault, ribbed, springing from the top of the arcades
+  const vaultTex = surface(S, 'stone', { color: '#9a907e', repeat: [6, 3] });
+  const vault = new THREE.Mesh(new THREE.CylinderGeometry(4, 4, L, 28, 1, true, -Math.PI / 2, Math.PI), new THREE.MeshLambertMaterial({ map: vaultTex, side: THREE.BackSide }));
+  vault.rotation.x = Math.PI / 2; vault.position.y = 7.9; S.add(vault);
+  for (let z = -14; z <= 14; z += 4) { const rib = new THREE.Mesh(new THREE.TorusGeometry(3.95, 0.16, 6, 28, Math.PI), S.mat('#7e7462')); rib.position.set(0, 7.9, z); S.add(rib); }
+  const ridge = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.2, L), S.mat('#7e7462')); ridge.position.y = 11.85; S.add(ridge);
+  // a red runner down the aisle
+  const runTex = canvasTexture(S, 64, 256, (g, w, h) => { g.fillStyle = '#7a1e24'; g.fillRect(0, 0, w, h); g.fillStyle = '#c9a24a'; g.fillRect(4, 0, 4, h); g.fillRect(w - 8, 0, 4, h); g.fillStyle = 'rgba(0,0,0,.12)'; for (let y = 0; y < h; y += 16) g.fillRect(12, y, w - 24, 2); });
+  runTex.wrapT = THREE.RepeatWrapping; runTex.repeat.set(1, 8);
+  const runner = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 27), new THREE.MeshLambertMaterial({ map: runTex })); runner.rotation.x = -Math.PI / 2; runner.position.set(0, 0.012, 2); S.add(runner);
+  // two hanging coronas of candles over the nave, lighting the pews
+  for (const z of [-2, 7]) {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.9, 0.04, 6, 32), S.mat('#3a2c1a')); ring.rotation.x = Math.PI / 2; ring.position.set(0, 5.2, z); S.add(ring);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) { const ch = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 6.7, 3), S.mat('#1a1410')); ch.position.set(sx * 0.6, 8.55, z + sz * 0.6); ch.rotation.set(-sz * 0.09, 0, sx * 0.09); S.add(ch); }
+    for (let k = 0; k < 8; k++) { const a = (k / 8) * TAU; candle(S, { pos: [Math.cos(a) * 0.9, 5.22, z + Math.sin(a) * 0.9], h: 0.16, r: 0.025 }); }
+    const l = new THREE.PointLight('#ffbe72', 9, 14, 2); l.position.set(0, 5.3, z); S.add(l);
+  }
   S.add(new THREE.HemisphereLight('#6a7ab0', '#3a2c20', 1.3));
 
   // the arcade: two rows of columns, round arches between them
@@ -23,10 +40,9 @@ export function createChoirScene({ mobile, seed }) {
       box(S, [1, 0.25, 1], '#857b6a', [side * 4, 0.12, z]);
       if (k < 6) { const a = new THREE.Mesh(new THREE.TorusGeometry(2, 0.3, 8, 20, Math.PI), stone); a.rotation.y = Math.PI / 2; a.position.set(side * 4, 5.5, z + 2); S.add(a); }
     }
-    box(S, [0.6, H - 7.8, L], '#857b6a', [side * 4, 7.8 + (H - 7.8) / 2 - 0.3, 0]);
+    box(S, [0.6, 0.5, L], '#857b6a', [side * 4, 7.65, 0]); // the string course the vault springs from
   }
-  // roof trusses
-  for (let z = -14; z <= 14; z += 4) { const b = box(S, [W, 0.35, 0.35], '#2a1f16', [0, H - 0.4, z]); b.castShadow = false; }
+  // (the roof is the stone vault above)
 
   // stained glass: tall lancets down both sides, a rose window over the altar
   const glass = (w, h, rose) => canvasTexture(S, rose ? 256 : 128, rose ? 256 : 256, (g, cw, ch) => {
@@ -55,12 +71,12 @@ export function createChoirScene({ mobile, seed }) {
   for (let k = 0; k < 4; k++) shaft(S, { from: [-W / 2 + 0.1, 6.4, -10 + k * 6.5], to: [1.5, 0, -8 + k * 6.5], r0: 0.6, r1: 1.6, color: '#a9b8ff', opacity: 0.11 });
 
   // pews down both sides of the aisle, a candle at the end of every other row
-  const pewMat = S.mat('#4a2e1c');
+  const pewMat = S.mat('#5a3822');
   for (const side of [-1, 1]) for (let k = 0; k < 8; k++) {
     const z = -3 + k * 1.6, x = side * 2.4;
-    const seat = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.08, 0.45), pewMat); seat.position.set(x, 0.48, z); S.add(seat);
-    const back = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.6, 0.06), pewMat); back.position.set(x, 0.8, z + 0.24); S.add(back);
-    for (const e of [-1.6, 1.6]) { const end = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.05, 0.5), pewMat); end.position.set(x + e, 0.52, z + 0.03); S.add(end); }
+    const seat = new THREE.Mesh(softBox(3.2, 0.08, 0.45, 0.03), pewMat); seat.position.set(x, 0.48, z); S.add(seat);
+    const back = new THREE.Mesh(softBox(3.2, 0.6, 0.07, 0.03), pewMat); back.position.set(x, 0.8, z + 0.24); S.add(back);
+    for (const e of [-1.6, 1.6]) { const end = new THREE.Mesh(softBox(0.09, 1.05, 0.5, 0.04), pewMat); const fin = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), pewMat); fin.position.set(x + e, 1.1, z + 0.03); S.add(fin); end.position.set(x + e, 0.52, z + 0.03); S.add(end); }
     if (k % 2 === 0) { cyl(S, 0.04, 0.06, 1.1, '#3a3028', [side * 0.75, 0.55, z], 8); candle(S, { pos: [side * 0.75, 1.1, z], h: 0.2, light: k % 4 === 0, intensity: 3, distance: 6 }); }
   }
 

@@ -29,6 +29,21 @@ export function surface(S, kind, { color = '#8a7a66', repeat = [4, 4] } = {}) {
   return tex;
 }
 
+/** A box with rounded edges and corners (for cushions, sofas, soft things). Exact normals. */
+export function softBox(w, h, d, r = 0.05, seg = 5) {
+  const g = new THREE.BoxGeometry(w, h, d, seg, seg, seg);
+  const p = g.attributes.position, nrm = g.attributes.normal, v = new THREE.Vector3(), c = new THREE.Vector3(), n = new THREE.Vector3();
+  const ix = Math.max(0, w / 2 - r), iy = Math.max(0, h / 2 - r), iz = Math.max(0, d / 2 - r);
+  for (let i = 0; i < p.count; i++) {
+    v.fromBufferAttribute(p, i);
+    c.set(Math.max(-ix, Math.min(ix, v.x)), Math.max(-iy, Math.min(iy, v.y)), Math.max(-iz, Math.min(iz, v.z)));
+    n.subVectors(v, c); if (n.lengthSq() < 1e-12) continue;
+    n.normalize(); v.copy(c).addScaledVector(n, r);
+    p.setXYZ(i, v.x, v.y, v.z); nrm.setXYZ(i, n.x, n.y, n.z);
+  }
+  return g;
+}
+
 /** A room: floor, ceiling and four walls (seen from inside), each with its own surface. */
 export function room(S, { w = 10, d = 10, h = 4, floor, walls, ceiling, pos = [0, 0, 0] }) {
   const g = new THREE.Group(); g.position.set(...pos);
