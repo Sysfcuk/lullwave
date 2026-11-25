@@ -182,6 +182,13 @@ export function createSheepScene({ mobile, seed }) {
   moon.position.copy(MOON); S.add(moon);
   const haloTex = canvasTexture(S, 128, 128, (g) => { const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64); gr.addColorStop(0, 'rgba(255,226,170,.22)'); gr.addColorStop(0.35, 'rgba(255,200,150,.07)'); gr.addColorStop(1, 'rgba(255,180,140,0)'); g.fillStyle = gr; g.fillRect(0, 0, 128, 128); });
   const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); halo.position.copy(MOON).add(new THREE.Vector3(0, -0.4, -0.3)); halo.scale.setScalar(5.5); S.add(halo);
+  const ringTex = canvasTexture(S, 256, 256, (g) => {
+    const gr = g.createRadialGradient(128, 128, 60, 128, 128, 126);
+    gr.addColorStop(0, 'rgba(255,230,180,0)'); gr.addColorStop(0.62, 'rgba(255,226,170,.55)'); gr.addColorStop(0.72, 'rgba(255,220,170,.2)'); gr.addColorStop(1, 'rgba(255,210,160,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
+  });
+  const breathRing = new THREE.Sprite(new THREE.SpriteMaterial({ map: ringTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.1 }));
+  breathRing.position.copy(MOON).add(new THREE.Vector3(0, -0.15, 0.2)); S.add(breathRing);
   const moonLamp = new THREE.PointLight('#ffe2a8', 7, 13, 1.4); moonLamp.position.copy(MOON).add(new THREE.Vector3(0, 0.5, 0.8)); S.add(moonLamp);
 
   // ---------------------------------------------------------------- the waking island: grass, stars growing in it, the fence
@@ -315,13 +322,13 @@ export function createSheepScene({ mobile, seed }) {
   const FACES = [['#4a3e42', '#2a1e24', '#6a5054'], ['#d6c6b0', '#3a3026', '#e0b8b0'], ['#7e6052', '#2e1e18', '#9a7466']].map(([f, e, ear]) => ({ face: S.mat(f, { emissive: e }), ear: S.mat(ear, { emissive: e }) }));
   const hoofMat = S.mat('#1a1618'), eyeMat = S.mat('#f2ead6', { emissive: '#3a362a' }), pupilMat = S.mat('#100c0c'), glintMat = S.mat('#ffffff', { emissive: '#ffffff' }), noseMat = S.mat('#5a3434');
   const hornGeo = (() => { // a ram's horn: a curl back and round, tapering
-    const pts = []; for (let i = 0; i <= 24; i++) { const s = i / 24, a = s * 1.7 * Math.PI, r = 0.11 * (1 - 0.5 * s); pts.push(new THREE.Vector3(0.04 * s, 0.05 + Math.cos(a) * r - 0.02 * s, -0.02 - Math.sin(a) * r)); }
+    const pts = []; for (let i = 0; i <= 24; i++) { const s = i / 24, a = (0.12 + s * 1.38) * Math.PI, r = 0.12 * (1 - 0.4 * s); pts.push(new THREE.Vector3(0.02 + 0.13 * s, -0.01 + Math.cos(a) * r, 0.05 - Math.sin(a) * r * 0.85)); } // up, back, down and round the ear, flaring outwards
     const g = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 40, 0.034, 10, false);
     const p = g.attributes.position; const cen = new THREE.Vector3();
     for (let i = 0; i < p.count; i++) { const seg = Math.floor(i / 11) / 40; const pt = new THREE.CatmullRomCurve3(pts).getPointAt(Math.min(1, seg), cen); const k = 1 - 0.6 * seg; p.setXYZ(i, pt.x + (p.getX(i) - pt.x) * k, pt.y + (p.getY(i) - pt.y) * k, pt.z + (p.getZ(i) - pt.z) * k); }
     g.computeVertexNormals(); return S.keep(g);
   })();
-  const hornMat = S.mat('#b9a888', { emissive: '#1a160e' });
+  const hornMat = S.mat('#cdbb98', { emissive: '#2a2416' });
   const shadowTex = canvasTexture(S, 64, 64, (g) => { const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(8,6,20,.65)'); gr.addColorStop(0.6, 'rgba(8,6,20,.3)'); gr.addColorStop(1, 'rgba(8,6,20,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); });
   const shadowMat = new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
   const shadowGeo = S.keep(new THREE.PlaneGeometry(0.9, 1.25).rotateX(-Math.PI / 2));
@@ -356,7 +363,7 @@ export function createSheepScene({ mobile, seed }) {
       return eg;
     });
     if (ram) {
-      for (const sx of [-1, 1]) { const h = new THREE.Mesh(hornGeo, hornMat); h.position.set(sx * 0.07, 0.04, 0.08); h.scale.x = sx; head.add(h); }
+      for (const sx of [-1, 1]) { const h = new THREE.Mesh(hornGeo, hornMat); h.position.set(sx * 0.12, 0.06, 0.07); h.scale.set(sx * 1.35, 1.35, 1.35); head.add(h); }
       for (const sx of [-1, 1]) { const b = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.012, 0.012), pupilMat); b.position.set(sx * 0.085, 0.082, 0.26); b.rotation.set(0, sx * 0.5, sx * -0.4); head.add(b); }
     }
     const legs = [[-0.13, 0.26, 0], [0.13, 0.26, 1], [-0.13, -0.27, 1], [0.13, -0.27, 0]].map(([x, z, pair]) => {
@@ -418,7 +425,7 @@ export function createSheepScene({ mobile, seed }) {
   }
 
   // ---------------------------------------------------------------- the flock's brains
-  let clockT = 0, energy = 1, next = null, breath = 0, breathT = 0;
+  let clockT = 0, energy = 1, next = null, breath = 0, bStart = -99, bIn = 5.4, bOut = 5.5;
   const v3 = new THREE.Vector3(), v4 = new THREE.Vector3();
   const awake = () => flock.filter((s) => ['graze', 'next', 'run', 'flight'].includes(s.state));
   const freeStar = (sh) => {
@@ -459,7 +466,7 @@ export function createSheepScene({ mobile, seed }) {
       const r = rand(), sleepy = 1 - energy;
       sh.target?.by === sh && (sh.target.by = null);
       if (sh.ram && energy < 0.42) { sh.task = 'bedtime'; sh.target = RAMSPOT; }
-      else if (sh.ram && r < 0.45) { sh.task = 'fence'; sh.target = RAMSPOT; }
+      else if (sh.ram && r < 0.45 && t > (sh.noFence || 0)) { sh.task = 'fence'; sh.target = RAMSPOT; }
       else if (!sh.ram && energy < 0.36 && r < 0.5) { sh.task = 'rest'; sh.until = t + 1e9; }
       else if (r < 0.55) { const st = freeStar(sh); if (st) { st.by = sh; sh.task = 'walk'; sh.target = st; sh.goal = 'eat'; } else sh.task = 'look'; }
       else if (r < 0.8) { sh.task = 'walk'; sh.target = randomOnW(); sh.goal = 'look'; }
@@ -490,10 +497,20 @@ export function createSheepScene({ mobile, seed }) {
       if (left < 0.1) {
         sh.yaw += angDiff(sh.yaw, Math.PI / 2) * (1 - Math.exp(-dt * 2));
         if (sh.task === 'bedtime') { sh.task = 'asleep'; }
-        else if (!sh.until || sh.until > 1e8) sh.until = t + 25 + rand() * 30;
+        else if (!sh.until || sh.until > 1e8) { sh.until = t + 25 + rand() * 30; if (rand() < 0.4 && energy > 0.5) sh.balkAt = t + 6 + rand() * 12; }
+        if (sh.task === 'fence' && sh.balkAt && t > sh.balkAt) { sh.task = 'balk'; sh.t0 = t; sh.balkAt = 0; }
       }
       sh.hp = -0.1;
     } else if (sh.task === 'asleep') { sh.speed = 0; sh.hp = 0.5; sh.lieT = 1; sh.eyesT = 0; }
+    else if (sh.task === 'balk') { // back up, paw the ground, a run at it... a stop, a shake of the head, and away
+      const el = t - sh.t0, fx = Math.sin(sh.yaw), fz = Math.cos(sh.yaw);
+      sh.yaw += angDiff(sh.yaw, Math.PI / 2) * (1 - Math.exp(-dt * 3));
+      if (el < 2.4) { sh.pos.x -= fx * 0.32 * dt; sh.pos.z -= fz * 0.32 * dt; sh.speed = 0.32; sh.paw = 0; sh.hp = 0.15; }
+      else if (el < 4.6) { sh.speed = 0; sh.paw = 1; sh.hp = 0.35; }                         // head down, pawing
+      else if (el < 5.6) { const go = Math.max(0, RAMSPOT.x + 0.15 - sh.pos.x); sh.speed = Math.min(0.85, go * 3); sh.pos.x += fx * sh.speed * dt; sh.pos.z += fz * sh.speed * dt; sh.paw = 0; sh.hp = 0.2; }
+      else if (el < 7.4) { sh.speed = 0; if (sh.shake <= 0) sh.shake = 1.4; sh.hp = -0.15; } // thinks better of it
+      else { sh.task = null; sh.noFence = t + 40 + rand() * 40; sh.paw = 0; }
+    }
   }
 
   function startRun(sh, t, apexIn) {
@@ -538,7 +555,7 @@ export function createSheepScene({ mobile, seed }) {
         } else { // down, slowly, drifting, settling softly at the end
           const k = clamp((el - RISE) / sh.fall, 0, 1), ex = 1 - (1 - k) ** 1.7;
           sh.air.set(lerp(sh.top.x, sh.land.x, ex), lerp(sh.top.y, sh.y1, k * k * (3 - 2 * k)), lerp(sh.top.z, sh.land.z, ex)); sh.fk = k;
-          if (k >= 1) { sh.state = 'land'; sh.t0 = t; sh.pos.copy(sh.land); breathT = 0; }
+          if (k >= 1) { sh.state = 'land'; sh.t0 = t; sh.pos.copy(sh.land); }
         }
         if (el > 0.05 && dt > 0) sh.fpitch = lerp(sh.fpitch, clamp(-Math.atan2(sh.air.y - py, Math.max(1e-3, sh.air.x - px)) * 0.5, -0.45, 0.45), 1 - Math.exp(-dt * 5));
         sh.froll = Math.sin(sh.fk * Math.PI * 2.2) * 0.12 * (1 - sh.fk);
@@ -687,6 +704,7 @@ export function createSheepScene({ mobile, seed }) {
         const el = t - sh.t0, tuck = el < RISE ? Math.sin(Math.PI * 0.5 * Math.min(1, el / (RISE * 0.6))) : 1 - sstep(0, 0.35, sh.fk);
         a = (L.front ? -1.0 : 0.9) * tuck + (1 - tuck) * Math.sin(t * 2.1 + L.x * 9 + L.z * 5) * 0.16 * (1 - sstep(0.75, 1, sh.fk)); lift = 0.18 * tuck;
       }
+      if (sh.paw && L.front && L.x > 0) { a = -0.25 + 0.45 * Math.sin(t * 7); lift = 0.12 * Math.max(0, Math.sin(t * 7)); }
       a = lerp(a, L.front ? -1.35 : 1.35, sh.lie);
       L.pv.rotation.set(a, 0, 0);
       L.pv.updateMatrixWorld();
@@ -716,7 +734,7 @@ export function createSheepScene({ mobile, seed }) {
   // ---------------------------------------------------------------- the music's breath, and its other news
   S.onEvent((ev) => {
     if (ev.type === 'cue') { // breathe in: the next sheep starts its run-up
-      breathT = 1;
+      bStart = clockT; bIn = ev.apexIn; bOut = ev.apexIn * 1.02; // out for as long as in, until the next
       // (while the night is young, a few always stay behind to graze)
       const grazing = flock.filter((s) => s.state === 'graze').length;
       // one at a time: if the last is still on its way (the screen slept, say), this breath passes
@@ -725,7 +743,6 @@ export function createSheepScene({ mobile, seed }) {
     } else if (ev.type === 'leap') { // the top of the jump
       const f = flock.find((s) => s.state === 'flight' && !s.counted);
       if (f) { const err = clockT - f.apexAt; if (Math.abs(err) < 0.5) { f.t0 += err * 0.6; f.apexAt += err * 0.6; } }
-      breathT = 0.55; // the breath out begins
       if (ram.state === 'graze' && ram.task === 'fence' && f) ram.shake = rand() < 0.3 ? 1 : 0; // the ram disapproves
     } else if (ev.type === 'baa') {
       const a = flock.filter((s) => s.state === 'graze' && s.task !== 'rest');
@@ -770,8 +787,9 @@ export function createSheepScene({ mobile, seed }) {
     ram.look = ram.state === 'graze' && ram.task === 'fence' && jumper ? jumper.g.position : null;
     for (const sh of all) pose(sh, t, dt);
     // the breath, in the light: the moon brightens as the runner breathes in, and fades on the long breath out
-    breath = lerp(breath, breathT, 1 - Math.exp(-dt * (breathT > breath ? 0.5 : 0.35)));
-    if (!jumper) breathT = 0;
+    { const u = t - bStart; breath = u < 0 ? 0 : u < bIn ? 0.5 - 0.5 * Math.cos(Math.PI * u / bIn) : u < bIn + bOut ? 0.5 + 0.5 * Math.cos(Math.PI * (u - bIn) / bOut) : 0; }
+    // a ring of soft light round the moon that swells as you breathe in and slowly settles as you breathe out
+    breathRing.scale.setScalar(3.3 + 1.7 * breath); breathRing.material.opacity = (0.1 + 0.32 * breath) * (0.55 + 0.45 * energy);
     moonU.uGlow.value = 0.6 + 0.6 * breath; seaU.uLit.value = 0.6 + 0.5 * breath; woolU.uMoonPow.value = 1.3 + 0.8 * breath; moonLamp.intensity = 5.5 + 3.5 * breath;
     halo.material.opacity = 0.6 + 0.4 * breath;
     moon.rotation.set(0.08, -0.25, Math.sin(t * 0.21) * 0.07); // rocking like a cradle
