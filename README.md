@@ -11,9 +11,9 @@ closes, and in the last stretch of the timer everything fades out.
 
 ## Worlds
 
-Thirteen worlds are on: Crystal Cave, Night Drive, Deep Ocean, Aurora, Cotswold Valley, Disco Cat, and seven dream
+Fifteen worlds are on: Crystal Cave, Night Drive, Deep Ocean, Aurora, Cotswold Valley, Disco Cat, and nine dream
 scenes (Moonlit Canal, Christmas Market, Midnight Choir, Penny's Night Patrol, Pineapple Pizza Incident, Counting
-Sheep, Pineapple Fever Dream). The others are switched off with `off: true` in `WORLDS` in `web/main.js`; their code is kept, and
+Sheep, 8-Bit Night Walk, Glowing Sands, Pineapple Fever Dream). The others are switched off with `off: true` in `WORLDS` in `web/main.js`; their code is kept, and
 flipping the flag brings one back.
 
 | World | Visuals | Music |
@@ -30,7 +30,7 @@ flipping the flag brings one back.
 
 ### Dream scenes
 
-The seven dream scenes that are on each have their own hand-written composer, with its own original tunes, band and
+The nine dream scenes that are on each have their own hand-written composer, with its own original tunes, band and
 sounds of the place (built on `web/music/bespoke.js`):
 
 | Scene | Music |
@@ -42,8 +42,24 @@ sounds of the place (built on `web/music/bespoke.js`):
 | **The Pineapple Pizza Incident** (`pizzeria.js`) | A slow tarantella in A minor: mandolin tremolo, accordion on the off-beats, guitar bass, a whispered tambourine; the oven's fire, the chef kneading, plates clinking. |
 | **Pineapple Fever Dream** (`feversong.js`) | A warped tropical lullaby: steel pan in a whole-tone scale, a marimba echo, wobbling augmented chords, celesta twinkles, the odd boing. |
 | **Counting Sheep** (`sheepsong.js`) | A music-box waltz over soft strings that slowly winds down through the night like a box running down. It breathes with the jumps: a rising swell as each sheep starts its run-up (breathe in), a falling one as it floats down beneath the moon (breathe out), with a bell that climbs the scale as the count goes up. A bleat now and then, the ram's huff, the box being wound again. |
+| **8-Bit Night Walk** (`chipsong.js`) | A chiptune lullaby, softened for bedtime: a triangle-wave tune with a thin pulse-wave echo, slow pulse arpeggios, a triangle bass, the faintest ticks; 8-bit crickets, a sparkle when a shooting star goes over, and the campfire crackling once the walker has stopped. The beat sets the walker's pace. |
+| **Glowing Sands** (`sandsong.js`) | Glassy and still: soft sine pads drifting through a lydian progression, tiny high bell pings falling at random like grains striking glass (fewer as the night goes on), a slow phrase on glass bells, a low hum and the faint hiss of sand. |
 
 In **Counting Sheep**, a flock of cloud-sheep grazes on stars growing in the grass of a floating island, above a slowly billowing sea of moonlit cloud. Each sheep has its own mind: it wanders, eats a star (which grows back), rests, or looks up to bleat. On the music's breath, one trots up and leaps the fence, sailing across the gap to the next island beneath a moon that hangs high in the sky: the run-up and the hop to the top are the in-breath, and the long, slow float down onto the quilt (ears up, legs dangling, like thistledown) is the out-breath. A number glows and fades at the top of the leap. A soft ring of light round the moon breathes with the music, swelling on the in-breath and settling on the out-breath, whether or not a sheep is jumping, so you can breathe along with it. It lands on the next island (a patchwork quilt with a pillow), finds a bed and goes to sleep; later its fleece dissolves into a soft cloud that drifts up into the sky, and a cloud may come back down to the grass as a sheep. The moon waxes through the night, from a thin, leaning crescent at bedtime (with the rest of its face just showing by earthshine) to full; when it's full it has a face, fast asleep. As the night goes on the jumps get lazier and the clouds stop coming down, until the flock is asleep on the quilt and in the sky. The ram won't jump: he watches from the fence and shakes his head. Now and then he squares up to it (backs off, paws the ground, makes a run at it), stops short, shakes his head and wanders off. In the end he falls asleep there.
+
+**8-Bit Night Walk** is real pixel art: the whole picture is drawn into a small pixel buffer (about 100-200
+pixels across, sized to the screen so the pixels stay square) and shown full screen with no smoothing. A little
+sleepwalker in a nightcap and pyjamas, lantern in hand, walks through a never-repeating night of parallax mountains,
+hills with windmills and castles, villages whose windows (and chimney smoke) go out one by one, woods, lamp posts, and
+ponds with little bridges that mirror the sky. Stars twinkle, clouds drift over the moon, fireflies blink, and now and
+then a shooting star crosses. As the night winds down the walker looks for a field, builds a campfire, sits by it,
+then lies down under a blanket; pixel Zs drift up and the fire burns low.
+
+**Glowing Sands** is a real falling-sand simulation in an hourglass: about seven thousand glowing grains in rainbow
+layers, each falling, sliding off to one side, or creeping off a ledge, pour through the neck in a thin stream and
+heap into a cone. When the stream stops, the hourglass slowly turns over and pours again; every grain keeps its
+colour, so each turn stirs the layers into new chevrons and stripes. A glow behind the glass takes the colour of the
+falling stream. Through the night the sand runs slower and dimmer, and at the end the glass comes to rest.
 
 The switched-off dream scenes use the shared ambient composer described below.
 
