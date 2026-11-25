@@ -48,7 +48,7 @@ export function createPennySong({ rng }) {
       // the vibraphone's tune
       tune.step(S, (d, len) => { vibes(A, ch.lead, ts, deg(d) + 12, 0.04 + 0.02 * e, (rng() - 0.5) * 0.4, len * S.eighth + 0.5); A.emit('note', S.tm, {}); });
       // the room: the clock ticks on, the fire settles, Penny mews in her sleep
-      if (sub === 0) noiseHit(A, ch.night, t, { vel: 0.004, type: 'bandpass', freq: beat % 2 ? 3100 : 2500, q: 5, decay: 0.012, pan: 0.5 });
+      if (sub === 0) { noiseHit(A, ch.night, t, { vel: 0.004, type: 'bandpass', freq: beat % 2 ? 3100 : 2500, q: 5, decay: 0.012, pan: 0.5 }); A.emit('tick', S.tm, {}); }
       S.every('crackle', 4, () => crackle(A, ch.night, t, { vel: 0.01, pan: -0.3 }));
       S.every('chime', 210, () => CHIME.forEach((d, k) => bell(A, ch.far, t + k * 1.1, deg(d) + 12, 0.018, 0.5, 4)));
       S.every('mew', 260, () => { if (S.e > 0.4) mew(A, ch.night, t, 0.01, (rng() - 0.5)); });

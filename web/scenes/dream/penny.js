@@ -158,7 +158,7 @@ export function createPennyScene({ mobile, seed }) {
     cup.position.y = top + 0.04;
     model(S, M('vintage_oil_lamp'), { pos: [-1.72, top, 0.9], width: 0.17 }).then((q) => { if (!q) return; lamp.position.set(-1.72, q.box.max.y * 0.75 + top * 0.25, 0.9); lampGlow.position.copy(lamp.position); lampGlow.scale.setScalar(0.55); lampGlow.visible = true; });
   });
-  model(S, M('vintage_grandfather_clock_01'), { pos: [-W / 2 + 0.42, 0, -D / 2 + 0.42], ry: Math.PI / 4, width: 0.6 }).then((r) => { if (r) { hide(gc); blob(r.box); } });
+  model(S, M('vintage_grandfather_clock_01'), { pos: [-W / 2 + 0.42, 0, -D / 2 + 0.42], ry: Math.PI / 4, width: 0.6 }).then((r) => { if (r) { hide(gc); blob(r.box); wireClock(r.group); } });
   model(S, M('wooden_bookshelf_worn'), { pos: [-W / 2 + 0.33, 0, -1.4], ry: Math.PI / 2, width: 1.6 }).then((r) => {
     if (!r) return; hide(bc); blob(r.box);
     // find its shelves and fill them with books
@@ -178,6 +178,73 @@ export function createPennyScene({ mobile, seed }) {
   model(S, M('potted_plant_04'), { pos: [W / 2 - 0.3, 0.56, 1.88], width: 0.28 }).then((r) => { if (r) hide(plantParts); });
   model(S, M('wicker_basket_01'), { pos: [-1.85, 0, fz + 0.8], ry: 0.5, width: 0.66 }).then((r) => { if (r) { hide(bed); blob(r.box, 1.15); bedCushion.position.y = 0.06; bedCushion.scale.set(0.95, 1, 0.75); bedCushion.rotation.y = 0.5; } });
   const lampGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: blobTex, color: '#ffb35c', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); lampGlow.scale.setScalar(0.01); lampGlow.visible = false; S.add(lampGlow);
+
+  // ---------------------------------------------------------------- the clocks keep real time
+  // Both clocks show the time where you are. The grandfather clock's pendulum swings behind a
+  // glass door, reaching the end of each swing on the tick you hear in the music.
+  const clockHands = []; // [group, which ('hour' | 'minute'), the angle it was modelled at, in degrees]
+  const setHands = () => {
+    const now = new Date(), min = now.getMinutes() + now.getSeconds() / 60, hr = (now.getHours() % 12) + min / 60;
+    for (const [g, which, from] of clockHands) g.rotation.z = -THREE.MathUtils.degToRad((which === 'hour' ? hr * 30 : min * 6) - from);
+  };
+  let pendulum = null, lastTick = -99, tickGap = 1.0, swingSide = 1;
+  S.onEvent((ev) => { if (ev.type !== 'tick') return; const t = S.clockNow ? S.clockNow() : 0; if (lastTick > 0) { const gap = t - lastTick; if (gap > 0.4 && gap < 2) tickGap += (gap - tickGap) * 0.3; } lastTick = t; swingSide = -swingSide; });
+  let clockT = 0;
+  S.on((t, dt) => {
+    clockT = t; S.clockNow = () => clockT;
+    setHands();
+    if (pendulum) {
+      // from one end of the swing to the other between ticks; free-running at a beat a second if the music's ticks stop
+      const since = t - lastTick, k = since < tickGap * 2.5 ? Math.min(1, since / tickGap) : (t % 1);
+      const side = since < tickGap * 2.5 ? swingSide : (Math.floor(t) % 2 ? 1 : -1);
+      pendulum.rotation.z = 0.13 * side * Math.cos(Math.PI * k);
+    }
+  });
+  function wireClock(group) {
+    const inner = group.children[0]; inner.updateMatrixWorld(true);
+    // its own hands, turned about the centre of the dial
+    const PIVOT = new THREE.Vector3(-0.0019, 1.7308, 0.1183); // in the model's own space
+    const parts = {}; inner.traverse((o) => { if (o.name === 'Cylinder007') parts.minute = o; if (o.name === 'Cylinder008') parts.hour = o; if (o.isMesh && /glass/.test(o.material.name)) { o.material.opacity = 0.14; o.material.roughness = 0.12; o.material.depthWrite = false; } });
+    for (const [which, from] of [['minute', 222.5], ['hour', 314]]) {
+      if (!parts[which]) continue;
+      const pv = new THREE.Group(); pv.position.copy(PIVOT); inner.add(pv); pv.updateMatrixWorld(true); pv.attach(parts[which]);
+      clockHands.push([pv, which, from]);
+    }
+    // the trunk's front, found by looking for it
+    const meshes = []; inner.traverse((o) => { if (o.isMesh && !/glass/.test(o.material.name)) meshes.push(o); });
+    const from = inner.localToWorld(new THREE.Vector3(0, 0.95, 1)), to = inner.localToWorld(new THREE.Vector3(0, 0.95, 0));
+    const hit = new THREE.Raycaster(from, to.clone().sub(from).normalize()).intersectObjects(meshes, false)[0];
+    const zf = hit ? inner.worldToLocal(hit.point.clone()).z : 0.14;
+    // a window in the door: dark inside, a brass frame, a faint sheen of glass, and the pendulum
+    const door = new THREE.Group(); door.position.set(0, 0.95, zf); inner.add(door);
+    const brass = S.mat('#c9a24a', { emissive: '#4a3410' });
+    const inside = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.46), new THREE.MeshBasicMaterial({ color: '#120a06' })); inside.position.z = 0.003; door.add(inside);
+    for (const [w, h, x, y] of [[0.22, 0.012, 0, 0.235], [0.22, 0.012, 0, -0.235], [0.012, 0.48, -0.105, 0], [0.012, 0.48, 0.105, 0]]) { const f = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.012), S.mat('#3a2414')); f.position.set(x, y, 0.008); door.add(f); }
+    pendulum = new THREE.Group(); pendulum.position.set(0, 0.215, 0.009); door.add(pendulum);
+    const rod = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.33, 0.003), brass); rod.position.y = -0.165; pendulum.add(rod);
+    const bob = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.008, 28), brass); bob.rotation.x = Math.PI / 2; bob.position.y = -0.36; pendulum.add(bob);
+    const bobRim = new THREE.Mesh(new THREE.TorusGeometry(0.052, 0.004, 6, 28), S.mat('#8a6a2a')); bobRim.position.y = -0.36; bobRim.position.z = 0.004; pendulum.add(bobRim);
+    const glassPane = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.46), new THREE.MeshBasicMaterial({ color: '#ffe8c8', transparent: true, opacity: 0.04, depthWrite: false })); glassPane.position.z = 0.016; door.add(glassPane);
+    setHands();
+  }
+  // the mantel clock gets a proper dial too
+  {
+    const dial = canvasTexture(S, 256, 256, (g, w, h) => {
+      const c = w / 2; g.fillStyle = '#efe6cf'; g.beginPath(); g.arc(c, c, 124, 0, TAU); g.fill();
+      g.strokeStyle = '#8a6a2a'; g.lineWidth = 8; g.beginPath(); g.arc(c, c, 120, 0, TAU); g.stroke();
+      g.strokeStyle = '#2a2018'; for (let k = 0; k < 60; k++) { const a = (k / 60) * TAU, r0 = k % 5 ? 104 : 98; g.lineWidth = k % 5 ? 1.5 : 3; g.beginPath(); g.moveTo(c + Math.sin(a) * r0, c - Math.cos(a) * r0); g.lineTo(c + Math.sin(a) * 110, c - Math.cos(a) * 110); g.stroke(); }
+      g.fillStyle = '#2a2018'; g.font = 'bold 22px Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      ['XII', 'I', 'II', 'III', 'IIII', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI'].forEach((n, k) => { const a = (k / 12) * TAU; g.fillText(n, c + Math.sin(a) * 80, c - Math.cos(a) * 80); });
+    });
+    const face = new THREE.Mesh(new THREE.CircleGeometry(0.145, 40), new THREE.MeshLambertMaterial({ map: dial, emissive: '#ffffff', emissiveMap: dial, emissiveIntensity: 0.12 }));
+    face.position.set(0, 1.68, fz + 0.364); S.add(face);
+    for (const [which, len, wid] of [['hour', 0.07, 0.009], ['minute', 0.11, 0.006]]) {
+      const pv = new THREE.Group(); pv.position.set(0, 1.68, fz + 0.368 + (which === 'minute' ? 0.002 : 0)); S.add(pv);
+      const hand = new THREE.Mesh(new THREE.BoxGeometry(wid, len, 0.002), S.mat('#1a1410')); hand.position.y = len / 2 - 0.01; pv.add(hand);
+      clockHands.push([pv, which, 0]);
+    }
+    const cap = new THREE.Mesh(new THREE.CircleGeometry(0.008, 12), S.mat('#c9a24a')); cap.position.set(0, 1.68, fz + 0.372); S.add(cap);
+  }
 
   // ---------------------------------------------------------------- Penny's life
   const penny = tabby(S, { coat: '#8a6446', belly: '#efe2cc', white: '#f6f1e8' });
