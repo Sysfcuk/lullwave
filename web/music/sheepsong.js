@@ -27,8 +27,8 @@ export function baa(A, ch, t, vel = 0.012, pan = 0, f0 = 230) {
   const { ac } = A, dest = panned(A, ch, pan), dur = 0.7;
   const env = ac.createGain(); env.gain.setValueAtTime(0, t); env.gain.linearRampToValueAtTime(vel, t + 0.06); env.gain.setValueAtTime(vel, t + dur * 0.6); env.gain.linearRampToValueAtTime(0, t + dur);
   const trem = ac.createOscillator(), tg = ac.createGain(); trem.frequency.value = 11; tg.gain.value = vel * 0.45; trem.connect(tg); tg.connect(env.gain);
-  const f1 = ac.createBiquadFilter(), f2 = ac.createBiquadFilter(); f1.type = f2.type = 'bandpass'; f1.frequency.value = 760; f1.Q.value = 4; f2.frequency.value = 1180; f2.Q.value = 5;
-  f1.connect(env); f2.connect(env); env.connect(dest);
+  const f1 = ac.createBiquadFilter(), f2 = ac.createBiquadFilter(), soft = ac.createBiquadFilter(); f1.type = f2.type = 'bandpass'; f1.frequency.value = 760; f1.Q.value = 4; f2.frequency.value = 1180; f2.Q.value = 5;
+  soft.type = 'lowpass'; soft.frequency.value = 1500; f1.connect(env); f2.connect(env); env.connect(soft); soft.connect(dest);
   for (const det of [-7, 7]) {
     const o = ac.createOscillator(); o.type = 'sawtooth'; o.detune.value = det;
     o.frequency.setValueAtTime(f0, t); o.frequency.linearRampToValueAtTime(f0 * 1.04, t + 0.15); o.frequency.linearRampToValueAtTime(f0 * 0.88, t + dur);
@@ -82,9 +82,9 @@ export function createSheepSong({ rng }) {
         else musicBox(A, ch.arp, t, notes[inBar] + 12, 0.011 + 0.007 * e, inBar === 1 ? -0.3 : 0.3, 1.2);
       } else if (e > 0.6 && inBar === 2 && rng() < 0.5) musicBox(A, ch.arp, t, notes[0] + 24, 0.007, 0.4, 0.9);
       // the tune
-      tune.step(S, (d, len) => { musicBox(A, ch.lead, t, deg(d) + 24, 0.034 + 0.014 * e, (rng() - 0.5) * 0.3, 1.2 + len * 0.25); A.emit('note', S.tm, {}); });
+      tune.step(S, (d, len) => { musicBox(A, ch.lead, t, deg(d) + 12, 0.04 + 0.016 * e, (rng() - 0.5) * 0.3, 1.2 + len * 0.25); A.emit('note', S.tm, {}); });
       // the meadow: a bleat now and then, the ram's opinion, the box wound again
-      S.every('baa', 38, () => { baa(A, ch.night, t, 0.009 + 0.004 * e, (rng() - 0.5) * 1.2, 200 + rng() * 70); A.emit('baa', S.tm, {}); });
+      S.every('baa', 38, () => { baa(A, ch.night, t, 0.007 + 0.003 * e, (rng() - 0.5) * 1.2, 200 + rng() * 70); A.emit('baa', S.tm, {}); });
       S.every('huff', 75, () => { if (e > 0.42) { snort(A, ch.night, t, { vel: 0.02, pan: -0.25 }); A.emit('huff', S.tm, {}); } });
       S.every('wind', 240, () => { if (e > 0.5) for (let k = 0; k < 7; k++) noiseHit(A, ch.night, t + k * 0.09, { vel: 0.0045, type: 'bandpass', freq: 3200, q: 3, decay: 0.02, pan: 0.45 }); });
     },

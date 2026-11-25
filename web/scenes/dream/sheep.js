@@ -10,14 +10,16 @@
 import { createStage, nightSky, moonlight, motes, canvasTexture, THREE, TAU } from '../kit.js';
 
 // ------------------------------------------------------------------ the lie of the land (world space)
-const WC = new THREE.Vector3(-5, 0, 0), WR = 5.0;       // the waking island, where the flock grazes
-const SC = new THREE.Vector3(6.2, -0.7, -0.4), SR = 3.3; // the sleeping island: the quilt and the pillow
-const FENCE_X = -0.85, FENCE_Z = 1.75;
-const TAKEOFF = new THREE.Vector3(-1.95, 0, 0), WAIT = new THREE.Vector3(-4.2, 0, 0.1), LAND = new THREE.Vector3(4.05, 0, 0.1);
-const MOON = new THREE.Vector3(1.1, -0.55, -0.9);
-const RAMSPOT = new THREE.Vector3(-1.75, 0, 1.25);
-const FLIGHT = 2.6;   // seconds in the air, take-off to landing; the apex is halfway
-const H = 0.40;       // hip height (and leg length) of a sheep
+const WC = new THREE.Vector3(-4.0, 0, 0), WR = 3.9;       // the waking island, where the flock grazes
+const SC = new THREE.Vector3(4.3, -0.45, -0.3), SR = 2.6;  // the sleeping island: the quilt and the pillow
+const FENCE_X = -0.55, FENCE_Z = 1.5;
+const TAKEOFF = new THREE.Vector3(-1.45, 0, 0), WAIT = new THREE.Vector3(-3.3, 0, 0.15), LAND = new THREE.Vector3(2.75, 0, -0.1);
+const MOON = new THREE.Vector3(0.6, -0.55, -1.7);
+const RAMSPOT = new THREE.Vector3(-1.35, 0, 1.1);
+// The jump is shaped like a breath: the run-up and a quick hop to the top on the in-breath, then
+// a long, slow float down on the out-breath, like thistledown.
+const RISE = 1.5;     // seconds from take-off to the top, over the moon
+const H = 0.34;       // hip height (and leg length) of a sheep: short legs, round body
 
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
 const lerp = (a, b, k) => a + (b - a) * k;
@@ -27,14 +29,14 @@ const angDiff = (a, b) => { let d = b - a; while (d > Math.PI) d -= TAU; while (
 /** The grass of the waking island: a gentle dome that rounds off at its edge. */
 const hW = (x, z) => {
   const lx = x - WC.x, lz = z - WC.z, r = Math.hypot(lx, lz);
-  return WC.y + 0.55 * (1 - (r / WR) ** 2) + 0.1 * Math.sin(lx * 0.9 + 1) * Math.cos(lz * 1.1) - 0.22 * sstep(WR - 0.6, WR, r);
+  return WC.y + 0.42 * (1 - (r / WR) ** 2) + 0.08 * Math.sin(lx * 1.1 + 1) * Math.cos(lz * 1.3) - 0.2 * sstep(WR - 0.5, WR, r);
 };
 /** The quilt: a low mound, puffed up patch by patch, falling away over the edge of the island. */
-const PATCH = 0.6;
+const PATCH = 0.5;
 const hS = (x, z) => {
   const lx = x - SC.x, lz = z - SC.z, r = Math.hypot(lx, lz);
   const puff = 0.035 * Math.abs(Math.sin(lx * Math.PI / PATCH)) * Math.abs(Math.sin(lz * Math.PI / PATCH));
-  return SC.y + 0.22 * (1 - Math.min(1, (r / SR) ** 2)) + puff - 0.9 * sstep(SR - 0.15, SR + 0.3, r) * (1 + 0.25 * Math.sin(Math.atan2(lz, lx) * 9));
+  return SC.y + 0.18 * (1 - Math.min(1, (r / SR) ** 2)) + puff - 0.8 * sstep(SR - 0.15, SR + 0.3, r) * (1 + 0.25 * Math.sin(Math.atan2(lz, lx) * 9));
 };
 const onW = (x, z) => Math.hypot(x - WC.x, z - WC.z) < WR;
 const onS = (x, z) => Math.hypot(x - SC.x, z - SC.z) < SR;
@@ -77,7 +79,7 @@ function polarSurface(cx, cz, R, rings, segs, h, color) {
 /** The underside of a floating island: earth then rock, tapering lumpily to a point, with roots. */
 function islandUnder(cx, cy, cz, R, depth, seed) {
   const K = 14, segs = 48, pos = [], col = [], idx = [];
-  const top = new THREE.Color('#3a2e26'), mid = new THREE.Color('#2c2734'), low = new THREE.Color('#17141f'), c = new THREE.Color();
+  const top = new THREE.Color('#4a3a30'), mid = new THREE.Color('#3a3448'), low = new THREE.Color('#25213a'), c = new THREE.Color();
   for (let k = 0; k <= K; k++) {
     const f = k / K;
     for (let s = 0; s < segs; s++) {
@@ -128,12 +130,13 @@ function fleeceGeo(rand, { wid = 0.34, hi = 0.3, len = 0.5, puffs = 44, r0 = 0.0
 // ------------------------------------------------------------------ the wool: soft, curly, moonlit
 const WOOLV = `varying vec3 vP, vW, vN;
   void main(){ vP = position; vec4 w = modelMatrix * vec4(position, 1.); vW = w.xyz; vN = normalize(mat3(modelMatrix) * normal); gl_Position = projectionMatrix * viewMatrix * w; }`;
-const WOOLF = `uniform vec3 uCam, uKey, uKeyCol, uMoonPos, uMoonCol, uSky, uGround, uTint, uCloudCol; uniform float uCloud, uSeed, uMoonPow; varying vec3 vP, vW, vN;
+const WOOLF = `uniform vec3 uCam, uKey, uKeyCol, uMoonPos, uMoonCol, uSky, uGround, uTint, uCloudCol; uniform float uCloud, uSeed, uMoonPow, uFade; varying vec3 vP, vW, vN;
   float h3(vec3 p){ p = fract(p * .3183099 + .1); p *= 17.; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
   float n3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3. - 2. * f);
     return mix(mix(mix(h3(i), h3(i + vec3(1, 0, 0)), f.x), mix(h3(i + vec3(0, 1, 0)), h3(i + vec3(1, 1, 0)), f.x), f.y),
                mix(mix(h3(i + vec3(0, 0, 1)), h3(i + vec3(1, 0, 1)), f.x), mix(h3(i + vec3(0, 1, 1)), h3(i + vec3(1, 1, 1)), f.x), f.y), f.z); }
   void main(){
+    if (uFade > 0.) { float dn = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(.06711056, .00583715)))); if (dn < uFade) discard; }
     vec3 q = vP * 46. + uSeed;
     float c1 = n3(q), c2 = n3(q * 2.1 + 7.);
     float e = .2; vec3 gr = vec3(n3(q + vec3(e, 0., 0.)) - c1, n3(q + vec3(0., e, 0.)) - c1, n3(q + vec3(0., 0., e)) - c1) / e;
@@ -154,7 +157,7 @@ const WOOLF = `uniform vec3 uCam, uKey, uKeyCol, uMoonPos, uMoonCol, uSky, uGrou
   }`;
 
 export function createSheepScene({ mobile, seed }) {
-  const S = createStage({ mobile, seed, salt: 0x5ee9, bg: '#0b0a26', fog: { color: '#1c1a40', near: 30, far: 140 }, exposure: 1.0, bloom: [0.75, 0.55, 0.6], finish: { vignette: 0.4, grain: 0.02, ca: 0.6 }, fov: 50 });
+  const S = createStage({ mobile, seed, salt: 0x5ee9, bg: '#0b0a26', fog: { color: '#1c1a40', near: 30, far: 140 }, exposure: 1.0, bloom: [0.55, 0.5, 0.72], finish: { vignette: 0.4, grain: 0.02, ca: 0.6 }, fov: 50 });
   const { rand } = S;
   const sky = nightSky(S, { top: '#06051a', horizon: '#221d4c', moon: [0, -1, 0], moonSize: 0.0001, halo: '#000000', stars: 1.6, clouds: 0.22, cloudColor: '#34306a', tint: '#2c1640' });
   const su = sky.userData.u;
@@ -162,7 +165,7 @@ export function createSheepScene({ mobile, seed }) {
 
   // ---------------------------------------------------------------- the crescent moon, rocking in the gap
   const moonU = { uTime: S.U.uTime, uGlow: { value: 1 } };
-  const moon = new THREE.Mesh(crescentGeo(1.7), new THREE.ShaderMaterial({
+  const moon = new THREE.Mesh(crescentGeo(1.35), new THREE.ShaderMaterial({
     uniforms: moonU,
     vertexShader: 'varying vec3 vP, vN; void main(){ vP = position; vN = normalize(normalMatrix * normal); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }',
     fragmentShader: `uniform float uGlow; varying vec3 vP, vN;
@@ -173,13 +176,13 @@ export function createSheepScene({ mobile, seed }) {
         float crater = smoothstep(.62, .78, n2(vP.xy * 5. + 11.)) * .5;
         vec3 col = mix(vec3(1., .95, .8), vec3(.86, .8, .66), m * .7 + crater * .5);
         col *= .8 + .2 * max(normalize(vN).z, 0.);
-        gl_FragColor = vec4(col * (.6 + .16 * uGlow), 1.);
+        gl_FragColor = vec4(col * (.6 + .22 * uGlow), 1.);
       }`,
   }));
   moon.position.copy(MOON); S.add(moon);
   const haloTex = canvasTexture(S, 128, 128, (g) => { const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64); gr.addColorStop(0, 'rgba(255,226,170,.22)'); gr.addColorStop(0.35, 'rgba(255,200,150,.07)'); gr.addColorStop(1, 'rgba(255,180,140,0)'); g.fillStyle = gr; g.fillRect(0, 0, 128, 128); });
-  const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); halo.position.copy(MOON).add(new THREE.Vector3(0, -0.4, -0.3)); halo.scale.setScalar(7); S.add(halo);
-  const moonLamp = new THREE.PointLight('#ffe2a8', 9, 16, 1.4); moonLamp.position.copy(MOON).add(new THREE.Vector3(0, 0.5, 0.8)); S.add(moonLamp);
+  const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); halo.position.copy(MOON).add(new THREE.Vector3(0, -0.4, -0.3)); halo.scale.setScalar(5.5); S.add(halo);
+  const moonLamp = new THREE.PointLight('#ffe2a8', 7, 13, 1.4); moonLamp.position.copy(MOON).add(new THREE.Vector3(0, 0.5, 0.8)); S.add(moonLamp);
 
   // ---------------------------------------------------------------- the waking island: grass, stars growing in it, the fence
   const grassCol = (x, z, c) => { const k = 0.5 + 0.5 * Math.sin(x * 1.7 + Math.cos(z * 1.3) * 2) * Math.sin(z * 1.1 - x * 0.4); c.set('#3a6a3c').lerp(new THREE.Color('#5d8a4a'), k * 0.8); };
@@ -194,19 +197,19 @@ export function createSheepScene({ mobile, seed }) {
       col.push(lo.r, lo.g, lo.b, lo.r, lo.g, lo.b, hi.r, hi.g, hi.b); nor.push(0, 1, 0, 0, 1, 0, 0, 1, 0);
     }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
-    const n = mobile ? 700 : 1300, tufts = new THREE.InstancedMesh(g, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }), n);
+    const n = mobile ? 450 : 800, tufts = new THREE.InstancedMesh(g, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }), n);
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), s = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
     for (let i = 0; i < n; i++) {
       const a = rand() * TAU, r = Math.sqrt(rand()) * (WR - 0.15); p.set(WC.x + Math.cos(a) * r, 0, WC.z + Math.sin(a) * r); p.y = hW(p.x, p.z) - 0.01;
-      q.setFromAxisAngle(up, rand() * TAU); s.set(0.8 + rand() * 0.6, 0.45 + rand() * 0.5, 0.8 + rand() * 0.6); tufts.setMatrixAt(i, m.compose(p, q, s));
+      q.setFromAxisAngle(up, rand() * TAU); s.set(0.7 + rand() * 0.5, 0.35 + rand() * 0.4, 0.7 + rand() * 0.5); tufts.setMatrixAt(i, m.compose(p, q, s));
     }
     S.add(tufts);
   }
   // star-flowers: little stars that grow in the grass. The sheep eat them; they grow back
-  const STARS = mobile ? 30 : 40, starPos = new Float32Array(STARS * 3), starGlow = new Float32Array(STARS), starSeed = new Float32Array(STARS);
+  const STARS = mobile ? 22 : 28, starPos = new Float32Array(STARS * 3), starGlow = new Float32Array(STARS), starSeed = new Float32Array(STARS);
   const stars = [];
   for (let i = 0; i < STARS; i++) {
-    let x, z; do { const a = rand() * TAU, r = Math.sqrt(rand()) * (WR - 0.9); x = WC.x + Math.cos(a) * r; z = WC.z + Math.sin(a) * r; } while (x > FENCE_X - 0.6 || Math.hypot(x - WAIT.x, z - WAIT.z) < 0.9);
+    let x, z; do { const a = rand() * TAU, r = Math.sqrt(rand()) * (WR - 0.9); x = WC.x + Math.cos(a) * r; z = WC.z + Math.sin(a) * r; } while (x > FENCE_X - 0.6 || Math.hypot(x - WAIT.x, z - WAIT.z) < 0.9 || (Math.abs(z) < 0.5 && x > WAIT.x));
     starPos.set([x, hW(x, z) + 0.07, z], i * 3); starGlow[i] = 1; starSeed[i] = rand();
     stars.push({ x, z, glow: 1, eaten: false, back: 0, by: null });
   }
@@ -238,7 +241,7 @@ export function createSheepScene({ mobile, seed }) {
 
   // ---------------------------------------------------------------- the sleeping island: a quilt and a pillow
   const quiltTex = canvasTexture(S, 512, 512, (g, w) => {
-    const cols = ['#7a4a6a', '#3e6a78', '#b08a3a', '#9a4e52', '#d8ccb0', '#4e5a8a', '#6a7a4a', '#c07a5a'];
+    const cols = ['#6e4f64', '#4a6470', '#94804e', '#8a5c5e', '#c2b8a2', '#566088', '#66724f', '#a07a66'];
     const n = Math.round((2 * (SR + 0.3)) / PATCH), cell = w / n;
     for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
       const k = (i * 7 + j * 3 + ((i * j) % 5)) % cols.length; g.fillStyle = cols[k]; g.fillRect(i * cell, j * cell, cell, cell);
@@ -253,14 +256,14 @@ export function createSheepScene({ mobile, seed }) {
     const QR = SR + 0.3, g = polarSurface(SC.x, SC.z, QR, 30, 96, hS, (x, z, c) => c.set('#ffffff'));
     // the texture lines up with the puffed patches: one patch per PATCH metres
     const uv = g.attributes.uv, p = g.attributes.position; for (let i = 0; i < uv.count; i++) uv.setXY(i, (p.getX(i) - SC.x) / (2 * QR) + 0.5, (p.getZ(i) - SC.z) / (2 * QR) + 0.5);
-    S.add(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ map: quiltTex, emissive: '#ffffff', emissiveMap: quiltTex, emissiveIntensity: 0.07, side: THREE.DoubleSide })));
+    S.add(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ map: quiltTex, emissive: '#ffffff', emissiveMap: quiltTex, emissiveIntensity: 0.045, side: THREE.DoubleSide })));
     S.add(new THREE.Mesh(islandUnder(SC.x, SC.y - 0.35, SC.z, SR * 0.97, 3.3, 4.1), S.vmat));
   }
-  const PILLOW = new THREE.Vector3(SC.x + 2.05, 0, SC.z);
+  const PILLOW = new THREE.Vector3(SC.x + 1.75, 0, SC.z);
   {
     const tick = canvasTexture(S, 256, 64, (g, w, h) => { g.fillStyle = '#e8e2d4'; g.fillRect(0, 0, w, h); g.fillStyle = '#7a8cb8'; for (let x = 0; x < w; x += 22) g.fillRect(x, 0, 6, h); g.fillStyle = '#b8c4dc'; for (let x = 11; x < w; x += 22) g.fillRect(x, 0, 2, h); });
     const pg = new THREE.SphereGeometry(1, 40, 20); const pp = pg.attributes.position;
-    for (let i = 0; i < pp.count; i++) { const x = pp.getX(i), y = pp.getY(i), z = pp.getZ(i); const sq = 1 - 0.35 * z * z; pp.setXYZ(i, x * 0.55 * sq, y * 0.26 * (1 - 0.5 * z * z), z * 1.45); }
+    for (let i = 0; i < pp.count; i++) { const x = pp.getX(i), y = pp.getY(i), z = pp.getZ(i); const sq = 1 - 0.35 * z * z; pp.setXYZ(i, x * 0.45 * sq, y * 0.22 * (1 - 0.5 * z * z), z * 1.2); }
     pg.computeVertexNormals();
     const pillow = new THREE.Mesh(pg, new THREE.MeshLambertMaterial({ map: tick, emissive: '#ffffff', emissiveMap: tick, emissiveIntensity: 0.06 }));
     pillow.position.set(PILLOW.x, hS(PILLOW.x, PILLOW.z) + 0.16, PILLOW.z); pillow.rotation.set(0, 0.08, -0.12); S.add(pillow);
@@ -294,19 +297,23 @@ export function createSheepScene({ mobile, seed }) {
     uMoonPos: { value: moonLamp.position.clone() }, uMoonCol: { value: new THREE.Color('#ffd9a0') }, uMoonPow: { value: 1.6 },
     uSky: { value: new THREE.Color('#7070c0') }, uGround: { value: new THREE.Color('#2a2a44') }, uCloudCol: { value: new THREE.Color('#c4c0ee') },
   };
-  const woolMat = (tint, s) => S.keep(new THREE.ShaderMaterial({ uniforms: { ...woolU, uTint: { value: new THREE.Color(tint) }, uCloud: { value: 0 }, uSeed: { value: s } }, vertexShader: WOOLV, fragmentShader: WOOLF }));
+  const woolMat = (tint, s) => S.keep(new THREE.ShaderMaterial({ uniforms: { ...woolU, uTint: { value: new THREE.Color(tint) }, uCloud: { value: 0 }, uSeed: { value: s }, uFade: { value: 0 } }, vertexShader: WOOLV, fragmentShader: WOOLF }));
   const fleeces = [fleeceGeo(rand), fleeceGeo(rand, { wid: 0.36, hi: 0.31, len: 0.52 }), fleeceGeo(rand, { wid: 0.32, hi: 0.29, len: 0.48, puffs: 20 })].map((g) => S.keep(g));
   const capGeo = S.keep(fleeceGeo(rand, { wid: 0.1, hi: 0.06, len: 0.09, puffs: 10, r0: 0.035, r1: 0.05, seg: 8 }));
   const tailGeo = S.keep(fleeceGeo(rand, { wid: 0.06, hi: 0.07, len: 0.05, puffs: 8, r0: 0.03, r1: 0.045, seg: 8 }));
   const neckGeo = S.keep(fleeceGeo(rand, { wid: 0.16, hi: 0.16, len: 0.13, puffs: 16, r0: 0.05, r1: 0.07, seg: 8 }));
   const legGeo = S.keep(new THREE.CylinderGeometry(0.03, 0.025, H, 8).translate(0, -H / 2, 0));
   const hoofGeo = S.keep(new THREE.CylinderGeometry(0.03, 0.034, 0.05, 8).translate(0, -H + 0.025, 0));
-  const headGeo = S.keep(new THREE.SphereGeometry(1, 18, 12).scale(0.115, 0.125, 0.18).translate(0, 0, 0.17));
-  const muzzleGeo = S.keep(new THREE.SphereGeometry(1, 14, 10).scale(0.085, 0.08, 0.09).translate(0, -0.04, 0.31));
-  const earGeo = S.keep(new THREE.SphereGeometry(1, 12, 8).scale(0.075, 0.018, 0.034).translate(0.06, 0, 0));
-  const eyeGeo = S.keep(new THREE.SphereGeometry(0.021, 10, 8));
-  const pupilGeo = S.keep(new THREE.BoxGeometry(0.026, 0.007, 0.01));
-  const faceMat = S.mat('#6a5a5e', { emissive: '#2a2026' }), earMat = S.mat('#7a6064', { emissive: '#2a1c20' }), hoofMat = S.mat('#1a1618'), eyeMat = S.mat('#e8dfc6', { emissive: '#2a261c' }), pupilMat = S.mat('#120e0e');
+  const headGeo = S.keep(new THREE.SphereGeometry(1, 20, 14).scale(0.13, 0.14, 0.19).translate(0, 0, 0.17));
+  const muzzleGeo = S.keep(new THREE.SphereGeometry(1, 16, 12).scale(0.095, 0.088, 0.09).translate(0, -0.045, 0.31));
+  const noseGeo = S.keep(new THREE.SphereGeometry(1, 10, 8).scale(0.032, 0.018, 0.012));
+  const earGeo = S.keep(new THREE.SphereGeometry(1, 12, 8).scale(0.085, 0.02, 0.04).translate(0.07, 0, 0));
+  const eyeGeo = S.keep(new THREE.SphereGeometry(0.03, 14, 10));
+  const pupilGeo = S.keep(new THREE.SphereGeometry(0.019, 12, 8).scale(1, 1, 0.5));
+  const glintGeo = S.keep(new THREE.SphereGeometry(0.006, 6, 4));
+  // faces: a dark-faced sheep, a cream one and a brown one (each with ears and legs to match)
+  const FACES = [['#4a3e42', '#2a1e24', '#6a5054'], ['#d6c6b0', '#3a3026', '#e0b8b0'], ['#7e6052', '#2e1e18', '#9a7466']].map(([f, e, ear]) => ({ face: S.mat(f, { emissive: e }), ear: S.mat(ear, { emissive: e }) }));
+  const hoofMat = S.mat('#1a1618'), eyeMat = S.mat('#f2ead6', { emissive: '#3a362a' }), pupilMat = S.mat('#100c0c'), glintMat = S.mat('#ffffff', { emissive: '#ffffff' }), noseMat = S.mat('#5a3434');
   const hornGeo = (() => { // a ram's horn: a curl back and round, tapering
     const pts = []; for (let i = 0; i <= 24; i++) { const s = i / 24, a = s * 1.7 * Math.PI, r = 0.11 * (1 - 0.5 * s); pts.push(new THREE.Vector3(0.04 * s, 0.05 + Math.cos(a) * r - 0.02 * s, -0.02 - Math.sin(a) * r)); }
     const g = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 40, 0.034, 10, false);
@@ -318,27 +325,39 @@ export function createSheepScene({ mobile, seed }) {
   const shadowTex = canvasTexture(S, 64, 64, (g) => { const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(8,6,20,.65)'); gr.addColorStop(0.6, 'rgba(8,6,20,.3)'); gr.addColorStop(1, 'rgba(8,6,20,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); });
   const shadowMat = new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
   const shadowGeo = S.keep(new THREE.PlaneGeometry(0.9, 1.25).rotateX(-Math.PI / 2));
+  const cloudTex = canvasTexture(S, 128, 128, (g) => {
+    for (const [x, y, r] of [[64, 70, 40], [42, 74, 28], [86, 74, 30], [54, 52, 30], [78, 54, 26], [64, 82, 34]]) {
+      const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgba(255,255,255,.85)'); gr.addColorStop(0.6, 'rgba(255,255,255,.55)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill();
+    }
+    g.globalCompositeOperation = 'source-atop'; // lit from above: silver tops, lavender undersides
+    const lg = g.createLinearGradient(0, 20, 0, 115); lg.addColorStop(0, '#ffffff'); lg.addColorStop(0.55, '#d4d0f0'); lg.addColorStop(1, '#8a86b8'); g.fillStyle = lg; g.fillRect(0, 0, 128, 128);
+  });
+  const PUFFS = [[-0.34, 0.06, 0, 0.95], [0.32, 0.1, 0.05, 0.9], [0, 0.22, -0.08, 1.05], [-0.05, 0, 0.26, 0.8], [0.06, 0.02, -0.32, 0.85], [0.6, 0, -0.05, 0.65], [-0.62, -0.02, 0.05, 0.6]];
   const zTex = canvasTexture(S, 64, 64, (g) => { g.fillStyle = '#fff2d8'; g.font = 'italic bold 50px Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('z', 32, 34); });
 
   function makeSheep(i, ram = false) {
     const g = new THREE.Group(); g.rotation.order = 'YXZ'; S.add(g);
     const mat = woolMat(ram ? '#d4ccbc' : ['#f4efe4', '#f7f1e6', '#efe8dc'][i % 3], i * 13.7);
-    const torso = new THREE.Group(); torso.position.y = H + 0.1; g.add(torso);
+    const { face: faceMat, ear: earMat } = FACES[ram ? 0 : [0, 1, 2, 1][i % 4]];
+    const torso = new THREE.Group(); torso.position.y = H + 0.12; g.add(torso);
     const fleece = new THREE.Mesh(fleeces[i % fleeces.length], mat); torso.add(fleece);
     const tail = new THREE.Mesh(tailGeo, mat); tail.position.set(0, 0.06, -0.5); torso.add(tail);
     const neck = new THREE.Mesh(neckGeo, mat); neck.position.set(0, 0.08, 0.4); torso.add(neck);
-    const head = new THREE.Group(); head.position.set(0, H + 0.14, 0.44); head.rotation.order = 'YXZ'; g.add(head);
+    const head = new THREE.Group(); head.position.set(0, H + 0.16, 0.44); head.rotation.order = 'YXZ'; g.add(head);
     head.add(new THREE.Mesh(headGeo, faceMat), new THREE.Mesh(muzzleGeo, faceMat));
-    const cap = new THREE.Mesh(capGeo, mat); cap.position.set(0, 0.085, 0.07); head.add(cap);
-    const ears = [-1, 1].map((sx) => { const e = new THREE.Mesh(earGeo, earMat); e.position.set(sx * 0.09, 0.05, 0.08); e.scale.x = sx; e.rotation.set(0, sx * -0.3, sx * -0.35); head.add(e); return e; });
+    const nose = new THREE.Mesh(noseGeo, noseMat); nose.position.set(0, -0.02, 0.4); nose.rotation.x = -0.3; head.add(nose);
+    const cap = new THREE.Mesh(capGeo, mat); cap.position.set(0, 0.1, 0.07); head.add(cap);
+    const ears = [-1, 1].map((sx) => { const e = new THREE.Mesh(earGeo, earMat); e.position.set(sx * 0.1, 0.06, 0.08); e.scale.x = sx; e.rotation.set(0, sx * -0.3, sx * -0.35); head.add(e); return e; });
     const eyes = [-1, 1].map((sx) => {
-      const eg = new THREE.Group(); eg.position.set(sx * 0.082, 0.035, 0.22); eg.rotation.y = sx * 0.55; head.add(eg);
-      eg.add(new THREE.Mesh(eyeGeo, eyeMat)); const pu = new THREE.Mesh(pupilGeo, pupilMat); pu.position.z = 0.018; eg.add(pu);
+      const eg = new THREE.Group(); eg.position.set(sx * 0.085, 0.04, 0.24); eg.rotation.y = sx * 0.5; head.add(eg);
+      eg.add(new THREE.Mesh(eyeGeo, eyeMat)); const pu = new THREE.Mesh(pupilGeo, pupilMat); pu.position.z = 0.022; eg.add(pu);
+      const gl = new THREE.Mesh(glintGeo, glintMat); gl.position.set(-0.006, 0.008, 0.03); eg.add(gl);
       return eg;
     });
     if (ram) {
       for (const sx of [-1, 1]) { const h = new THREE.Mesh(hornGeo, hornMat); h.position.set(sx * 0.07, 0.04, 0.08); h.scale.x = sx; head.add(h); }
-      for (const sx of [-1, 1]) { const b = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.012, 0.012), pupilMat); b.position.set(sx * 0.08, 0.07, 0.24); b.rotation.set(0, sx * 0.5, sx * -0.4); head.add(b); }
+      for (const sx of [-1, 1]) { const b = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.012, 0.012), pupilMat); b.position.set(sx * 0.085, 0.082, 0.26); b.rotation.set(0, sx * 0.5, sx * -0.4); head.add(b); }
     }
     const legs = [[-0.13, 0.26, 0], [0.13, 0.26, 1], [-0.13, -0.27, 1], [0.13, -0.27, 0]].map(([x, z, pair]) => {
       const pv = new THREE.Group(); pv.position.set(x, H, z); g.add(pv);
@@ -346,36 +365,41 @@ export function createSheepScene({ mobile, seed }) {
       return { pv, x, z, pair, front: z > 0 };
     });
     const shadow = new THREE.Mesh(shadowGeo, shadowMat); shadow.renderOrder = 1; S.add(shadow);
+    // the cloud it becomes: soft puffs that swell as the fleece dissolves
+    const puffs = PUFFS.map(([x, y, z, s0]) => {
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: cloudTex, transparent: true, depthWrite: false, opacity: 0, color: '#e2def8', rotation: rand() * TAU }));
+      sp.position.set(x, H + 0.12 + y, z); sp.visible = false; g.add(sp); return { sp, x, y, z, s0, ph: rand() * TAU };
+    });
     const zz = new THREE.Sprite(new THREE.SpriteMaterial({ map: zTex, transparent: true, depthWrite: false, opacity: 0 })); zz.scale.setScalar(0.22); S.add(zz);
-    const scale = ram ? 1.2 : 0.92 + rand() * 0.14;
+    const scale = ram ? 1.32 : 1.08 + rand() * 0.14;
     g.scale.setScalar(scale);
     return {
-      i, ram, g, mat, torso, fleece, head, ears, eyes, legs, shadow, zz, scale,
+      i, ram, g, mat, torso, fleece, head, ears, eyes, legs, shadow, zz, scale, puffs,
       pos: new THREE.Vector3(), air: new THREE.Vector3(), yaw: 0, speed: 0, phase: rand() * TAU,
       state: 'graze', task: null, target: null, until: 0, t0: 0,
       headPitch: 0, headYaw: 0, hp: -0.2, hy: 0, lie: 0, lieT: 0, eyesOpen: 1, eyesT: 1, cloud: 0, puff: 1,
-      bed: -1, sleepUntil: 0, ring: { a: rand() * TAU, r: 4.5 + rand() * 2.5, alt: 5.6 + rand() * 2, w: (rand() < 0.5 ? -1 : 1) * (0.018 + rand() * 0.012), ph: rand() * TAU },
+      bed: -1, sleepUntil: 0, ring: { a: rand() * TAU, r: 3.4 + rand() * 2.2, alt: 4.3 + rand() * 1.4, w: (rand() < 0.5 ? -1 : 1) * (0.018 + rand() * 0.012), ph: rand() * TAU },
       zph: rand(), blink: rand() * 4, chew: 0, look: null, shake: 0,
     };
   }
 
-  const N = mobile ? 10 : 12;
+  const N = mobile ? 9 : 10;
   const flock = Array.from({ length: N }, (_, i) => makeSheep(i));
   const ram = makeSheep(N, true);
   const all = [...flock, ram];
 
   // beds on the quilt: a row with their heads on the pillow, then rows in front
-  const BEDS = [[1.15, -0.95], [1.15, 0.05], [1.15, 1.05], [-0.15, -1.25], [-0.15, -0.1], [-0.2, 1.1], [-1.35, -1.25], [-1.25, 1.45]]
+  const BEDS = [[0.72, -1.0], [0.72, 0.02], [0.72, 1.04], [-0.38, -1.05], [-0.38, 0.0], [-0.38, 1.05], [-1.25, -1.05], [-1.25, 1.25]]
     .map(([x, z]) => ({ x: SC.x + x, z: SC.z + z, by: null }));
 
   // where they start: most of them grazing, two asleep on the quilt, one up in the sky
-  const randomOnW = (pad = 0.9) => { for (;;) { const a = rand() * TAU, r = Math.sqrt(rand()) * (WR - pad); const x = WC.x + Math.cos(a) * r, z = WC.z + Math.sin(a) * r; if (x < FENCE_X - 0.6 && all.every((o) => o.state === 'cloud' || Math.hypot(o.pos.x - x, o.pos.z - z) > 1 || o.pos.lengthSq() === 0)) return new THREE.Vector3(x, 0, z); } };
+  const randomOnW = (pad = 0.9) => { for (let tries = 0; ; tries++) { const a = rand() * TAU, r = Math.sqrt(rand()) * (WR - pad); const x = WC.x + Math.cos(a) * r, z = WC.z + Math.sin(a) * r; if (x < FENCE_X - 0.6 && (tries > 60 || all.every((o) => o.state === 'cloud' || Math.hypot(o.pos.x - x, o.pos.z - z) > 1 || o.pos.lengthSq() === 0))) return new THREE.Vector3(x, 0, z); } };
   flock.forEach((sh, k) => {
     if (k < 2) { const b = BEDS[k]; b.by = sh; sh.bed = k; sh.pos.set(b.x, 0, b.z); sh.yaw = Math.PI / 2; sh.state = 'sleep'; sh.lie = sh.lieT = 1; sh.eyesOpen = sh.eyesT = 0; sh.sleepUntil = 40 + k * 50; }
     else if (k === 2) { sh.state = 'cloud'; sh.cloud = 1; sh.until = 30; }
     else { sh.pos.copy(randomOnW()); sh.yaw = rand() * TAU; sh.until = rand() * 4; }
   });
-  ram.pos.set(-3.0, 0, 2.2); ram.yaw = 1.2;
+  ram.pos.set(-2.6, 0, 1.9); ram.yaw = 1.2;
 
   // ---------------------------------------------------------------- counting: the numbers that glow over the moon
   let count = 0;
@@ -423,8 +447,8 @@ export function createSheepScene({ mobile, seed }) {
   }
   /** Keep a sheep on its island (and the grazers on their side of the fence). */
   function keepOn(sh) {
-    const isW = sh.pos.x < 1;
-    const c = isW ? WC : SC, R = isW ? WR - 0.75 : SR - 0.65;
+    const isW = sh.pos.x < (WC.x + SC.x) / 2;
+    const c = isW ? WC : SC, R = isW ? WR - 0.7 : SR - 0.6;
     const dx = sh.pos.x - c.x, dz = sh.pos.z - c.z, d = Math.hypot(dx, dz);
     if (d > R) { sh.pos.x = c.x + (dx / d) * R; sh.pos.z = c.z + (dz / d) * R; }
     if (isW && sh.state !== 'run' && sh.pos.x > FENCE_X - 0.5) sh.pos.x = FENCE_X - 0.5;
@@ -473,7 +497,7 @@ export function createSheepScene({ mobile, seed }) {
   }
 
   function startRun(sh, t, apexIn) {
-    const T = apexIn - FLIGHT / 2;
+    const T = apexIn - RISE;
     if (T < 1.6) return false;
     sh.state = 'run'; sh.t0 = t; sh.until = t + T; sh.from = sh.pos.clone(); sh.task = null; sh.lieT = 0; sh.eyesT = 1;
     return true;
@@ -498,23 +522,30 @@ export function createSheepScene({ mobile, seed }) {
         sh.yaw += angDiff(sh.yaw, Math.atan2(TAKEOFF.x - sh.from.x, TAKEOFF.z - sh.from.z)) * (1 - Math.exp(-dt * 4));
         sh.hp = -0.25;
         if (u >= 1) {
-          sh.state = 'flight'; sh.t0 = sh.until; sh.until = sh.t0 + FLIGHT;
-          sh.land = LAND.clone(); sh.land.z += (rand() - 0.5) * 0.4;
+          sh.state = 'flight'; sh.t0 = sh.until; sh.fall = 4.4 + 1.8 * (1 - energy);
+          sh.land = LAND.clone(); sh.land.z += (rand() - 0.5) * 0.3;
           sh.y0 = groundY(sh); sh.y1 = hS(sh.land.x, sh.land.z); sh.from = sh.pos.clone();
-          sh.hop = 1.6 + 0.9 * energy; sh.apexAt = sh.t0 + FLIGHT / 2; sh.counted = false;
-          breathT = 0;
+          sh.top = new THREE.Vector3(MOON.x + 0.1, Math.max(sh.y0, sh.y1) + 1.25 + 0.55 * energy, lerp(sh.from.z, sh.land.z, 0.4));
+          sh.apexAt = sh.t0 + RISE; sh.counted = false; sh.fpitch = 0; sh.froll = 0; sh.fk = 0;
         }
         break;
       }
-      case 'flight': { // the out-breath: up and over the moon, and a long float down
-        const k = clamp((t - sh.t0) / FLIGHT, 0, 1);
-        sh.pos.x = lerp(sh.from.x, sh.land.x, k); sh.pos.z = lerp(sh.from.z, sh.land.z, k);
-        sh.air.set(sh.pos.x, lerp(sh.y0, sh.y1, k) + 4 * sh.hop * k * (1 - k), sh.pos.z);
-        sh.vy = (sh.y1 - sh.y0 + 4 * sh.hop * (1 - 2 * k)) / FLIGHT; sh.vx = (sh.land.x - sh.from.x) / FLIGHT;
+      case 'flight': { // a hop to the top over the moon (end of the in-breath), then the long float down
+        const el = t - sh.t0, px = sh.air.x, py = sh.air.y;
+        if (el < RISE) { // up, slowing towards the top
+          const k = el / RISE;
+          sh.air.set(lerp(sh.from.x, sh.top.x, k), lerp(sh.y0, sh.top.y, 1 - (1 - k) ** 2), lerp(sh.from.z, sh.top.z, k)); sh.fk = 0;
+        } else { // down, slowly, drifting, settling softly at the end
+          const k = clamp((el - RISE) / sh.fall, 0, 1), ex = 1 - (1 - k) ** 1.7;
+          sh.air.set(lerp(sh.top.x, sh.land.x, ex), lerp(sh.top.y, sh.y1, k * k * (3 - 2 * k)), lerp(sh.top.z, sh.land.z, ex)); sh.fk = k;
+          if (k >= 1) { sh.state = 'land'; sh.t0 = t; sh.pos.copy(sh.land); breathT = 0; }
+        }
+        if (el > 0.05 && dt > 0) sh.fpitch = lerp(sh.fpitch, clamp(-Math.atan2(sh.air.y - py, Math.max(1e-3, sh.air.x - px)) * 0.5, -0.45, 0.45), 1 - Math.exp(-dt * 5));
+        sh.froll = Math.sin(sh.fk * Math.PI * 2.2) * 0.12 * (1 - sh.fk);
+        if (sh.state === 'flight') sh.pos.set(sh.air.x, 0, sh.air.z);
         sh.yaw += angDiff(sh.yaw, Math.PI / 2) * (1 - Math.exp(-dt * 3));
-        sh.hp = -0.35;
-        if (!sh.counted && t >= sh.apexAt) { sh.counted = true; showCount(v3.set(sh.air.x, sh.air.y + 0.9, sh.air.z + 0.3)); }
-        if (k >= 1) { sh.state = 'land'; sh.t0 = t; sh.pos.copy(sh.land); }
+        sh.hp = el < RISE ? -0.35 : -0.1 + 0.25 * sh.fk; // looks ahead, then down to where it will land
+        if (!sh.counted && t >= sh.apexAt) { sh.counted = true; showCount(v3.set(sh.air.x, sh.air.y + 0.85, sh.air.z + 0.3)); }
         break;
       }
       case 'land': {
@@ -579,7 +610,7 @@ export function createSheepScene({ mobile, seed }) {
     sh.state = 'rise'; sh.t0 = t; sh.until = t + 13;
   }
   function ringPos(sh, t, out) {
-    const r = sh.ring; return out.set(0.5 + Math.cos(r.a) * r.r * 1.3, r.alt + Math.sin(t * 0.25 + r.ph) * 0.25, -2.2 + Math.sin(r.a) * r.r * 0.55);
+    const r = sh.ring; return out.set(0.3 + Math.cos(r.a) * r.r * 1.25, r.alt + Math.sin(t * 0.25 + r.ph) * 0.2, -2.0 + Math.sin(r.a) * r.r * 0.5);
   }
   /** The ground under a sheep's four feet (the sheep's own origin is at its feet). */
   function groundY(sh) {
@@ -607,20 +638,30 @@ export function createSheepScene({ mobile, seed }) {
       const gF = (ground(sh.pos.x + 0.27 * sc * s, sh.pos.z + 0.27 * sc * c)), gB = ground(sh.pos.x - 0.27 * sc * s, sh.pos.z - 0.27 * sc * c);
       pitch = Math.atan2(gB - gF, 0.54 * sc) * (1 - sh.lie);
       const bob = Math.abs(Math.sin(sh.phase)) * 0.018 * amp;
-      g.position.set(sh.pos.x, groundY(sh) - sh.lie * 0.22 * sc + bob, sh.pos.z);
+      g.position.set(sh.pos.x, groundY(sh) + bob, sh.pos.z);
     } else g.position.copy(sh.air);
-    if (sh.state === 'flight') pitch = clamp(-Math.atan2(sh.vy, sh.vx) * 0.55, -0.6, 0.6);
-    g.rotation.set(pitch, sh.yaw, 0);
+    let roll = 0;
+    if (sh.state === 'flight') { pitch = sh.fpitch; roll = sh.froll; }
+    g.rotation.set(pitch, sh.yaw, roll);
     // wool: breathes; squashes and stretches through the jump; puffs right up into a cloud
     const br = 1 + Math.sin(t * (sh.state === 'sleep' ? 0.9 : 1.6) + sh.i) * (sh.state === 'sleep' ? 0.025 : 0.012);
     let sx = 1, sy = 1, sz = 1;
-    if (sh.state === 'flight') { const k = (t - sh.t0) / FLIGHT; sz = 1 + 0.1 * Math.sin(Math.PI * k); sy = 1 - 0.05 * Math.sin(Math.PI * k); }
+    if (sh.state === 'flight') { const el = t - sh.t0; if (el < RISE) { const k = el / RISE; sz = 1 + 0.1 * Math.sin(Math.PI * k); sy = 1 - 0.05 * Math.sin(Math.PI * k); } else { sx = sz = 1 + 0.05 * Math.sin(Math.PI * Math.min(1, sh.fk * 1.3)); } }
     if (sh.state === 'land') { const k = clamp((t - sh.t0) / 0.8, 0, 1); sy = 1 - 0.14 * Math.sin(Math.PI * k) * (1 - k); sx = 1 + 0.07 * Math.sin(Math.PI * k) * (1 - k); }
-    const cl = sh.cloud, puff = 1 + 1.5 * cl;
-    sh.torso.scale.set(sx * br * puff * (1 + 0.5 * cl), sy * br * puff * (1 - 0.15 * cl), sz * br * puff * (1 + 0.25 * cl));
-    sh.torso.position.y = H + 0.1 - sh.lie * 0.04;
-    sh.mat.uniforms.uCloud.value = cl;
-    sh.torso.rotation.y = cl * 0.6 * Math.sin(t * 0.05 + sh.i);
+    const cl = sh.cloud, puff = 1 + 0.35 * cl;
+    sh.torso.scale.set(sx * br * puff, sy * br * puff, sz * br * puff);
+    sh.torso.position.y = H + 0.12 - sh.lie * 0.24;   // lying down: belly in the grass (or the quilt)
+    sh.mat.uniforms.uCloud.value = cl; sh.mat.uniforms.uFade.value = sstep(0.3, 0.85, cl);
+    sh.fleece.visible = cl < 0.84;
+    // ...and the soft cloud it turns into
+    const cv = sstep(0.1, 0.7, cl);
+    for (const p of sh.puffs) {
+      p.sp.visible = cl > 0.02;
+      if (!p.sp.visible) continue;
+      p.sp.material.opacity = sstep(0.08, 0.55, cl) * 0.92;
+      p.sp.scale.setScalar(p.s0 * (0.45 + 1.35 * cv) * (1 + 0.04 * Math.sin(t * 0.3 + p.ph)));
+      p.sp.position.set(p.x * (1 + 0.9 * cv) + Math.sin(t * 0.15 + p.ph) * 0.05 * cv, H + 0.12 + p.y * (1 + 0.5 * cv), p.z * (1 + 0.6 * cv));
+    }
     // head: tucked into the wool as it turns to cloud
     const hk = 1 - sstep(0.1, 0.6, cl);
     sh.head.visible = hk > 0.01; sh.head.scale.setScalar(Math.max(0.001, hk));
@@ -632,8 +673,9 @@ export function createSheepScene({ mobile, seed }) {
     }
     hy += Math.sin(sh.shake * 18) * 0.35 * Math.min(1, sh.shake); sh.shake = Math.max(0, sh.shake - dt);
     sh.head.rotation.set(hp, hy, 0);
-    sh.head.position.set(0, H + 0.14 - sh.lie * 0.2, 0.44 - sh.lie * 0.02);
-    sh.ears.forEach((e, k) => { e.rotation.z = (k ? -1 : 1) * (0.35 + 0.15 * Math.sin(t * 0.7 + sh.i * 3 + k) * (1 - sh.lie)); });
+    sh.head.position.set(0, H + 0.16 - sh.lie * 0.26, 0.44 + sh.lie * 0.04);
+    const flap = sh.state === 'flight' ? sstep(0, 0.2, sh.fk) * (1 - sstep(0.85, 1, sh.fk)) : 0; // ears lift as it floats
+    sh.ears.forEach((e, k) => { e.rotation.z = (k ? -1 : 1) * (0.35 + 0.15 * Math.sin(t * 0.7 + sh.i * 3 + k) * (1 - sh.lie) - 0.75 * flap + 0.08 * flap * Math.sin(t * 2.4 + k)); });
     sh.blink -= dt; const blink = sh.blink < 0.12 ? 0.1 : 1; if (sh.blink < 0) sh.blink = 2.5 + rand() * 5;
     sh.eyes.forEach((e) => { e.scale.y = Math.max(0.08, sh.eyesOpen * blink); });
     // legs: the trot, the jump, folded under when lying down, tucked away in a cloud
@@ -641,18 +683,21 @@ export function createSheepScene({ mobile, seed }) {
     for (const L of sh.legs) {
       const ph = sh.phase + (L.pair ? Math.PI : 0);
       let a = Math.sin(ph) * amp, lift = Math.max(0, Math.cos(ph)) * 0.16 * amp;
-      if (sh.state === 'flight') { const k = (t - sh.t0) / FLIGHT, tuck = Math.sin(Math.PI * clamp(k * 1.25, 0, 1)); a = (L.front ? -1.05 : 0.95) * tuck; lift = 0.2 * tuck; }
+      if (sh.state === 'flight') { // tucked for the hop; then dangling, and reaching down to land
+        const el = t - sh.t0, tuck = el < RISE ? Math.sin(Math.PI * 0.5 * Math.min(1, el / (RISE * 0.6))) : 1 - sstep(0, 0.35, sh.fk);
+        a = (L.front ? -1.0 : 0.9) * tuck + (1 - tuck) * Math.sin(t * 2.1 + L.x * 9 + L.z * 5) * 0.16 * (1 - sstep(0.75, 1, sh.fk)); lift = 0.18 * tuck;
+      }
       a = lerp(a, L.front ? -1.35 : 1.35, sh.lie);
       L.pv.rotation.set(a, 0, 0);
       L.pv.updateMatrixWorld();
-      let k = 1 - lift - 0.55 * sh.lie;
+      let k = 1 - lift - 0.95 * sstep(0.2, 0.8, sh.lie); // folded right away under the fleece when lying
       if (!airborne && sh.lie < 0.5) { // reach exactly to the ground under each hoof
         L.pv.getWorldPosition(wp);
         const reach = (wp.y - ground(wp.x, wp.z)) / (H * sc * Math.max(0.3, Math.cos(a + pitch)));
         k = clamp(reach, 0.7, 1.25) - lift;
       }
       L.pv.scale.set(1, Math.max(0.001, k * legK), 1);
-      L.pv.visible = legK > 0.01;
+      L.pv.visible = legK > 0.01 && k > 0.06;
     }
     // a soft shadow on the ground beneath
     const gy = airborne ? ground(g.position.x, g.position.z) : groundY(sh);
@@ -680,6 +725,7 @@ export function createSheepScene({ mobile, seed }) {
     } else if (ev.type === 'leap') { // the top of the jump
       const f = flock.find((s) => s.state === 'flight' && !s.counted);
       if (f) { const err = clockT - f.apexAt; if (Math.abs(err) < 0.5) { f.t0 += err * 0.6; f.apexAt += err * 0.6; } }
+      breathT = 0.55; // the breath out begins
       if (ram.state === 'graze' && ram.task === 'fence' && f) ram.shake = rand() < 0.3 ? 1 : 0; // the ram disapproves
     } else if (ev.type === 'baa') {
       const a = flock.filter((s) => s.state === 'graze' && s.task !== 'rest');
@@ -689,7 +735,7 @@ export function createSheepScene({ mobile, seed }) {
   });
 
   // ---------------------------------------------------------------- the camera: framed for the jump, whatever the screen's shape
-  const look = new THREE.Vector3(0.3, 0.9, 0);
+  const look = new THREE.Vector3(0.3, 0.9, 0); let lookX = 0.2;
   S.on((t, dt, st) => {
     clockT = t; energy = st.energy;
     starU.uPulse.value *= Math.exp(-dt * 1.2);
@@ -726,7 +772,7 @@ export function createSheepScene({ mobile, seed }) {
     // the breath, in the light: the moon brightens as the runner breathes in, and fades on the long breath out
     breath = lerp(breath, breathT, 1 - Math.exp(-dt * (breathT > breath ? 0.5 : 0.35)));
     if (!jumper) breathT = 0;
-    moonU.uGlow.value = 0.6 + 0.6 * breath; seaU.uLit.value = 0.6 + 0.5 * breath; woolU.uMoonPow.value = 1.3 + 0.8 * breath; moonLamp.intensity = 7 + 4 * breath;
+    moonU.uGlow.value = 0.6 + 0.6 * breath; seaU.uLit.value = 0.6 + 0.5 * breath; woolU.uMoonPow.value = 1.3 + 0.8 * breath; moonLamp.intensity = 5.5 + 3.5 * breath;
     halo.material.opacity = 0.6 + 0.4 * breath;
     moon.rotation.set(0.08, -0.25, Math.sin(t * 0.21) * 0.07); // rocking like a cradle
     // the numbers: glow up, drift and fade
@@ -736,9 +782,12 @@ export function createSheepScene({ mobile, seed }) {
     su.uClouds.value = lerp(su.uClouds.value, 0.18 + 0.05 * clouds + 0.25 * (1 - energy), 1 - Math.exp(-dt * 0.05));
     // the camera
     const cam = S.camera, tanH = Math.tan((cam.fov * Math.PI) / 360), portrait = cam.aspect < 0.8;
-    const dist = clamp(Math.max((portrait ? 4.9 : 10) / (tanH * cam.aspect), 4.8 / tanH), 11, 32);
-    const az = Math.sin(t * 0.011) * 0.14, el = 0.3 + Math.sin(t * 0.017 + 1) * 0.04;
-    look.set(portrait ? 0.9 : 0.6, portrait ? 0.2 : 0.6, -0.3);
+    const dist = clamp(Math.max((portrait ? 3.9 : 7.2) / (tanH * cam.aspect), 3.6 / tanH), 8, 26);
+    const az = Math.sin(t * 0.011) * 0.12, el = 0.27 + Math.sin(t * 0.017 + 1) * 0.04;
+    const baseX = portrait ? 0.2 + 1.0 * Math.sin(t * 0.026) : 0.2;
+    const lean = jumper ? (jumper.g.position.x - baseX) * (portrait ? 0.4 : 0.2) : 0;
+    lookX = lerp(lookX, baseX + lean, 1 - Math.exp(-dt * 0.5));
+    look.set(lookX, portrait ? 0.35 : 0.5, -0.3);
     cam.position.set(look.x + Math.sin(az) * dist * Math.cos(el), look.y + Math.sin(el) * dist, look.z + Math.cos(az) * dist * Math.cos(el));
     cam.lookAt(look);
     woolU.uCam.value.copy(cam.position);
