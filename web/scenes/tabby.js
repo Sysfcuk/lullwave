@@ -97,7 +97,7 @@ export function tabby(stage, { coat = '#8a6446', stripe = null, belly = '#efe2cc
     const l = legPart(0.022, 0.019, front ? 0.1 : 0.115, front ? coat : coat); mid.add(l);
     const paw = new THREE.Mesh(new THREE.SphereGeometry(0.024, 12, 8), plain(white)); paw.scale.set(0.95, 0.55, 1.35); paw.position.set(0, front ? -0.1 : -0.115, 0.012); mid.add(paw);
     u.castShadow = l.castShadow = true;
-    legs.push({ top, mid, front, sx });
+    legs.push({ top, mid, front, sx, L1: front ? 0.12 : 0.11, L2: front ? 0.113 : 0.128 }); // lengths: upper leg, and lower leg to the bottom of the paw
   }
 
   // tail: a chain of segments, each turned a little relative to the last
@@ -110,6 +110,10 @@ export function tabby(stage, { coat = '#8a6446', stripe = null, belly = '#efe2cc
     const m = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), plain(dark ? '#4a3424' : coat)); m.scale.z = 1.5; m.position.z = -0.012; seg.add(m);
     segs.push(seg); parent = seg;
   }
+
+  // the lowest point of a paw, given the knee's height and the lower leg's angle (the paw is an oval
+  // set a little forward, so how low it reaches depends on the angle)
+  function pawLow(L, K, phi) { const L2c = L.front ? 0.1 : 0.115; return K - L2c * Math.cos(phi) - 0.012 * Math.sin(phi) - Math.hypot(0.0132 * Math.cos(phi), 0.0324 * Math.sin(phi)); }
 
   // ---------------------------------------------------------------- poses, blended
   // Each pose is a full set of joint targets; the current values ease towards them. Leg angles are
@@ -158,6 +162,17 @@ export function tabby(stage, { coat = '#8a6446', stripe = null, belly = '#efe2cc
     // body
     body.position.y = P.y + Math.abs(Math.sin(phase)) * 0.006 * gait + (cur === 'jump' ? 0 : 0);
     body.rotation.x = P.pitch + Math.sin(phase * 2) * 0.012 * gait;
+    // stand tall enough for the pose: if the pose's own leg angles would put a paw through the
+    // ground, lift the whole body by that much (so the pose keeps its shape, rather than crumpling)
+    if (P.hide < 0.6) {
+      const p = body.rotation.x; let need = 0;
+      for (const L of legs) {
+        const up = L.front ? P.fU : P.bU, low = L.front ? P.fL : P.bL;
+        const Y0 = body.position.y + L.top.position.y * Math.cos(p) - L.top.position.z * Math.sin(p);
+        need = Math.max(need, -pawLow(L, Y0 - L.L1 * Math.cos(up + p), up + low + p));
+      }
+      body.position.y += Math.max(0, need + 0.002) * (1 - P.hide);
+    }
     body.rotation.y = wiggleT > 0 ? Math.sin(t * 22) * 0.06 : 0; // the wiggle
     barrel.scale.set(1 + breathe, 1 + breathe, 1); chest.scale.set(1 + breathe * 0.6, 1 + breathe * 0.6, 1);
     barrel.rotation.y = P.wrap > 1 ? (P.wrap - 1) * 0.5 : 0; chest.position.x = P.wrap > 1 ? (P.wrap - 1) * 0.08 : 0;
@@ -200,6 +215,24 @@ export function tabby(stage, { coat = '#8a6446', stripe = null, belly = '#efe2cc
       if (L.front && api.action === 'dig') { const a = Math.sin(t * 11 + (i === 0 ? 0 : Math.PI)); up = -0.25 + a * 0.45; low = 0.25 + Math.max(0, a) * 0.6; }
       if (i === 1 && api.action === 'groom') { up = -1.35; low = 1.9 + Math.sin(t * 3) * 0.2; }
       if (i === 1 && swipeT >= 0 && swipeT < 0.5) { const u = swipeT / 0.5; up = lerp(-1.35, -0.25, u * u); low = lerp(0.6, -0.2, u); }
+      // keep the paw on the ground (whatever she's standing on is y = 0 for her): if the pose would
+      // push the knee or the paw through it, bend the hip and then the knee just enough to rest on it
+      if (P.hide < 0.6) {
+        const p = body.rotation.x, by = body.position.y, y0 = L.top.position.y, z0 = L.top.position.z;
+        const Y0 = by + y0 * Math.cos(p) - z0 * Math.sin(p);
+        const pick = (target, cur, off) => { const a = Math.acos(target); const c1 = a - off, c2 = -a - off; return Math.abs(c1 - cur) < Math.abs(c2 - cur) ? c1 : c2; };
+        let K = Y0 - L.L1 * Math.cos(up + p);
+        if (K < 0.025 && Math.abs((Y0 - 0.025) / L.L1) <= 1) { up = pick((Y0 - 0.025) / L.L1, up, p); K = Y0 - L.L1 * Math.cos(up + p); }
+        // the paw is an oval set a little forward, so its lowest point depends on the angle
+        const tipY = (phi) => pawLow(L, K, phi);
+        let phi = up + low + p;
+        if (K > 0 && tipY(phi) < 0.002) {
+          // look outwards from the current angle, both ways, for the nearest one that clears; then refine
+          let far = null;
+          for (let d = 0.05; d < 2.6 && far === null; d += 0.05) { if (tipY(phi + d) >= 0.002) far = phi + d; else if (tipY(phi - d) >= 0.002) far = phi - d; }
+          if (far !== null) { let lo = phi, hi = far; for (let k = 0; k < 12; k++) { const m = (lo + hi) / 2; if (tipY(m) >= 0.002) hi = m; else lo = m; } phi = hi; low = phi - up - p; }
+        }
+      }
       L.top.rotation.x = up; L.mid.rotation.x = low;
       L.top.visible = P.hide < 0.6;
     });
