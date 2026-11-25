@@ -32,7 +32,7 @@ const ALL_WORLDS = [
   { id: 'lost', group: 1, off: true, name: 'Lost on the Trail', tag: 'A hiker follows a glowing map line round a starlit wood, past signposts that cannot agree.' },
   { id: 'stardome', group: 1, off: true, name: 'The Stardome', tag: 'A glowing stage far below a vast starry sky. Soft beams sweep and lanterns rise.' },
   { id: 'bakery', group: 1, off: true, name: 'The Great Bread Bake', tag: 'Fresh loaves steam on the racks and flour drifts like snow, while the bakery cat sleeps by the oven.' },
-  { id: 'sheep', group: 1, name: 'Counting Sheep', tag: 'Cloud-sheep graze on stars, then leap the fence over a crescent moon one slow breath at a time, until the whole flock is asleep.' },
+  { id: 'sheep', group: 1, name: 'Counting Sheep', tag: 'Cloud-sheep graze on stars, then leap the fence beneath a crescent moon one slow breath at a time, until the whole flock is asleep.' },
   { id: 'fever', group: 1, name: 'Pineapple Fever Dream', tag: 'A giant pineapple snoozes on an endless rolling checkerboard, while pineapples drift by under a pineapple moon.' },
 ];
 const GROUPS = ['Original worlds', 'Dream scenes'];

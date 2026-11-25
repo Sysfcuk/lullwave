@@ -1,8 +1,8 @@
 // Counting Sheep: the old trick, made literal. A flock of cloud-sheep grazes on stars that grow
-// in the grass of a little floating island. Beyond its fence, a crescent moon rocks like a cradle
-// in the gap, and across it lies a second island made up like a bed: a patchwork quilt and a
+// in the grass of a little floating island, over a sea of cloud. High above, a crescent moon rocks
+// like a cradle; across the gap lies a second island made up like a bed: a patchwork quilt and a
 // pillow. Every so often (on the music's breath: the run-up on the in-breath, the long float down
-// on the out-breath) a sheep trots up and leaps the fence, over the moon, and a number glows and
+// on the out-breath) a sheep trots up and leaps the fence, up towards the moon, and a number glows and
 // fades: 1, 2, 3... It lands on the quilt, finds a place, lies down and sleeps; after a while it
 // melts into a cloud and drifts up into the sky, and later a cloud may come down to the grass as a
 // sheep again. As the night goes on the jumps get lazier, the clouds stop coming down, and the
@@ -14,7 +14,7 @@ const WC = new THREE.Vector3(-4.0, 0, 0), WR = 3.9;       // the waking island, 
 const SC = new THREE.Vector3(4.3, -0.45, -0.3), SR = 2.6;  // the sleeping island: the quilt and the pillow
 const FENCE_X = -0.55, FENCE_Z = 1.5;
 const TAKEOFF = new THREE.Vector3(-1.45, 0, 0), WAIT = new THREE.Vector3(-3.3, 0, 0.15), LAND = new THREE.Vector3(2.75, 0, -0.1);
-const MOON = new THREE.Vector3(0.6, -0.55, -1.7);
+const MOON_LIGHT = new THREE.Vector3(0.6, 6.5, -2.0); // where the moon's light falls from (the moon itself hangs far off, high in the sky)
 const RAMSPOT = new THREE.Vector3(-1.35, 0, 1.1);
 // The jump is shaped like a breath: the run-up and a quick hop to the top on the in-breath, then
 // a long, slow float down on the out-breath, like thistledown.
@@ -162,11 +162,11 @@ const WOOLF = `uniform vec3 uCam, uKey, uKeyCol, uMoonPos, uMoonCol, uSky, uGrou
 export function createSheepScene({ mobile, seed }) {
   const S = createStage({ mobile, seed, salt: 0x5ee9, bg: '#0b0a26', fog: { color: '#1c1a40', near: 30, far: 140 }, exposure: 1.0, bloom: [0.55, 0.5, 0.72], finish: { vignette: 0.4, grain: 0.02, ca: 0.6 }, fov: 50 });
   const { rand } = S;
-  const sky = nightSky(S, { top: '#06051a', horizon: '#221d4c', moon: [0, -1, 0], moonSize: 0.0001, halo: '#000000', stars: 1.6, clouds: 0.22, cloudColor: '#34306a', tint: '#2c1640' });
+  const sky = nightSky(S, { top: '#06051a', horizon: '#221d4c', moon: [0, -1, 0], moonSize: 0.0001, halo: '#000000', stars: 1.6, clouds: 0.06, cloudColor: '#34306a', tint: '#2c1640' });
   const su = sky.userData.u;
   moonlight(S, { dir: [-0.4, 0.8, 0.5], color: '#b8c2ff', intensity: 0.75, sky: '#6a6ab8', ground: '#1a1830', fill: 0.75 });
 
-  // ---------------------------------------------------------------- the crescent moon, rocking in the gap
+  // ---------------------------------------------------------------- the crescent moon, rocking high in the sky (placed each frame, near the top of the view)
   const moonU = { uTime: S.U.uTime, uGlow: { value: 1 } };
   const moon = new THREE.Mesh(crescentGeo(1.35), new THREE.ShaderMaterial({
     uniforms: moonU,
@@ -179,20 +179,20 @@ export function createSheepScene({ mobile, seed }) {
         float crater = smoothstep(.62, .78, n2(vP.xy * 5. + 11.)) * .5;
         vec3 col = mix(vec3(1., .95, .8), vec3(.86, .8, .66), m * .7 + crater * .5);
         col *= .8 + .2 * max(normalize(vN).z, 0.);
-        gl_FragColor = vec4(col * (.6 + .22 * uGlow), 1.);
+        gl_FragColor = vec4(col * (.5 + .16 * uGlow), 1.);
       }`,
   }));
-  moon.position.copy(MOON); S.add(moon);
-  const haloTex = canvasTexture(S, 128, 128, (g) => { const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64); gr.addColorStop(0, 'rgba(255,226,170,.22)'); gr.addColorStop(0.35, 'rgba(255,200,150,.07)'); gr.addColorStop(1, 'rgba(255,180,140,0)'); g.fillStyle = gr; g.fillRect(0, 0, 128, 128); });
-  const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); halo.position.copy(MOON).add(new THREE.Vector3(0, -0.4, -0.3)); halo.scale.setScalar(5.5); S.add(halo);
+  S.add(moon);
+  const haloTex = canvasTexture(S, 128, 128, (g) => { const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64); gr.addColorStop(0, 'rgba(250,244,230,.16)'); gr.addColorStop(0.35, 'rgba(225,225,255,.06)'); gr.addColorStop(1, 'rgba(210,210,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 128, 128); });
+  const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); S.add(halo);
   const ringTex = canvasTexture(S, 256, 256, (g) => {
     const gr = g.createRadialGradient(128, 128, 60, 128, 128, 126);
-    gr.addColorStop(0, 'rgba(255,230,180,0)'); gr.addColorStop(0.62, 'rgba(255,226,170,.55)'); gr.addColorStop(0.72, 'rgba(255,220,170,.2)'); gr.addColorStop(1, 'rgba(255,210,160,0)');
+    gr.addColorStop(0, 'rgba(255,244,220,0)'); gr.addColorStop(0.62, 'rgba(255,242,215,.5)'); gr.addColorStop(0.72, 'rgba(240,236,255,.18)'); gr.addColorStop(1, 'rgba(230,230,255,0)');
     g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
   });
   const breathRing = new THREE.Sprite(new THREE.SpriteMaterial({ map: ringTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.1 }));
-  breathRing.position.copy(MOON).add(new THREE.Vector3(0, -0.15, 0.2)); S.add(breathRing);
-  const moonLamp = new THREE.PointLight('#ffe2a8', 7, 13, 1.4); moonLamp.position.copy(MOON).add(new THREE.Vector3(0, 0.5, 0.8)); S.add(moonLamp);
+  S.add(breathRing);
+  const moonLamp = new THREE.PointLight('#ffe2a8', 7, 22, 1.1); moonLamp.position.copy(MOON_LIGHT); S.add(moonLamp);
 
   // ---------------------------------------------------------------- the waking island: grass, stars growing in it, the fence
   const grassCol = (x, z, c) => { const k = 0.5 + 0.5 * Math.sin(x * 1.7 + Math.cos(z * 1.3) * 2) * Math.sin(z * 1.1 - x * 0.4); c.set('#3a6a3c').lerp(new THREE.Color('#5d8a4a'), k * 0.8); };
@@ -280,22 +280,31 @@ export function createSheepScene({ mobile, seed }) {
   }
 
   // ---------------------------------------------------------------- far below: a sea of cloud
-  const seaU = { uTime: S.U.uTime, uLit: { value: 1 } };
+  const seaU = { uTime: S.U.uTime, uLit: { value: 1 }, uCam: { value: new THREE.Vector3() }, uMoon: { value: new THREE.Vector3(0, 30, -50) } };
   const sea = new THREE.Mesh(new THREE.PlaneGeometry(900, 900).rotateX(-Math.PI / 2), new THREE.ShaderMaterial({
     uniforms: seaU, transparent: true, depthWrite: false,
     vertexShader: 'varying vec3 vW; void main(){ vec4 w = modelMatrix * vec4(position, 1.); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }',
-    fragmentShader: `uniform float uTime, uLit; varying vec3 vW;
-      float h2(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    // Every octave of the noise is turned and shifted (so no grid shows through) and the whole
+    // pattern is warped by itself, so it billows instead of tiling; detail fades with distance
+    // (no shimmer); each billow is lit on its moon side, and the moon glints across the tops.
+    fragmentShader: `uniform float uTime, uLit; uniform vec3 uCam, uMoon; varying vec3 vW;
+      float h2(vec2 p){ vec3 q = fract(vec3(p.xyx) * .1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
       float n2(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f); return mix(mix(h2(i), h2(i + vec2(1, 0)), f.x), mix(h2(i + vec2(0, 1)), h2(i + vec2(1, 1)), f.x), f.y); }
-      float fb(vec2 p){ return .5 * n2(p) + .25 * n2(p * 2.1 + 1.7) + .125 * n2(p * 4.3 + 3.1) + .0625 * n2(p * 8.7); }
+      const mat2 M = mat2(1.6, 1.2, -1.2, 1.6);
+      float fb(vec2 p, float detail){ float a = .5, s = 0.; for (int i = 0; i < ${mobile ? 5 : 6}; i++){ s += a * (i < 3 ? 1. : detail) * n2(p); p = M * p + vec2(1.7, 9.2); a *= .5; } return s; }
       void main(){
-        vec2 p = vW.xz * .055 + vec2(uTime * .006, uTime * .003);
-        float d = fb(p), d2 = fb(p * 1.7 - 4.);
-        float dens = .3 + .7 * smoothstep(.28, .66, d * .7 + d2 * .3);
-        vec3 col = mix(vec3(.09, .08, .22), vec3(.42, .4, .7), dens) * (.75 + .2 * uLit);
-        col += vec3(1., .85, .6) * .12 * exp(-length(vW.xz - vec2(1., -1.)) * .03) * dens;   // the moon's glow on the cloud tops
-        float r = length(vW.xz);
-        gl_FragColor = vec4(col, dens * (1. - smoothstep(160., 430., r)) * .95);
+        float dist = length(vW - uCam), detail = 1. - smoothstep(30., 150., dist);
+        vec2 p = vW.xz * .045, drift = vec2(uTime * .004, uTime * .0025);
+        vec2 q = vec2(fb(p + drift, detail), fb(p + vec2(5.2, 1.3) - drift * .7, detail));
+        vec2 w = p + 1.6 * q + drift * .5;
+        float d = fb(w, detail), dens = smoothstep(.22, .72, d);
+        vec2 ld = normalize(uMoon.xz - vW.xz + vec2(1e-3));
+        float lit = clamp((d - fb(w + ld * .22, detail)) * 4. + .55, 0., 1.);       // brighter on the side facing the moon
+        vec3 col = mix(vec3(.07, .06, .18), vec3(.32, .3, .58), dens) * (.68 + .55 * lit) * (.78 + .2 * uLit);
+        vec3 V = normalize(vW - uCam), R = reflect(V, vec3(0., 1., 0.)), L = normalize(uMoon - vW);
+        col += vec3(1., .86, .62) * pow(max(dot(R, L), 0.), 14.) * .3 * (.3 + .7 * dens) * (.6 + .4 * uLit); // moonlight across the tops
+        float r = length(vW.xz - uCam.xz);
+        gl_FragColor = vec4(col, (.4 + .6 * dens) * (1. - smoothstep(170., 430., r)));
       }`,
   }));
   sea.position.y = -11; sea.renderOrder = -0.5; S.add(sea);
@@ -304,7 +313,7 @@ export function createSheepScene({ mobile, seed }) {
   // ---------------------------------------------------------------- the sheep
   const woolU = {
     uCam: { value: new THREE.Vector3() }, uKey: { value: new THREE.Vector3(-0.4, 0.8, 0.5).normalize() }, uKeyCol: { value: new THREE.Color('#aab4f0') },
-    uMoonPos: { value: moonLamp.position.clone() }, uMoonCol: { value: new THREE.Color('#ffd9a0') }, uMoonPow: { value: 1.6 },
+    uMoonPos: { value: MOON_LIGHT.clone() }, uMoonCol: { value: new THREE.Color('#ffd9a0') }, uMoonPow: { value: 1.6 },
     uSky: { value: new THREE.Color('#7070c0') }, uGround: { value: new THREE.Color('#2a2a44') }, uCloudCol: { value: new THREE.Color('#c4c0ee') },
   };
   const woolMat = (tint, s) => S.keep(new THREE.ShaderMaterial({ uniforms: { ...woolU, uTint: { value: new THREE.Color(tint) }, uCloud: { value: 0 }, uSeed: { value: s }, uFade: { value: 0 } }, vertexShader: WOOLV, fragmentShader: WOOLF }));
@@ -428,7 +437,7 @@ export function createSheepScene({ mobile, seed }) {
   }
 
   // ---------------------------------------------------------------- the flock's brains
-  let clockT = 0, energy = 1, next = null, breath = 0, bStart = -99, bIn = 5.4, bOut = 5.5;
+  let moonSize = 1, clockT = 0, energy = 1, next = null, breath = 0, bStart = -99, bIn = 5.4, bOut = 5.5;
   const v3 = new THREE.Vector3(), v4 = new THREE.Vector3();
   const awake = () => flock.filter((s) => ['graze', 'next', 'run', 'flight'].includes(s.state));
   const freeStar = (sh) => {
@@ -810,15 +819,14 @@ export function createSheepScene({ mobile, seed }) {
     // the breath, in the light: the moon brightens as the runner breathes in, and fades on the long breath out
     { const u = t - bStart; breath = u < 0 ? 0 : u < bIn ? 0.5 - 0.5 * Math.cos(Math.PI * u / bIn) : u < bIn + bOut ? 0.5 + 0.5 * Math.cos(Math.PI * (u - bIn) / bOut) : 0; }
     // a ring of soft light round the moon that swells as you breathe in and slowly settles as you breathe out
-    breathRing.scale.setScalar(3.3 + 1.7 * breath); breathRing.material.opacity = (0.1 + 0.32 * breath) * (0.55 + 0.45 * energy);
-    moonU.uGlow.value = 0.6 + 0.6 * breath; seaU.uLit.value = 0.6 + 0.5 * breath; woolU.uMoonPow.value = 1.3 + 0.8 * breath; moonLamp.intensity = 5.5 + 3.5 * breath;
+    breathRing.scale.setScalar((2.45 + 1.25 * breath) * moonSize); breathRing.material.opacity = (0.1 + 0.32 * breath) * (0.55 + 0.45 * energy);
+    moonU.uGlow.value = 0.6 + 0.6 * breath; seaU.uLit.value = 0.6 + 0.5 * breath; woolU.uMoonPow.value = 1.3 + 0.8 * breath; moonLamp.intensity = 6 + 3.5 * breath;
     halo.material.opacity = 0.6 + 0.4 * breath;
-    moon.rotation.set(0.08, -0.25, Math.sin(t * 0.21) * 0.07); // rocking like a cradle
     // the numbers: glow up, drift and fade
     for (const n of nums) { const k = (t - n.t0) / 5; n.sp.visible = k >= 0 && k < 1; if (!n.sp.visible) continue; n.sp.material.opacity = sstep(0, 0.12, k) * (1 - sstep(0.45, 1, k)) * 0.95; n.sp.position.copy(n.at).y += k * 0.7; }
     // the sky gathers its clouds as the flock goes to sleep
     const clouds = flock.filter((s) => s.state === 'cloud' || s.state === 'rise').length;
-    su.uClouds.value = lerp(su.uClouds.value, 0.18 + 0.05 * clouds + 0.25 * (1 - energy), 1 - Math.exp(-dt * 0.05));
+    su.uClouds.value = lerp(su.uClouds.value, 0.06 + 0.02 * clouds + 0.08 * (1 - energy), 1 - Math.exp(-dt * 0.05));
     // the camera
     const cam = S.camera, tanH = Math.tan((cam.fov * Math.PI) / 360), portrait = cam.aspect < 0.8;
     const dist = clamp(Math.max((portrait ? 3.9 : 7.2) / (tanH * cam.aspect), 3.6 / tanH), 8, 26);
@@ -829,7 +837,19 @@ export function createSheepScene({ mobile, seed }) {
     look.set(lookX, portrait ? 0.35 : 0.5, -0.3);
     cam.position.set(look.x + Math.sin(az) * dist * Math.cos(el), look.y + Math.sin(el) * dist, look.z + Math.cos(az) * dist * Math.cos(el));
     cam.lookAt(look);
-    woolU.uCam.value.copy(cam.position);
+    woolU.uCam.value.copy(cam.position); seaU.uCam.value.copy(cam.position);
+    {
+      const steady = v3.set(0.2 + Math.sin(0) * dist, look.y + Math.sin(0.27) * dist, look.z + Math.cos(0.27) * dist);
+      const fwd = v4.set(0.2, look.y, look.z).sub(steady).normalize();
+      const up = new THREE.Vector3(0, 1, 0).sub(fwd.clone().multiplyScalar(fwd.y)).normalize();
+      const a = Math.atan(tanH * (portrait ? 0.66 : 0.7)), D = 55;
+      moon.position.copy(steady).addScaledVector(fwd, Math.cos(a) * D).addScaledVector(up, Math.sin(a) * D);
+      moonSize = (D * tanH * (portrait ? 0.11 : 0.15)) / 1.35;
+      moon.scale.setScalar(moonSize); moon.lookAt(steady); moon.rotateZ(Math.sin(t * 0.21) * 0.07); // rocking like a cradle
+      halo.position.copy(moon.position); halo.scale.setScalar(4.1 * 1.35 * moonSize);
+      breathRing.position.copy(moon.position); breathRing.scale.multiplyScalar(1.35);
+      seaU.uMoon.value.copy(moon.position);
+    }
   });
 
   S.scene.userData.flock = { flock, ram, stars, BEDS, get count() { return count; }, ground, hW, hS };
