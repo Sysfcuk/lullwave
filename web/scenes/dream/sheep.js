@@ -24,6 +24,9 @@ const H = 0.34;       // hip height (and leg length) of a sheep: short legs, rou
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
 const lerp = (a, b, k) => a + (b - a) * k;
 const sstep = (a, b, x) => { const k = clamp((x - a) / (b - a), 0, 1); return k * k * (3 - 2 * k); };
+/** Cubic Hermite from p0 (leaving at speed m0) to p1 (arriving at speed m1), s in 0..1; and its slope. */
+const herm = (p0, m0, p1, m1, s) => { const s2 = s * s, s3 = s2 * s; return (2 * s3 - 3 * s2 + 1) * p0 + (s3 - 2 * s2 + s) * m0 + (-2 * s3 + 3 * s2) * p1 + (s3 - s2) * m1; };
+const hermD = (p0, m0, p1, m1, s) => { const s2 = s * s; return (6 * s2 - 6 * s) * p0 + (3 * s2 - 4 * s + 1) * m0 + (-6 * s2 + 6 * s) * p1 + (3 * s2 - 2 * s) * m1; };
 const angDiff = (a, b) => { let d = b - a; while (d > Math.PI) d -= TAU; while (d < -Math.PI) d += TAU; return d; };
 
 /** The grass of the waking island: a gentle dome that rounds off at its edge. */
@@ -401,12 +404,12 @@ export function createSheepScene({ mobile, seed }) {
 
   // where they start: most of them grazing, two asleep on the quilt, one up in the sky
   const randomOnW = (pad = 0.9) => { for (let tries = 0; ; tries++) { const a = rand() * TAU, r = Math.sqrt(rand()) * (WR - pad); const x = WC.x + Math.cos(a) * r, z = WC.z + Math.sin(a) * r; if (x < FENCE_X - 0.6 && (tries > 60 || all.every((o) => o.state === 'cloud' || Math.hypot(o.pos.x - x, o.pos.z - z) > 1 || o.pos.lengthSq() === 0))) return new THREE.Vector3(x, 0, z); } };
+  ram.pos.set(-2.6, 0, 1.9); ram.yaw = 1.2; // the ram first, so no one is put down on top of him
   flock.forEach((sh, k) => {
     if (k < 2) { const b = BEDS[k]; b.by = sh; sh.bed = k; sh.pos.set(b.x, 0, b.z); sh.yaw = Math.PI / 2; sh.state = 'sleep'; sh.lie = sh.lieT = 1; sh.eyesOpen = sh.eyesT = 0; sh.sleepUntil = 40 + k * 50; }
     else if (k === 2) { sh.state = 'cloud'; sh.cloud = 1; sh.until = 30; }
     else { sh.pos.copy(randomOnW()); sh.yaw = rand() * TAU; sh.until = rand() * 4; }
   });
-  ram.pos.set(-2.6, 0, 1.9); ram.yaw = 1.2;
 
   // ---------------------------------------------------------------- counting: the numbers that glow over the moon
   let count = 0;
@@ -517,6 +520,9 @@ export function createSheepScene({ mobile, seed }) {
     const T = apexIn - RISE;
     if (T < 1.6) return false;
     sh.state = 'run'; sh.t0 = t; sh.until = t + T; sh.from = sh.pos.clone(); sh.task = null; sh.lieT = 0; sh.eyesT = 1;
+    // speed builds as u^n; n is chosen so it leaves the ground at about 1.4 m/s (slower, and lazier, late at night)
+    const dist = Math.max(0.3, Math.hypot(TAKEOFF.x - sh.from.x, TAKEOFF.z - sh.from.z));
+    sh.rn = clamp((1.4 * T) / dist, 1.4, 3.2);
     return true;
   }
 
@@ -532,32 +538,41 @@ export function createSheepScene({ mobile, seed }) {
         break;
       }
       case 'run': { // the in-breath: an easy walk that gathers into a trot
-        const u = clamp((t - sh.t0) / (sh.until - sh.t0), 0, 1), k = u ** 1.7;
-        const px = sh.pos.x, pz = sh.pos.z;
+        const T = sh.until - sh.t0, u = clamp((t - sh.t0) / T, 0, 1), k = u ** sh.rn;
         sh.pos.x = lerp(sh.from.x, TAKEOFF.x, k); sh.pos.z = lerp(sh.from.z, TAKEOFF.z, k);
-        const moved = Math.hypot(sh.pos.x - px, sh.pos.z - pz); sh.speed = moved / Math.max(dt, 1e-3);
+        const rate = (sh.rn * u ** (sh.rn - 1)) / T; // how fast along the run-up, exactly (no frame-to-frame jitter)
+        sh.speed = rate * Math.hypot(TAKEOFF.x - sh.from.x, TAKEOFF.z - sh.from.z); sh.ru = u;
         sh.yaw += angDiff(sh.yaw, Math.atan2(TAKEOFF.x - sh.from.x, TAKEOFF.z - sh.from.z)) * (1 - Math.exp(-dt * 4));
         sh.hp = -0.25;
         if (u >= 1) {
+          // leave the ground at the speed of the run-up, so there's no lurch
+          sh.v0 = new THREE.Vector3(TAKEOFF.x - sh.from.x, 0, TAKEOFF.z - sh.from.z).multiplyScalar(sh.rn / T);
           sh.state = 'flight'; sh.t0 = sh.until; sh.fall = 4.4 + 1.8 * (1 - energy);
           sh.land = LAND.clone(); sh.land.z += (rand() - 0.5) * 0.3;
-          sh.y0 = groundY(sh); sh.y1 = hS(sh.land.x, sh.land.z); sh.from = sh.pos.clone();
-          sh.top = new THREE.Vector3(MOON.x + 0.1, Math.max(sh.y0, sh.y1) + 1.25 + 0.55 * energy, lerp(sh.from.z, sh.land.z, 0.4));
-          sh.apexAt = sh.t0 + RISE; sh.counted = false; sh.fpitch = 0; sh.froll = 0; sh.fk = 0;
+          sh.y0 = groundY(sh); sh.from = sh.pos.clone();
+          { const yaw = sh.yaw, px = sh.pos.x, pz = sh.pos.z; sh.yaw = Math.PI / 2; sh.pos.copy(sh.land); sh.y1 = groundY(sh); sh.yaw = yaw; sh.pos.set(px, 0, pz); } // the ground it will stand on
+          sh.top = new THREE.Vector3(0, Math.max(sh.y0, sh.y1) + 1.25 + 0.55 * energy, 0);
+          sh.apexAt = sh.t0 + RISE; sh.counted = false; sh.fpitch = sh.lastPitch || 0; sh.froll = 0; sh.fk = 0;
+          sh.air.set(sh.pos.x, sh.y0, sh.pos.z);
+          update(sh, t, dt); // and straight on into the flight this same frame, so it never pauses at take-off
         }
         break;
       }
       case 'flight': { // a hop to the top over the moon (end of the in-breath), then the long float down
-        const el = t - sh.t0, px = sh.air.x, py = sh.air.y;
-        if (el < RISE) { // up, slowing towards the top
-          const k = el / RISE;
-          sh.air.set(lerp(sh.from.x, sh.top.x, k), lerp(sh.y0, sh.top.y, 1 - (1 - k) ** 2), lerp(sh.from.z, sh.top.z, k)); sh.fk = 0;
-        } else { // down, slowly, drifting, settling softly at the end
-          const k = clamp((el - RISE) / sh.fall, 0, 1), ex = 1 - (1 - k) ** 1.7;
-          sh.air.set(lerp(sh.top.x, sh.land.x, ex), lerp(sh.top.y, sh.y1, k * k * (3 - 2 * k)), lerp(sh.top.z, sh.land.z, ex)); sh.fk = k;
-          if (k >= 1) { sh.state = 'land'; sh.t0 = t; sh.pos.copy(sh.land); }
+        const el = t - sh.t0, D = RISE + sh.fall, sd = clamp(el / D, 0, 1);
+        const x = herm(sh.from.x, sh.v0.x * D, sh.land.x, 0, sd), z = herm(sh.from.z, sh.v0.z * D, sh.land.z, 0, sd);
+        const vx = hermD(sh.from.x, sh.v0.x * D, sh.land.x, 0, sd) / D, vz = hermD(sh.from.z, sh.v0.z * D, sh.land.z, 0, sd) / D;
+        let y, vy;
+        if (el < RISE) { // up, slowing to a stop at the top
+          const k = el / RISE, up = 0.4 * (1 - (1 - k) ** 2) + 0.6 * k * k * (3 - 2 * k); y = lerp(sh.y0, sh.top.y, up); vy = ((sh.top.y - sh.y0) * (0.8 * (1 - k) + 3.6 * k * (1 - k))) / RISE; sh.fk = 0;
+        } else { // down, slowly, settling to a standstill on the quilt
+          const k = clamp((el - RISE) / sh.fall, 0, 1); y = lerp(sh.top.y, sh.y1, k * k * (3 - 2 * k)); vy = ((sh.y1 - sh.top.y) * 6 * k * (1 - k)) / sh.fall; sh.fk = k;
         }
-        if (el > 0.05 && dt > 0) sh.fpitch = lerp(sh.fpitch, clamp(-Math.atan2(sh.air.y - py, Math.max(1e-3, sh.air.x - px)) * 0.5, -0.45, 0.45), 1 - Math.exp(-dt * 5));
+        sh.air.set(x, y, z);
+        if (sd >= 1) { sh.state = 'land'; sh.t0 = t; sh.pos.copy(sh.land); }
+        // nose up on the way up, a little down on the way down, level again as the feet touch
+        const want = clamp(-Math.atan2(vy, Math.max(0.05, Math.hypot(vx, vz))) * 0.5, -0.45, 0.45) * (1 - sstep(0.7, 1, sh.fk));
+        sh.fpitch = lerp(sh.fpitch, want, 1 - Math.exp(-dt * 4));
         sh.froll = Math.sin(sh.fk * Math.PI * 2.2) * 0.12 * (1 - sh.fk);
         if (sh.state === 'flight') sh.pos.set(sh.air.x, 0, sh.air.z);
         sh.yaw += angDiff(sh.yaw, Math.PI / 2) * (1 - Math.exp(-dt * 3));
@@ -624,7 +639,7 @@ export function createSheepScene({ mobile, seed }) {
   function toCloud(sh, t) {
     if (sh.bed >= 0) { BEDS[sh.bed].by = null; sh.bed = -1; }
     sh.from = v3.set(sh.pos.x, groundY(sh), sh.pos.z).clone();
-    sh.state = 'rise'; sh.t0 = t; sh.until = t + 13;
+    sh.state = 'rise'; sh.t0 = t; sh.until = t + 13; sh.air.copy(sh.from);
   }
   function ringPos(sh, t, out) {
     const r = sh.ring; return out.set(0.3 + Math.cos(r.a) * r.r * 1.25, r.alt + Math.sin(t * 0.25 + r.ph) * 0.2, -2.0 + Math.sin(r.a) * r.r * 0.5);
@@ -648,18 +663,23 @@ export function createSheepScene({ mobile, seed }) {
     const g = sh.g;
     // the stride: diagonal pairs together, a full cycle every 0.8 m
     sh.phase += (sh.speed * dt / 0.4) * Math.PI;
-    const amp = clamp(sh.speed / 0.4, 0, 1) * (sh.state === 'run' ? 0.6 : 0.42);
+    sh.ampS = lerp(sh.ampS ?? 0, clamp(sh.speed / 0.4, 0, 1) * (sh.state === 'run' ? 0.6 : 0.42), 1 - Math.exp(-dt * 6)); // the stride eases in and out
+    const amp = sh.ampS;
     let pitch = 0;
     if (!airborne) {
       const c = Math.cos(sh.yaw), s = Math.sin(sh.yaw);
       const gF = (ground(sh.pos.x + 0.27 * sc * s, sh.pos.z + 0.27 * sc * c)), gB = ground(sh.pos.x - 0.27 * sc * s, sh.pos.z - 0.27 * sc * c);
       pitch = Math.atan2(gB - gF, 0.54 * sc) * (1 - sh.lie);
-      const bob = Math.abs(Math.sin(sh.phase)) * 0.018 * amp;
+      const bob = Math.abs(Math.sin(sh.phase)) * 0.018 * amp * (sh.state === 'run' ? 1 - sstep(0.7, 0.82, sh.ru) : 1); // (no bob as it gathers to jump)
       g.position.set(sh.pos.x, groundY(sh) + bob, sh.pos.z);
     } else g.position.copy(sh.air);
     let roll = 0;
     if (sh.state === 'flight') { pitch = sh.fpitch; roll = sh.froll; }
-    g.rotation.set(pitch, sh.yaw, roll);
+    if (sh.state === 'land') pitch = lerp(sh.fpitch, pitch, sstep(0, 0.6, t - sh.t0));
+    if (sh.state === 'run' && sh.ru > 0.82) { const c = Math.sin(Math.PI * (sh.ru - 0.82) / 0.18); g.position.y -= 0.05 * sc * c; } // gathers itself
+    const ez = 1 - Math.exp(-dt * 5);
+    sh.pitchS = lerp(sh.pitchS ?? pitch, pitch, ez); sh.rollS = lerp(sh.rollS ?? roll, roll, ez);
+    g.rotation.set(sh.pitchS, sh.yaw, sh.rollS); sh.lastPitch = sh.pitchS;
     // wool: breathes; squashes and stretches through the jump; puffs right up into a cloud
     const br = 1 + Math.sin(t * (sh.state === 'sleep' ? 0.9 : 1.6) + sh.i) * (sh.state === 'sleep' ? 0.025 : 0.012);
     let sx = 1, sy = 1, sz = 1;
@@ -706,6 +726,8 @@ export function createSheepScene({ mobile, seed }) {
       }
       if (sh.paw && L.front && L.x > 0) { a = -0.25 + 0.45 * Math.sin(t * 7); lift = 0.12 * Math.max(0, Math.sin(t * 7)); }
       a = lerp(a, L.front ? -1.35 : 1.35, sh.lie);
+      // in the air and on landing the legs ease from one pose to the next instead of snapping
+      if (sh.state === 'flight' || sh.state === 'land') { L.a = lerp(L.a ?? a, a, 1 - Math.exp(-dt * 9)); L.lift = lerp(L.lift ?? lift, lift, 1 - Math.exp(-dt * 9)); a = L.a; lift = L.lift; } else { L.a = a; L.lift = lift; }
       L.pv.rotation.set(a, 0, 0);
       L.pv.updateMatrixWorld();
       let k = 1 - lift - 0.95 * sstep(0.2, 0.8, sh.lie); // folded right away under the fleece when lying
@@ -742,7 +764,6 @@ export function createSheepScene({ mobile, seed }) {
       if (!busy && next && next.state === 'next' && (grazing >= 2 || energy < 0.6)) { if (startRun(next, clockT, ev.apexIn)) next = null; }
     } else if (ev.type === 'leap') { // the top of the jump
       const f = flock.find((s) => s.state === 'flight' && !s.counted);
-      if (f) { const err = clockT - f.apexAt; if (Math.abs(err) < 0.5) { f.t0 += err * 0.6; f.apexAt += err * 0.6; } }
       if (ram.state === 'graze' && ram.task === 'fence' && f) ram.shake = rand() < 0.3 ? 1 : 0; // the ram disapproves
     } else if (ev.type === 'baa') {
       const a = flock.filter((s) => s.state === 'graze' && s.task !== 'rest');
@@ -778,7 +799,7 @@ export function createSheepScene({ mobile, seed }) {
       if (d >= room || d < 1e-4) continue;
       const fixedP = p.state === 'sleep' || p.state === 'run' || p.task === 'asleep', fixedQ = q.state === 'sleep' || q.state === 'run' || q.task === 'asleep';
       if (fixedP && fixedQ) continue;
-      const push = (room - d) * Math.min(1, dt * 4), kp = fixedP ? 0 : fixedQ ? 1 : 0.5, kq = 1 - kp;
+      const push = Math.min((room - d) * Math.min(1, dt * 4), 0.7 * dt), kp = fixedP ? 0 : fixedQ ? 1 : 0.5, kq = 1 - kp;
       p.pos.x -= (dx / d) * push * kp; p.pos.z -= (dz / d) * push * kp; q.pos.x += (dx / d) * push * kq; q.pos.z += (dz / d) * push * kq;
     }
     for (const sh of solid) if (sh.state !== 'run' && sh.state !== 'land') keepOn(sh);
