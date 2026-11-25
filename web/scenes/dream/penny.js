@@ -7,7 +7,7 @@
 import { createStage, motes, box, cyl, canvasTexture, model, THREE, TAU } from '../kit.js';
 import { tabby } from '../tabby.js';
 import { pennyLife } from './penny-life.js';
-import { surface, room, moonWindow, fire, candle, softBox } from '../interior.js';
+import { surface, room, moonWindow, candle, softBox, hearth } from '../interior.js';
 
 export function createPennyScene({ mobile, seed }) {
   const S = createStage({ mobile, seed, salt: 0x9e77, bg: '#0a0806', fog: { color: '#140e0a', near: 7, far: 30 }, exposure: 1.12, bloom: [0.55, 0.5, 0.66], finish: { vignette: 0.46, grain: 0.024, ca: 0.25 }, fov: 46 });
@@ -54,12 +54,9 @@ export function createPennyScene({ mobile, seed }) {
 
   // the fireplace: a painted surround, a stone hearth, a mantel with candles and a clock
   const fz = -D / 2;
-  soft(2.5, 1.4, 0.5, 0.04, '#e8e0d0', [0, 0.7, fz + 0.25]);
-  box(S, [1.3, 0.9, 0.52], '#120c08', [0, 0.45, fz + 0.26]);
+  hearth(S, { wallZ: fz, intensity: 4.5 });
   soft(2.8, 0.1, 0.66, 0.03, '#ddd3c2', [0, 1.45, fz + 0.33]);
   soft(2.7, 0.06, 0.7, 0.02, '#6e6760', [0, 0.03, fz + 0.85]); // hearth stone
-  fire(S, { pos: [0, 0.12, fz + 0.45], width: 0.7, intensity: 7, distance: 9, flames: 4 });
-  for (let k = 0; k < 3; k++) { const l = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.5, 8), S.mat('#3a2416')); l.rotation.set(0, 0.3 * k - 0.3, Math.PI / 2); l.position.set(-0.1 + k * 0.1, 0.1 + (k === 1 ? 0.1 : 0), fz + 0.45); S.add(l); }
   for (const x of [-1, 1]) { cyl(S, 0.05, 0.06, 0.04, '#b08a3a', [x * 0.95, 1.52, fz + 0.35], 8); candle(S, { pos: [x * 0.95, 1.54, fz + 0.35], h: 0.22, light: x > 0, intensity: 1, distance: 5 }); }
   const mclock = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.06, 24), S.mat('#c9b27a')); mclock.rotation.x = Math.PI / 2; mclock.position.set(0, 1.68, fz + 0.33); S.add(mclock);
   const art = canvasTexture(S, 256, 180, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#2a3a6a'); gr.addColorStop(0.6, '#c98a5a'); gr.addColorStop(1, '#3a5a2a'); g.fillStyle = gr; g.fillRect(0, 0, w, h); g.fillStyle = '#2a4a22'; g.beginPath(); g.moveTo(0, h * 0.7); for (let x = 0; x <= w; x += 16) g.lineTo(x, h * 0.65 + Math.sin(x * 0.03) * 14); g.lineTo(w, h); g.lineTo(0, h); g.fill(); g.strokeStyle = '#8a6a2a'; g.lineWidth = 14; g.strokeRect(0, 0, w, h); });

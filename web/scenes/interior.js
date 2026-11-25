@@ -1,7 +1,7 @@
 // Interiors for the dream worlds: rooms with painted walls and floors (stone, brick, plaster,
 // boards), windows that let the moonlight in as shafts full of dust, candles and fires that
 // flicker, and a few bits of furniture.
-import { THREE, canvasTexture, shaft, TAU } from './kit.js';
+import { THREE, canvasTexture, shaft, motes, TAU } from './kit.js';
 
 /** Painted textures: 'stone' blocks, 'brick', 'planks', 'plaster', 'tiles' (checkerboard). */
 export function surface(S, kind, { color = '#8a7a66', repeat = [4, 4] } = {}) {
@@ -107,4 +107,109 @@ export function fire(S, { pos, width = 0.8, intensity = 6, distance = 10, color 
     embers.material.color.setRGB(1, 0.32 + 0.08 * Math.sin(t * 2.3), 0.1);
   });
   return { light: l };
+}
+
+// ------------------------------------------------------------------ a real fireplace
+const NOISE = `
+  float hh(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+  float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f); return mix(mix(hh(i), hh(i + vec2(1, 0)), f.x), mix(hh(i + vec2(0, 1)), hh(i + vec2(1, 1)), f.x), f.y); }
+  float fbm(vec2 p){ return .5 * vn(p) + .27 * vn(p * 2.1 + 3.1) + .15 * vn(p * 4.3 + 7.7) + .08 * vn(p * 8.9 + 1.3); }`;
+
+/**
+ * A fireplace set into a wall: a painted surround with a proper opening, a recessed firebox of
+ * sooty brick, an iron grate holding charred logs whose ends glow, a bed of embers, flames drawn
+ * by a shader (a white-yellow core, orange body, red tips, licking upwards and never the same
+ * twice), sparks drifting up the chimney, and the fire's light coming from inside the opening.
+ * `wallZ` is the wall's face; the fireplace stands out from it towards +z.
+ */
+export function hearth(S, { x = 0, wallZ, width = 2.5, height = 1.4, depth = 0.5, opening = [1.3, 0.9], surround = '#d9cfbd', intensity = 4.5 }) {
+  const g = new THREE.Group(); g.position.set(x, 0, wallZ); S.add(g);
+  const [ow, oh] = opening, front = depth, side = (width - ow) / 2;
+  const paint = S.mat(surround);
+  // the surround: two pillars and a lintel, leaving the opening
+  for (const sx of [-1, 1]) { const p = new THREE.Mesh(softBox(side, height, depth, 0.03), paint); p.position.set(sx * (ow / 2 + side / 2), height / 2, depth / 2); g.add(p); }
+  const lintel = new THREE.Mesh(softBox(ow + 0.02, height - oh, depth, 0.03), paint); lintel.position.set(0, oh + (height - oh) / 2, depth / 2); g.add(lintel);
+  // a slim moulding round the opening
+  const trim = S.mat('#c4b8a2');
+  for (const sx of [-1, 1]) { const t = new THREE.Mesh(new THREE.BoxGeometry(0.05, oh, 0.03), trim); t.position.set(sx * (ow / 2 + 0.025), oh / 2, front + 0.01); g.add(t); }
+  { const t = new THREE.Mesh(new THREE.BoxGeometry(ow + 0.1, 0.05, 0.03), trim); t.position.set(0, oh + 0.025, front + 0.01); g.add(t); }
+  // the firebox: sooty brick on the back and the angled sides, a blackened ceiling and floor
+  const brick = surface(S, 'brick', { color: '#4a2f24', repeat: [2, 1.5] });
+  const sooty = S.keep(new THREE.MeshLambertMaterial({ map: brick, color: '#8a7a70' }));
+  const back = new THREE.Mesh(new THREE.PlaneGeometry(ow * 0.72, oh), sooty); back.position.set(0, oh / 2, 0.03); g.add(back);
+  for (const sx of [-1, 1]) {
+    const a = new THREE.Vector3(sx * ow / 2, 0, front), b = new THREE.Vector3(sx * ow * 0.36, 0, 0.03), len = a.distanceTo(b);
+    const sd = new THREE.Mesh(new THREE.PlaneGeometry(len, oh), sooty); sd.position.set((a.x + b.x) / 2, oh / 2, (a.z + b.z) / 2); sd.rotation.y = Math.atan2(b.z - a.z, b.x - a.x) * -1 + (sx > 0 ? Math.PI : 0); sd.material.side = THREE.DoubleSide; g.add(sd);
+  }
+  const ceil = new THREE.Mesh(new THREE.PlaneGeometry(ow, front), S.mat('#120c0a')); ceil.rotation.x = Math.PI / 2; ceil.position.set(0, oh, front / 2); g.add(ceil);
+  const floorIn = new THREE.Mesh(new THREE.PlaneGeometry(ow, front), S.mat('#1a1412')); floorIn.rotation.x = -Math.PI / 2; floorIn.position.set(0, 0.004, front / 2); g.add(floorIn);
+
+  // the grate: an iron basket on little legs
+  const iron = S.mat('#1c1a1a'), gz = front * 0.5, gw = ow * 0.58;
+  for (let k = 0; k < 7; k++) { const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.2, 5), iron); bar.position.set(-gw / 2 + (k / 6) * gw, 0.16, gz + 0.12); g.add(bar); }
+  for (const y of [0.07, 0.25]) { const rail = new THREE.Mesh(new THREE.BoxGeometry(gw, 0.018, 0.018), iron); rail.position.set(0, y, gz + 0.12); g.add(rail); }
+  { const basePlate = new THREE.Mesh(new THREE.BoxGeometry(gw, 0.015, 0.26), iron); basePlate.position.set(0, 0.07, gz); g.add(basePlate); }
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) { const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.07, 5), iron); leg.position.set(sx * gw * 0.45, 0.035, gz + sz * 0.11); g.add(leg); }
+
+  // logs: bark, and ends glowing where they've burned
+  const bark = canvasTexture(S, 64, 128, (c, w, h) => { c.fillStyle = '#2e2018'; c.fillRect(0, 0, w, h); for (let k = 0; k < 90; k++) { c.fillStyle = Math.random() < 0.5 ? 'rgba(10,6,4,.7)' : 'rgba(90,64,44,.5)'; c.fillRect(Math.random() * w, Math.random() * h, 1 + Math.random() * 3, 6 + Math.random() * 20); } });
+  const barkM = S.keep(new THREE.MeshLambertMaterial({ map: bark }));
+  const glowEnd = S.keep(new THREE.ShaderMaterial({
+    uniforms: { uTime: S.U.uTime }, vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }',
+    fragmentShader: `${NOISE} uniform float uTime; varying vec2 vUv; void main(){ vec2 c = vUv - .5; float r = length(c) * 2.; float n = fbm(c * 9. + uTime * .3); float hot = (1. - smoothstep(.2, 1., r)) * (.5 + .7 * n); vec3 col = mix(vec3(.25, .04, .01), vec3(1., .45, .08), clamp(hot, 0., 1.)); gl_FragColor = vec4(col * (.4 + hot * 1.4), 1.); }`,
+  }));
+  const LOGS = [[-0.12, 0.14, -0.08, 0.3, 0.07], [0.12, 0.14, -0.06, -0.25, 0.065], [0.0, 0.24, -0.03, 0.05, 0.06]];
+  for (const [lx, ly, lz, ry, r] of LOGS) {
+    const lg = new THREE.Group(); lg.position.set(lx, ly, gz + lz); lg.rotation.y = ry; g.add(lg);
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 1.05, 0.5, 10), barkM); body.rotation.z = Math.PI / 2; lg.add(body);
+    for (const sx of [-1, 1]) { const end = new THREE.Mesh(new THREE.CircleGeometry(r * 0.96, 14), glowEnd); end.position.x = sx * 0.251; end.rotation.y = sx * Math.PI / 2; lg.add(end); }
+  }
+  // the ember bed under the logs
+  const embers = new THREE.Mesh(new THREE.PlaneGeometry(gw * 0.95, 0.24), new THREE.ShaderMaterial({
+    uniforms: { uTime: S.U.uTime }, vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }',
+    fragmentShader: `${NOISE} uniform float uTime; varying vec2 vUv; void main(){ float n = fbm(vUv * vec2(14., 6.) + vec2(uTime * .05, uTime * .12)), m = fbm(vUv * vec2(30., 12.) - uTime * .2); float hot = smoothstep(.35, .8, n) * (.6 + .6 * m); vec3 col = mix(vec3(.08, .02, .01), vec3(1., .38, .06), clamp(hot, 0., 1.)); col += vec3(1., .8, .4) * smoothstep(.75, 1., hot) * .6; float edge = smoothstep(0., .15, vUv.x) * smoothstep(0., .15, 1. - vUv.x) * smoothstep(0., .2, vUv.y) * smoothstep(0., .2, 1. - vUv.y); gl_FragColor = vec4(col * edge, 1.); }`,
+  }));
+  S.keep(embers.material); embers.rotation.x = -Math.PI / 2; embers.position.set(0, 0.082, gz); g.add(embers);
+
+  // the flames: shader quads that turn to face you, each licking and flickering in its own way
+  const flameMat = (seed, amt) => S.keep(new THREE.ShaderMaterial({
+    uniforms: { uTime: S.U.uTime, uSeed: { value: seed }, uAmt: { value: amt } }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, side: THREE.DoubleSide,
+    vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }',
+    fragmentShader: `${NOISE} uniform float uTime, uSeed, uAmt; varying vec2 vUv;
+      void main(){
+        vec2 uv = vUv;
+        float n = fbm(vec2(uv.x * 2.6 + uSeed, uv.y * 2.2 - uTime * 1.5));
+        float n2 = fbm(vec2(uv.x * 5.5 - uSeed * 1.7, uv.y * 4.5 - uTime * 2.3));
+        float x = (uv.x - .5) * 2. + (n - .5) * .9 * uv.y;  // the flame sways more the higher it goes
+        float w = mix(.9, .06, pow(uv.y, .75));            // wide at the base, a point at the top
+        float body = 1. - smoothstep(w * .35, w, abs(x));
+        float top = 1. - smoothstep(.35, 1., uv.y + (n2 - .5) * .45);
+        float base = smoothstep(0., .1, uv.y);
+        float f = clamp(body * top * base * (.65 + .6 * n2), 0., 1.);
+        vec3 col = mix(vec3(.75, .12, .02), vec3(1., .5, .08), smoothstep(.12, .5, f));
+        col = mix(col, vec3(1., .9, .62), smoothstep(.62, .95, f));
+        gl_FragColor = vec4(max(col * f * uAmt, 0.), 1.);
+      }`,
+  }));
+  const flames = [];
+  const FL = [[-0.16, 0.34, 0.5, 0.8], [0.0, 0.42, 0.62, 1.0], [0.15, 0.32, 0.48, 0.75], [-0.05, 0.28, 0.4, 0.6], [0.08, 0.36, 0.55, 0.85]];
+  FL.forEach(([fx, w, h, amt], i) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), flameMat(i * 3.7 + S.rand() * 10, amt * 1.15));
+    m.geometry.translate(0, h / 2, 0); m.position.set(fx, 0.13, gz + 0.02 - i * 0.012); g.add(m); flames.push(m);
+  });
+  motes(S, { kind: 'spark', count: 18, box: [gw * 0.8, 1.1, 0.2], center: [x, 0.75, wallZ + gz], color: '#ffa04a', size: 0.022, speed: 0.55 });
+
+  // the light comes from inside the opening, low, so the surround is lit by it rather than blazing
+  const light = new THREE.PointLight('#ff8f42', intensity, 8.5, 2); light.position.set(0, 0.32, front + 0.12); g.add(light);
+  const glowTex = canvasTexture(S, 64, 64, (c) => { const gr = c.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,140,60,.55)'); gr.addColorStop(1, 'rgba(255,120,40,0)'); c.fillStyle = gr; c.fillRect(0, 0, 64, 64); });
+  const hearthGlow = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.9), new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false })); hearthGlow.rotation.x = -Math.PI / 2; hearthGlow.position.set(0, 0.07, front + 0.35); g.add(hearthGlow);
+  const tmp = new THREE.Vector3();
+  S.on((t) => {
+    const flick = 0.8 + 0.12 * Math.sin(t * 5.3) + 0.08 * Math.sin(t * 13.1 + 1.3) + 0.05 * Math.sin(t * 23.7);
+    light.intensity = intensity * flick; hearthGlow.material.opacity = 0.3 + 0.2 * flick;
+    // turn each flame to face the camera, around the upright only
+    S.camera.getWorldPosition(tmp); g.worldToLocal(tmp);
+    for (const m of flames) m.rotation.y = Math.atan2(tmp.x - m.position.x, tmp.z - m.position.z);
+  });
+  return { group: g, light };
 }

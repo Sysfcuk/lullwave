@@ -55,25 +55,56 @@ export function createDiscoScene({ mobile, seed }) {
     uBeat: { value: 0 }, uCam: { value: new THREE.Vector3() }, uSleep: { value: 0 }, uScale: { value: 800 }, uPool: { value: new THREE.Vector3() },
   };
 
-  // ------------------------------------------------------------------ the cat's fur: a rainbow that drifts through it
-  const furMat = keep(new THREE.ShaderMaterial({
+  // ------------------------------------------------------------------ the cat's fur
+  // The pattern lives in the cat's own space (so it stays put on the body as it dances): a rainbow
+  // drifting slowly through it, soft tabby stripes, fine streaks of hair, light that wraps round
+  // the way it does through fur, a velvety sheen at the edges, and the disco's spots. White fur
+  // (chest, muzzle, paws) is the same coat, creamy, with only a breath of rainbow in it.
+  const FURV = `uniform mat4 uCatInv; varying vec3 vW, vN, vC;
+    void main(){ vec4 w = modelMatrix * vec4(position, 1.); vW = w.xyz; vC = (uCatInv * w).xyz; vN = normalize(mat3(modelMatrix) * normal); gl_Position = projectionMatrix * viewMatrix * w; }`;
+  const FURF = `${DISCO} uniform vec3 uCam; uniform float uSleep, uWhite; varying vec3 vW, vN, vC;
+    float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f); return mix(mix(dh(i), dh(i + vec2(1, 0)), f.x), mix(dh(i + vec2(0, 1)), dh(i + vec2(1, 1)), f.x), f.y); }
+    void main(){
+      vec3 n = normalize(vN); vec3 V = normalize(uCam - vW); vec3 L = normalize(vec3(.3, .8, .6));
+      float hue = vC.y * .3 + vC.x * .1 - vC.z * .08 + uTime * .03 + uHue;
+      float stripe = smoothstep(.5, .92, sin(vC.y * 15. + sin(vC.x * 7.) * 1.6 + vC.z * 4.)) * .22;
+      float hair = vn(vec2(vC.x * 70. + vC.z * 50., vC.y * 11.)) * .6 + vn(vec2(vC.x * 140. - vC.z * 90., vC.y * 24.)) * .4; // fine strands
+      vec3 fur = hsv(hue, .78, 1.) * (1. - stripe * .9);
+      fur = mix(fur, mix(vec3(1., .96, .93), hsv(hue, .22, 1.), .35), uWhite);
+      fur *= .82 + hair * .3;
+      float wrap = max((dot(n, L) + .45) / 1.45, 0.);                  // light wrapping round through the fur
+      float under = max(-n.y, 0.) * .3;
+      float sheen = pow(1. - max(dot(n, V), 0.), 2.2);                  // velvet: brighter at the grazing edges
+      vec3 col = fur * (.06 + .52 * wrap * (.5 + .5 * uDisco) + under * uDisco * .35);
+      col += fur * sheen * (.18 + .12 * uDisco) + hsv(hue + .5, .5, 1.) * sheen * sheen * .05 * uDisco;
+      col += fur * spots(vW, n) * .65;
+      gl_FragColor = vec4(max(col, 0.), 1.);
+    }`;
+  const catInv = { value: new THREE.Matrix4() }, mirrorInv = { value: new THREE.Matrix4() };
+  const furOf = (white, inv) => keep(new THREE.ShaderMaterial({ uniforms: { ...U, uCatInv: inv, uWhite: { value: white } }, vertexShader: FURV, fragmentShader: FURF }));
+  const furMat = furOf(0, catInv), whiteFur = furOf(1, catInv);
+  const mirrorMats = new Map([[furMat, furOf(0, mirrorInv)], [whiteFur, furOf(1, mirrorInv)]]);
+
+  // the eyes: a big glossy iris, green shading to gold, flecked, with a dark ring round it and a
+  // slit pupil that opens wide as the lights go down; two bright catchlights
+  const eyeShader = keep(new THREE.ShaderMaterial({
     uniforms: U,
-    vertexShader: `varying vec3 vW, vN, vL;
-      void main(){ vL = (modelMatrix * vec4(position, 1.)).xyz; vec4 w = modelMatrix * vec4(position, 1.); vW = w.xyz; vN = normalize(mat3(modelMatrix) * normal); gl_Position = projectionMatrix * viewMatrix * w; }`,
-    fragmentShader: `${DISCO} uniform vec3 uCam; uniform float uSleep; varying vec3 vW, vN, vL;
+    vertexShader: 'varying vec3 vP, vW, vN; void main(){ vP = normalize(position); vec4 w = modelMatrix * vec4(position, 1.); vW = w.xyz; vN = normalize(mat3(modelMatrix) * normal); gl_Position = projectionMatrix * viewMatrix * w; }',
+    fragmentShader: `${DISCO} uniform vec3 uCam; varying vec3 vP, vW, vN;
       void main(){
-        vec3 n = normalize(vN); vec3 V = normalize(uCam - vW);
-        float hue = vL.y * .32 + vL.x * .12 - vL.z * .08 + uTime * .035 + uHue;
-        // soft tabby stripes
-        float stripe = smoothstep(.55, .95, sin(vL.y * 16. + sin(vL.x * 7.) * 1.5 + vL.z * 4.)) * .18;
-        vec3 fur = hsv(hue, .82 - stripe, 1.);
-        // a soft key light from the front, the floor's glow from below, rainbow rim light, disco spots
-        float key = max(dot(n, normalize(vec3(.3, .8, .6))), 0.);
-        float under = max(-n.y, 0.) * .35;
-        float rim = pow(1. - max(dot(n, V), 0.), 2.5);
-        vec3 col = fur * (.07 + .5 * key * (.5 + .5 * uDisco) + under * uDisco * .4) + hsv(hue + .5, .75, 1.) * rim * (.07 + .11 * uDisco);
-        col += fur * spots(vW, n) * .7;
-        gl_FragColor = vec4(col, 1.);
+        vec3 n = normalize(vN), V = normalize(uCam - vW);
+        vec2 p = vP.xy; float r = length(p);
+        float ang = atan(p.y, p.x);
+        vec3 iris = mix(vec3(.18, .42, .1), vec3(.62, .48, .08), smoothstep(.1, .75, r));
+        iris *= .75 + .35 * dh(vec2(floor(ang * 9.), 3.)) * smoothstep(.15, .7, r);   // flecks
+        iris = mix(iris, vec3(.02, .03, .02), smoothstep(.62, .85, r));                  // the dark ring
+        float slit = mix(.42, .17, uDisco);                                              // wider in the dark
+        float pupil = (1. - smoothstep(slit * .7, slit, abs(p.x) / max(.02, 1. - p.y * p.y * .9))) * step(abs(p.y), .78);
+        vec3 col = mix(iris, vec3(.005, .005, .01), pupil) * (.3 + .55 * max(vP.z, 0.));
+        vec3 L = normalize(vec3(-.35, .7, .6)), L2 = normalize(vec3(.4, .3, .8));
+        col += vec3(1.) * pow(max(dot(reflect(-V, n), L), 0.), 220.) * 1.3 + vec3(1.) * pow(max(dot(reflect(-V, n), L2), 0.), 500.) * .7;
+        col += spots(vW, n) * .12;
+        gl_FragColor = vec4(max(col, 0.), 1.);
       }`,
   }));
   const plain = (hex, glow = 0) => keep(new THREE.ShaderMaterial({
@@ -86,7 +117,7 @@ export function createDiscoScene({ mobile, seed }) {
         vec3 col = uCol * (.1 + .6 * key + uGlowAmt) + vec3(1.) * spec * .6 + uCol * spots(vW, n) * .5;
         gl_FragColor = vec4(col, 1.); }`,
   }));
-  const pinkMat = plain('#ff8fb8', 0.1), eyeMat = plain('#140c1c'), whiteMat = plain('#ffffff', 0.8), mouthMat = plain('#5a1830', 0.05), velvet = plain('#5a1a6a', 0.04), gold = plain('#e8c060', 0.15), kitMat = plain('#3a2650', 0.03), kitEye = plain('#ffe27a', 1.6);
+  const pinkMat = plain('#ff8fb8', 0.1), beanMat = plain('#f2879e', 0.12), lineMat = plain('#6a2a3a', 0.02), eyeMat = eyeShader, whiteMat = plain('#ffffff', 0.8), mouthMat = plain('#5a1830', 0.05), velvet = plain('#5a1a6a', 0.04), gold = plain('#e8c060', 0.15), kitMat = plain('#3a2650', 0.03), kitEye = plain('#ffe27a', 1.6);
 
   // ------------------------------------------------------------------ the cat: a chubby dancer with arms and legs that bend
   // Root at the floor facing +z; the pelvis carries the body, the spine leans and sways, arms and legs
@@ -101,21 +132,23 @@ export function createDiscoScene({ mobile, seed }) {
   add(pelvis, sph(0.5), furMat, [0, 0.02, -0.05], [1, 0.82, 0.95]); // hips
   const spine = new THREE.Group(); spine.position.y = 0.18; pelvis.add(spine);
   const chest = add(spine, sph(0.42), furMat, [0, 0.36, 0.05], [0.95, 1.1, 0.88]);
-  add(spine, sph(0.3), furMat, [0, 0.3, 0.2], [1.05, 1.1, 0.7]); // a soft round tummy
+  add(spine, sph(0.3), whiteFur, [0, 0.3, 0.2], [1.05, 1.1, 0.7]); // a soft round tummy, white
   const head = new THREE.Group(); head.position.set(0, 0.93, 0.1); spine.add(head);
   add(head, sph(0.4, 32, 24), furMat, [0, 0, 0], [1.12, 0.93, 0.95]);
   for (const sx of [-1, 1]) {
-    add(head, sph(0.2), furMat, [sx * 0.2, -0.12, 0.17], [1.1, 0.85, 0.9]); // cheeks
+    add(head, sph(0.2), whiteFur, [sx * 0.2, -0.12, 0.17], [1.1, 0.85, 0.9]); // cheeks
     const ear = add(head, keep(new THREE.ConeGeometry(0.16, 0.34, 4)), furMat, [sx * 0.24, 0.34, -0.03], [1, 1, 0.7], [0, Math.PI / 4, sx * -0.38]);
     add(ear, keep(new THREE.ConeGeometry(0.09, 0.22, 4)), pinkMat, [0, -0.02, 0.05], [1, 1, 0.4]);
   }
-  add(head, sph(0.14), furMat, [0, -0.13, 0.3], [1.25, 0.8, 1]); // muzzle
-  add(head, sph(0.045), pinkMat, [0, -0.05, 0.42], [1.3, 0.85, 1]); // nose
+  add(head, sph(0.14), whiteFur, [0, -0.13, 0.3], [1.25, 0.8, 1]); // muzzle
+  // a heart-shaped nose, and a little 'w' of a mouth under it
+  for (const sx of [-1, 1]) add(head, sph(0.03), pinkMat, [sx * 0.022, -0.035, 0.425], [1.1, 0.8, 0.8]);
+  add(head, keep(new THREE.ConeGeometry(0.036, 0.05, 12)), pinkMat, [0, -0.07, 0.425], [1.15, 1, 0.6], [Math.PI, 0, 0]);
+  for (const sx of [-1, 1]) add(head, keep(new THREE.TorusGeometry(0.038, 0.007, 6, 14, Math.PI)), lineMat, [sx * 0.038, -0.14, 0.452], [1, 1, 1], [-0.3, 0, Math.PI]);
   const mouth = add(head, sph(0.07), mouthMat, [0, -0.25, 0.33], [1, 0.05, 0.5]); // opens wide for a yawn
   const eyes = [];
   for (const sx of [-1, 1]) {
-    const eye = add(head, sph(0.085), eyeMat, [sx * 0.165, 0.04, 0.3], [1, 1, 0.55]);
-    add(eye, sph(0.028), whiteMat, [0.025, 0.03, 0.07]); // the sparkle in its eye
+    const eye = add(head, sph(0.085), eyeMat, [sx * 0.16, 0.04, 0.325], [1, 1, 0.55], [0, sx * 0.42, 0]); // turned to follow the curve of the face, so the iris looks out
     eyes.push(eye);
   }
   {
@@ -130,7 +163,10 @@ export function createDiscoScene({ mobile, seed }) {
     add(sh, limb(0.12, 0.1, 0.36), furMat, [0, 0, 0]);
     const el = new THREE.Group(); el.position.y = -0.4; sh.add(el);
     add(el, limb(0.1, 0.09, 0.32), furMat, [0, 0, 0]);
-    add(el, sph(0.13), furMat, [0, -0.4, 0.03], [1, 0.8, 1.1]); // paw
+    add(el, sph(0.13), whiteFur, [0, -0.4, 0.03], [1, 0.8, 1.1]); // paw, white
+    // toe beans on the underside, seen whenever a paw is raised
+    add(el, sph(0.05), beanMat, [0, -0.49, 0.03], [1.2, 0.5, 1]);
+    for (let k = 0; k < 4; k++) add(el, sph(0.024), beanMat, [(k - 1.5) * 0.045, -0.47, 0.1 - Math.abs(k - 1.5) * 0.02], [1, 0.6, 1]);
     return { sh, el, sx };
   });
   const legs = [-1, 1].map((sx) => {
@@ -139,12 +175,23 @@ export function createDiscoScene({ mobile, seed }) {
     add(hip, limb(0.16, 0.13, 0.26), furMat, [0, -0.04, 0]);
     const kn = new THREE.Group(); kn.position.y = -0.34; hip.add(kn);
     add(kn, limb(0.12, 0.1, 0.24), furMat, [0, 0, 0]);
-    add(kn, sph(0.14), furMat, [0, -0.33, 0.1], [1, 0.6, 1.5]); // foot
+    add(kn, sph(0.14), whiteFur, [0, -0.33, 0.1], [1, 0.6, 1.5]); // foot, white
     return { hip, kn, sx };
   });
   // the tail: a chain of shrinking spheres placed along a curve each frame
   const TAIL = 40, tail = [];
   for (let k = 0; k < TAIL; k++) tail.push(add(cat, sph(0.095 - k * 0.0011, 14, 10), furMat, [0, 0, 0]));
+
+  // its reflection in the glossy floor: a mirrored copy that copies every joint each frame
+  const mirror = cat.clone(true); scene.add(mirror);
+  mirror.traverse((o) => { if (o.isMesh && mirrorMats.has(o.material)) o.material = mirrorMats.get(o.material); });
+  const srcNodes = [], dstNodes = []; cat.traverse((o) => srcNodes.push(o)); mirror.traverse((o) => dstNodes.push(o));
+  function reflect() {
+    for (let i = 1; i < srcNodes.length; i++) { const a = srcNodes[i], b = dstNodes[i]; b.position.copy(a.position); b.quaternion.copy(a.quaternion); b.scale.copy(a.scale); b.visible = a.visible; }
+    mirror.position.set(cat.position.x, -cat.position.y, cat.position.z); mirror.quaternion.copy(cat.quaternion); mirror.scale.set(1, -1, 1);
+    cat.updateMatrixWorld(); mirror.updateMatrixWorld();
+    catInv.value.copy(cat.matrixWorld).invert(); mirrorInv.value.copy(mirror.matrixWorld).invert();
+  }
 
   // a velvet cushion to sleep on, behind the dance spot
   const CUSHION = new THREE.Vector3(0, 0, -1.0);
@@ -172,12 +219,12 @@ export function createDiscoScene({ mobile, seed }) {
 
   // ------------------------------------------------------------------ the dance floor
   const floor = new THREE.Mesh(keep(new THREE.CircleGeometry(9, 64)), keep(new THREE.ShaderMaterial({
-    uniforms: U,
+    uniforms: U, transparent: true,
     vertexShader: `varying vec3 vW; void main(){ vec4 w = modelMatrix * vec4(position, 1.); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
     fragmentShader: `${DISCO} uniform float uBeat; uniform vec3 uCam, uPool; varying vec3 vW;
       void main(){
         vec2 g = vW.xz / .8; vec2 id = floor(g); vec2 f = fract(g);
-        float grout = smoothstep(.0, .05, f.x) * smoothstep(1., .95, f.x) * smoothstep(.0, .05, f.y) * smoothstep(1., .95, f.y);
+        float grout = smoothstep(.0, .05, f.x) * (1. - smoothstep(.95, 1., f.x)) * smoothstep(.0, .05, f.y) * (1. - smoothstep(.95, 1., f.y));
         float r = length(vW.xz);
         // tiles light up in slow waves rolling out from the cat, and flash with the beat
         float wave = .5 + .5 * sin(r * 1.4 - uTime * 1.2 + dh(id) * 2.);
@@ -187,11 +234,12 @@ export function createDiscoScene({ mobile, seed }) {
         // a soft glossy sheen and a dark contact shadow under the cat
         vec3 V = normalize(uCam - vW);
         col += vec3(.6, .55, .8) * pow(max(V.y, 0.), 12.) * .05;
-        col *= smoothstep(.35, 1.1, r) * .75 + .25;
+        float dc = length(vW.xz - uPool.xz);
         col += spots(vW, vec3(0., 1., 0.)) * .35;
-        col += vec3(1., .9, .95) * smoothstep(1.2, .25, length(vW.xz - uPool.xz)) * (.1 + .12 * uDisco); // the follow-spots' pool
-        col *= smoothstep(9., 4., r);
-        gl_FragColor = vec4(col, 1.);
+        col += vec3(1., .9, .95) * (1. - smoothstep(.25, 1.2, dc)) * (.1 + .12 * uDisco); // the follow-spots' pool
+        col *= 1. - .55 * exp(-dc * dc * 4.5);                                            // soft contact shadow under the cat
+        col *= 1. - smoothstep(4., 9., r);
+        gl_FragColor = vec4(max(col, 0.), .8);                                            // a little see-through: the reflection shows
       }`,
   })));
   floor.rotation.x = -Math.PI / 2;
@@ -402,7 +450,7 @@ export function createDiscoScene({ mobile, seed }) {
     head.rotation.set(P.hx + Math.sin(t * 0.7) * 0.02, P.hy, P.hz);
     arms.forEach((A, i) => { const [sx, sz, ex] = P.arm[i]; A.sh.rotation.set(sx, 0, A.sx * sz); A.el.rotation.set(ex, 0, 0); });
     legs.forEach((L, i) => { const [hx, hz, kx] = P.leg[i]; L.hip.rotation.set(hx, 0, L.sx * hz); L.kn.rotation.set(kx, 0, 0); });
-    mouth.scale.set(1, 0.05 + P.mouth * 0.85, 0.5);
+    mouth.scale.set(1, 0.05 + P.mouth * 0.85, 0.5); mouth.visible = P.mouth > 0.04;
     const breathe = Math.sin(t * (1.2 - sleep * 0.5)) * 0.012; chest.scale.set(0.95 + breathe, 1.1 + breathe * 1.5, 0.88 + breathe);
     // blinking, then eyes closing as it nods off
     if (t > blinkAt) blinkAt = t + 2.5 + rand() * 4;
@@ -450,6 +498,7 @@ export function createDiscoScene({ mobile, seed }) {
     look.set(cat.position.x * 0.8, lerp(0.95, 1.25, stand) - sleep * 0.45, cat.position.z * 0.8);
     camera.lookAt(look);
     U.uCam.value.copy(camera.position);
+    reflect();
   }
 
   return {
