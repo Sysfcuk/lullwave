@@ -11,9 +11,9 @@ closes, and in the last stretch of the timer everything fades out.
 
 ## Worlds
 
-Twelve worlds are on: Crystal Cave, Night Drive, Deep Ocean, Aurora, Cotswold Valley, Disco Cat, and six dream
-scenes (Moonlit Canal, Christmas Market, Midnight Choir, Penny's Night Patrol, Pineapple Pizza Incident, Pineapple
-Fever Dream). The others are switched off with `off: true` in `WORLDS` in `web/main.js`; their code is kept, and
+Thirteen worlds are on: Crystal Cave, Night Drive, Deep Ocean, Aurora, Cotswold Valley, Disco Cat, and seven dream
+scenes (Moonlit Canal, Christmas Market, Midnight Choir, Penny's Night Patrol, Pineapple Pizza Incident, Counting
+Sheep, Pineapple Fever Dream). The others are switched off with `off: true` in `WORLDS` in `web/main.js`; their code is kept, and
 flipping the flag brings one back.
 
 | World | Visuals | Music |
@@ -30,7 +30,7 @@ flipping the flag brings one back.
 
 ### Dream scenes
 
-The six dream scenes that are on each have their own hand-written composer, with its own original tunes, band and
+The seven dream scenes that are on each have their own hand-written composer, with its own original tunes, band and
 sounds of the place (built on `web/music/bespoke.js`):
 
 | Scene | Music |
@@ -41,6 +41,9 @@ sounds of the place (built on `web/music/bespoke.js`):
 | **Penny's Night Patrol** (`pennysong.js`) | A late-night jazz trio: vibraphone tune, electric piano comping, walking bass and brushes, swung, round a ii-V-I; Penny purrs, the embers settle, the grandfather clock ticks and chimes, the odd sleepy mew. |
 | **The Pineapple Pizza Incident** (`pizzeria.js`) | A slow tarantella in A minor: mandolin tremolo, accordion on the off-beats, guitar bass, a whispered tambourine; the oven's fire, the chef kneading, plates clinking. |
 | **Pineapple Fever Dream** (`feversong.js`) | A warped tropical lullaby: steel pan in a whole-tone scale, a marimba echo, wobbling augmented chords, celesta twinkles, the odd boing. |
+| **Counting Sheep** (`sheepsong.js`) | A music-box waltz over soft strings that slowly winds down through the night like a box running down. It breathes with the jumps: a rising swell as each sheep starts its run-up (breathe in), a falling one as it sails over the moon (breathe out), with a bell that climbs the scale as the count goes up. A bleat now and then, the ram's huff, the box being wound again. |
+
+In **Counting Sheep**, a flock of cloud-sheep grazes on stars growing in the grass of a floating island. Each sheep has its own mind: it wanders, eats a star (which grows back), rests, or looks up to bleat. On the music's breath, one trots up and leaps the fence over a crescent moon that rocks like a cradle, and a number glows and fades. It lands on the next island (a patchwork quilt with a pillow), finds a bed and goes to sleep; later it melts into a cloud and drifts up into the sky, and a cloud may come back down to the grass as a sheep. As the night goes on the jumps get lazier and the clouds stop coming down, until the flock is asleep on the quilt and in the sky. The ram won't jump: he watches from the fence, shakes his head, and in the end falls asleep there.
 
 The switched-off dream scenes use the shared ambient composer described below.
 
