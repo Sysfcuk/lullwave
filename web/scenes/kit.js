@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { mulberry32 } from '../audio.js';
 import { paint, mergeAll, treeGeo } from './country.js';
+import { GLTFLoader } from '../vendor/three/examples/jsm/loaders/GLTFLoader.js';
 
 export const TAU = Math.PI * 2;
 export { THREE, paint, mergeAll, treeGeo };
@@ -44,6 +45,7 @@ export function createStage({ mobile, seed, salt = 1, fov = 55, far = 2600, bg =
     },
     onEvent(ev, at) { for (const h of handlers) h(ev, at); },
     dispose() {
+      stage.disposed = true; // models still loading will not be added
       // everything the stage made goes in one sweep: geometry, materials and their textures
       const seen = new Set();
       const drop = (m) => { if (!m || seen.has(m)) return; seen.add(m); for (const k in m) if (m[k] && m[k].isTexture) m[k].dispose(); m.dispose?.(); };
@@ -479,4 +481,32 @@ export function shaft(stage, { from = [0, 6, 0], to = [0, 0, 0], r0 = 0.4, r1 = 
   m.position.copy(a);
   m.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), dir.normalize());
   return stage.add(m);
+}
+
+// ------------------------------------------------------------------ models
+THREE.Cache.enabled = true; // keep fetched model files in memory, so revisiting a world is instant
+const gltfLoader = new GLTFLoader();
+/**
+ * Load a .glb model and place it: standing on the floor at `pos`, turned by `ry`, scaled so its
+ * width (x) is `width` (or by `scale`). Resolves with the model group, already in the scene, plus
+ * its box; resolves with null if the world closed first or the file could not be loaded, so callers
+ * can keep a hand-built stand-in.
+ */
+export function model(stage, url, { pos = [0, 0, 0], ry = 0, width = null, scale = 1, shadows = false, tweak = null } = {}) {
+  return new Promise((resolve) => {
+    gltfLoader.load(url, (gltf) => {
+      if (stage.disposed) { gltf.scene.traverse((o) => { o.geometry?.dispose(); const m = o.material; if (m) { for (const k in m) if (m[k]?.isTexture) m[k].dispose(); m.dispose(); } }); resolve(null); return; }
+      const g = new THREE.Group(), inner = gltf.scene;
+      g.add(inner);
+      const b0 = new THREE.Box3().setFromObject(inner);
+      const k = width ? width / Math.max(1e-6, b0.max.x - b0.min.x) : scale;
+      inner.scale.setScalar(k);
+      inner.position.set(-(b0.min.x + b0.max.x) / 2 * k, -b0.min.y * k, -(b0.min.z + b0.max.z) / 2 * k); // centred, standing on y = 0
+      inner.traverse((o) => { if (o.isMesh) { o.castShadow = shadows; o.receiveShadow = shadows; if (tweak) tweak(o.material, o); } });
+      g.position.set(...pos); g.rotation.y = ry;
+      stage.add(g);
+      g.updateMatrixWorld(true);
+      resolve({ group: g, box: new THREE.Box3().setFromObject(g) });
+    }, undefined, () => resolve(null));
+  });
 }

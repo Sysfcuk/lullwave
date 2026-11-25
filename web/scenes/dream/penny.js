@@ -4,13 +4,14 @@
 // the hearth, round the armchair, a hop up to the window seat to look out at the night, down
 // again, behind the sofa and up onto it for a while, leaving softly glowing paw prints that fade
 // behind her. She walks round the furniture, never through it.
-import { createStage, motes, box, cyl, canvasTexture, THREE, TAU } from '../kit.js';
-import { cat } from '../figures.js';
+import { createStage, motes, box, cyl, canvasTexture, model, THREE, TAU } from '../kit.js';
+import { tabby } from '../tabby.js';
 import { surface, room, moonWindow, fire, candle, softBox } from '../interior.js';
 
 // her rounds: waypoints [x, y, z], with an optional pause (seconds) and the way she faces while sitting
 const ROUTE = [
   { p: [-2.6, 0, -2.0] },
+  { p: [-1.85, 0.09, -3.2], sit: 18, face: 0.6, pose: 'curl', basket: true }, // a nap in her basket
   { p: [-0.6, 0.06, -2.95], sit: 9, face: Math.PI }, // on the hearth, watching the embers
   { p: [1.6, 0, -2.5] },
   { p: [3.6, 0, -1.6] },
@@ -21,14 +22,14 @@ const ROUTE = [
   { p: [1.7, 0, 2.3] }, // behind the sofa
   { p: [1.75, 0, 0.05] },
   { p: [0.9, 0, -0.2] },
-  { p: [0.5, 0.57, 0.72] }, // up onto the sofa
-  { p: [-0.55, 0.57, 0.72], sit: 10, face: Math.PI }, // a sit on the cushions
+  { p: [0.12, 0.57, 0.72], sofa: true }, // up onto the sofa
+  { p: [-0.55, 0.57, 0.72], sit: 10, face: Math.PI, sofa: true }, // a sit on the cushions
   { p: [-1.0, 0, -0.25] }, // down
   { p: [-2.4, 0, -0.55] },
 ];
 
 export function createPennyScene({ mobile, seed }) {
-  const S = createStage({ mobile, seed, salt: 0x9e77, bg: '#0a0806', fog: { color: '#140e0a', near: 7, far: 30 }, exposure: 1.12, bloom: [0.55, 0.5, 0.66], finish: { vignette: 0.46, grain: 0.024, ca: 0.25 }, fov: 58 });
+  const S = createStage({ mobile, seed, salt: 0x9e77, bg: '#0a0806', fog: { color: '#140e0a', near: 7, far: 30 }, exposure: 1.12, bloom: [0.55, 0.5, 0.66], finish: { vignette: 0.46, grain: 0.024, ca: 0.25 }, fov: 46 });
   const { rand } = S;
   const W = 9, D = 8, H = 3.2;
   room(S, { w: W, d: D, h: H, floor: surface(S, 'planks', { color: '#76543a' }), walls: surface(S, 'plaster', { color: '#5f6f5c' }), ceiling: surface(S, 'plaster', { color: '#d8cfbf' }) });
@@ -53,8 +54,8 @@ export function createPennyScene({ mobile, seed }) {
   const art = canvasTexture(S, 256, 180, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#2a3a6a'); gr.addColorStop(0.6, '#c98a5a'); gr.addColorStop(1, '#3a5a2a'); g.fillStyle = gr; g.fillRect(0, 0, w, h); g.fillStyle = '#2a4a22'; g.beginPath(); g.moveTo(0, h * 0.7); for (let x = 0; x <= w; x += 16) g.lineTo(x, h * 0.65 + Math.sin(x * 0.03) * 14); g.lineTo(w, h); g.lineTo(0, h); g.fill(); g.strokeStyle = '#8a6a2a'; g.lineWidth = 14; g.strokeRect(0, 0, w, h); });
   const pic = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 0.9), new THREE.MeshLambertMaterial({ map: art })); pic.position.set(0, 2.35, fz + 0.02); S.add(pic);
   // Penny's own bed by the fire
-  const bed = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.1, 10, 24), S.mat('#8a4a3a')); bed.rotation.x = -Math.PI / 2; bed.position.set(-1.85, 0.08, fz + 0.75); S.add(bed);
-  cyl(S, 0.26, 0.26, 0.06, '#c9a88a', [-1.85, 0.04, fz + 0.75], 20);
+  const bed = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.1, 10, 24), S.mat('#8a4a3a')); bed.rotation.x = -Math.PI / 2; bed.position.set(-1.85, 0.08, fz + 0.8); S.add(bed);
+  const bedCushion = cyl(S, 0.26, 0.26, 0.06, '#c9a88a', [-1.85, 0.04, fz + 0.8], 20);
 
   // the rug
   const rugTex = canvasTexture(S, 256, 192, (g, w, h) => { g.fillStyle = '#7a2a2a'; g.fillRect(0, 0, w, h); g.strokeStyle = '#d8b26a'; g.lineWidth = 6; g.strokeRect(12, 12, w - 24, h - 24); g.strokeStyle = '#2a3a5a'; g.lineWidth = 10; g.strokeRect(28, 28, w - 56, h - 56); g.fillStyle = '#d8b26a'; for (let k = 0; k < 5; k++) { g.beginPath(); g.arc(w / 2, h / 2, 50 - k * 9, 0, TAU); g.globalAlpha = 0.25; g.fill(); } g.globalAlpha = 1; });
@@ -62,6 +63,7 @@ export function createPennyScene({ mobile, seed }) {
 
   // the sofa, facing the fire: soft, with cushions, a bolster and a throw
   const sofa = new THREE.Group(); sofa.position.set(0, 0, 0.9); S.add(sofa);
+  const legsGroup = new THREE.Group(); S.add(legsGroup);
   const sc1 = '#3d4f72', sc2 = '#4a5f86';
   soft(2.4, 0.36, 0.9, 0.06, sc1, [0, 0.2, 0], sofa);
   soft(2.4, 0.62, 0.24, 0.09, sc1, [0, 0.62, 0.34], sofa, [-0.12, 0, 0]);
@@ -70,7 +72,7 @@ export function createPennyScene({ mobile, seed }) {
   for (const x of [-0.5, 0.5]) soft(0.95, 0.42, 0.16, 0.08, sc2, [x, 0.72, 0.18], sofa, [-0.25, 0, 0]);
   soft(0.42, 0.36, 0.13, 0.06, '#c9a24a', [-0.78, 0.72, 0.06], sofa, [-0.3, 0.35, 0.15]);
   soft(0.75, 0.04, 0.95, 0.02, '#a8603a', [0.62, 0.86, 0.28], sofa, [-0.65, 0, 0]);
-  for (const [x, z] of [[-1.1, -0.38], [1.1, -0.38], [-1.1, 0.38], [1.1, 0.38]]) cyl(S, 0.035, 0.03, 0.06, '#2a1a10', [x, 0.03, 0.9 + z], 8);
+  for (const [x, z] of [[-1.1, -0.38], [1.1, -0.38], [-1.1, 0.38], [1.1, 0.38]]) legsGroup.add(cyl(S, 0.035, 0.03, 0.06, '#2a1a10', [x, 0.03, 0.9 + z], 8));
   // the armchair, angled to the fire
   const chair = new THREE.Group(); chair.position.set(2.55, 0, -0.55); chair.rotation.y = -2.2; S.add(chair);
   const cc = '#7a3e2c';
@@ -79,7 +81,7 @@ export function createPennyScene({ mobile, seed }) {
   for (const x of [-0.47, 0.47]) soft(0.2, 0.55, 0.85, 0.09, cc, [x, 0.38, 0], chair);
   soft(0.62, 0.13, 0.64, 0.05, '#8a4a36', [0, 0.45, 0.05], chair);
   // a footstool with a ball of wool
-  soft(0.55, 0.3, 0.4, 0.06, '#7a3e2c', [2.0, 0.15, -1.75]);
+  const stool = soft(0.55, 0.3, 0.4, 0.06, '#7a3e2c', [2.0, 0.15, -1.75]);
   const wool = new THREE.Mesh(new THREE.SphereGeometry(0.08, 12, 10), S.mat('#c94a6a')); wool.position.set(2.1, 0.38, -1.7); S.add(wool);
 
   // the bookcase: a proper frame with shelves, full of books
@@ -105,15 +107,14 @@ export function createPennyScene({ mobile, seed }) {
   S.on((t) => { pend.rotation.z = Math.sin(t * Math.PI) * 0.16; });
 
   // the side table and its lamp, still on: a warm pool of light
-  soft(0.55, 0.6, 0.55, 0.03, '#4a3020', [-1.7, 0.3, 0.85]);
-  cyl(S, 0.08, 0.1, 0.05, '#8a6a3a', [-1.7, 0.625, 0.85], 14);
-  cyl(S, 0.015, 0.015, 0.32, '#8a6a3a', [-1.7, 0.8, 0.85], 6);
-  const shade = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.22, 0.24, 20, 1, true), new THREE.MeshBasicMaterial({ color: '#ffcf8a', side: THREE.DoubleSide, toneMapped: false })); shade.position.set(-1.7, 1.0, 0.85); S.add(shade);
+  const sideTable = soft(0.55, 0.6, 0.55, 0.03, '#4a3020', [-1.7, 0.3, 0.85]);
+  const lampParts = [cyl(S, 0.08, 0.1, 0.05, '#8a6a3a', [-1.7, 0.625, 0.85], 14), cyl(S, 0.015, 0.015, 0.32, '#8a6a3a', [-1.7, 0.8, 0.85], 6)];
+  const shade = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.22, 0.24, 20, 1, true), new THREE.MeshBasicMaterial({ color: '#ffcf8a', side: THREE.DoubleSide, toneMapped: false })); shade.position.set(-1.7, 1.0, 0.85); S.add(shade); lampParts.push(shade);
   const lamp = new THREE.PointLight('#ffc27a', 3.2, 7, 2); lamp.position.set(-1.7, 0.95, 0.85); S.add(lamp);
-  cyl(S, 0.045, 0.035, 0.08, '#e8e2d6', [-1.55, 0.64, 0.72], 12);
+  const cup = cyl(S, 0.045, 0.035, 0.08, '#e8e2d6', [-1.55, 0.64, 0.72], 12);
   // a plant in the corner by the window
-  cyl(S, 0.2, 0.15, 0.36, '#9a5a3a', [W / 2 - 0.45, 0.18, -D / 2 + 0.5], 14);
-  for (let k = 0; k < 9; k++) { const lf = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), S.mat(k % 2 ? '#3f6a34' : '#4f7a3e')); lf.scale.set(0.5, 1.4, 0.25); const a = (k / 9) * TAU; lf.position.set(W / 2 - 0.45 + Math.cos(a) * 0.14, 0.62 + (k % 3) * 0.08, -D / 2 + 0.5 + Math.sin(a) * 0.14); lf.rotation.set(Math.sin(a) * 0.5, a, -Math.cos(a) * 0.5); S.add(lf); }
+  const plantParts = [cyl(S, 0.2, 0.15, 0.36, '#9a5a3a', [W / 2 - 0.45, 0.18, -D / 2 + 0.5], 14)];
+  for (let k = 0; k < 9; k++) { const lf = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), S.mat(k % 2 ? '#3f6a34' : '#4f7a3e')); lf.scale.set(0.5, 1.4, 0.25); const a = (k / 9) * TAU; lf.position.set(W / 2 - 0.45 + Math.cos(a) * 0.14, 0.62 + (k % 3) * 0.08, -D / 2 + 0.5 + Math.sin(a) * 0.14); lf.rotation.set(Math.sin(a) * 0.5, a, -Math.cos(a) * 0.5); S.add(lf); plantParts.push(lf); }
 
   // the window, the moon looking in, and a cushioned window seat
   const winTex = canvasTexture(S, 128, 192, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#0d1838'); gr.addColorStop(1, '#2a3a6a'); g.fillStyle = gr; g.fillRect(0, 0, w, h); g.fillStyle = '#f4efd8'; g.beginPath(); g.arc(84, 52, 16, 0, TAU); g.fill(); g.fillStyle = '#fff'; for (let k = 0; k < 30; k++) g.fillRect(Math.random() * w, Math.random() * h * 0.7, 1.5, 1.5); g.fillStyle = '#0a1420'; g.beginPath(); g.moveTo(0, h); for (let x = 0; x <= w; x += 8) g.lineTo(x, h * 0.78 - Math.sin(x * 0.08) * 8 - (x > 30 && x < 60 ? 30 : 0)); g.lineTo(w, h); g.fill(); g.fillStyle = '#2a1e16'; g.fillRect(w / 2 - 3, 0, 6, h); g.fillRect(0, h / 2 - 3, w, 6); });
@@ -123,8 +124,56 @@ export function createPennyScene({ mobile, seed }) {
   for (const dz of [-0.95, 0.95]) { const c = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 2.5, 10, 1, true), S.mat('#7a3a3a', { side: THREE.DoubleSide })); c.scale.z = 0.5; c.position.set(W / 2 - 0.14, 1.85, 1.2 + dz); S.add(c); }
   box(S, [0.06, 0.05, 2.6], '#3a2416', [W / 2 - 0.08, 3.1, 1.2]);
 
+  // ---------------------------------------------------------------- real furniture (Poly Haven, CC0)
+  // Each piece replaces its hand-built stand-in when it arrives; if one can't load, the stand-in stays.
+  { // a soft, warm surround for the models' materials to reflect: firelight low, moonlight to one side
+    const env = canvasTexture(S, 256, 128, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#2a2a36'); gr.addColorStop(0.5, '#4a3a2e'); gr.addColorStop(1, '#2a1e16'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+      const fireGlow = g.createRadialGradient(w * 0.5, h * 0.62, 0, w * 0.5, h * 0.62, 60); fireGlow.addColorStop(0, 'rgba(255,170,90,.9)'); fireGlow.addColorStop(1, 'rgba(255,170,90,0)'); g.fillStyle = fireGlow; g.fillRect(0, 0, w, h);
+      const moonGlow = g.createRadialGradient(w * 0.25, h * 0.4, 0, w * 0.25, h * 0.4, 40); moonGlow.addColorStop(0, 'rgba(150,170,230,.7)'); moonGlow.addColorStop(1, 'rgba(150,170,230,0)'); g.fillStyle = moonGlow; g.fillRect(0, 0, w, h); });
+    env.mapping = THREE.EquirectangularReflectionMapping; S.scene.environment = env; S.scene.environmentIntensity = 0.55;
+  }
+  const blobTex = canvasTexture(S, 64, 64, (g) => { const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(0,0,0,.55)'); gr.addColorStop(0.6, 'rgba(0,0,0,.3)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); });
+  const blob = (box, grow = 1.25) => { const sz = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3()); const m = new THREE.Mesh(new THREE.PlaneGeometry(sz.x * grow, sz.z * grow), new THREE.MeshBasicMaterial({ map: blobTex, transparent: true, depthWrite: false })); m.rotation.x = -Math.PI / 2; m.position.set(c.x, 0.012, c.z); S.add(m); };
+  const hide = (...objs) => objs.flat().forEach((o) => { o.visible = false; });
+  const M = (n) => `models/penny/${n}.glb`;
+  const sofaSeat = []; // the sofa's cushions, for finding where Penny lands
+  model(S, M('Sofa_01'), { pos: [0, 0, 0.9], ry: Math.PI, width: 2.1 }).then((r) => {
+    if (!r) return; hide(sofa, legsGroup); blob(r.box); r.group.traverse((o) => { if (o.isMesh) sofaSeat.push(o); });
+    // set her sofa waypoints to the real height of the cushions
+    const ray = new THREE.Raycaster();
+    ROUTE.forEach((w, i) => { if (!w.sofa) return; ray.set(new THREE.Vector3(w.p[0], 2, w.p[2]), new THREE.Vector3(0, -1, 0)); const hit = ray.intersectObjects(sofaSeat, false)[0]; if (hit) pts[i].y = hit.point.y + 0.01; });
+    model(S, M('throw_pillows_01'), { pos: [0.62, 0, 1.0], ry: Math.PI + 0.15, width: 0.75 }).then((q) => { if (!q) return; ray.set(new THREE.Vector3(0.62, 2, 0.9), new THREE.Vector3(0, -1, 0)); const hit = ray.intersectObjects(sofaSeat, false)[0]; q.group.position.y = hit ? hit.point.y - 0.03 : 0.5; });
+  });
+  model(S, M('ArmChair_01'), { pos: [2.55, 0, -0.55], ry: -2.43, width: 1.0 }).then((r) => { if (r) { hide(chair); blob(r.box); } });
+  model(S, M('Ottoman_01'), { pos: [2.0, 0, -1.75], ry: 0.3, width: 0.62 }).then((r) => { if (r) { hide(stool); blob(r.box); wool.position.y = r.box.max.y + 0.07; } });
+  model(S, M('ClassicNightstand_01'), { pos: [-1.7, 0, 0.85], ry: Math.PI / 2, width: 0.55 }).then((r) => {
+    if (!r) return; hide(sideTable, lampParts); blob(r.box); const top = r.box.max.y;
+    cup.position.y = top + 0.04;
+    model(S, M('vintage_oil_lamp'), { pos: [-1.72, top, 0.9], width: 0.17 }).then((q) => { if (!q) return; lamp.position.set(-1.72, q.box.max.y * 0.75 + top * 0.25, 0.9); lampGlow.position.copy(lamp.position); lampGlow.scale.setScalar(0.55); lampGlow.visible = true; });
+  });
+  model(S, M('vintage_grandfather_clock_01'), { pos: [-W / 2 + 0.42, 0, -D / 2 + 0.42], ry: Math.PI / 4, width: 0.6 }).then((r) => { if (r) { hide(gc); blob(r.box); } });
+  model(S, M('wooden_bookshelf_worn'), { pos: [-W / 2 + 0.33, 0, -1.4], ry: Math.PI / 2, width: 1.6 }).then((r) => {
+    if (!r) return; hide(bc); blob(r.box);
+    // find its shelves and fill them with books
+    const meshes = []; r.group.traverse((o) => { if (o.isMesh) meshes.push(o); });
+    const ray = new THREE.Raycaster(), x0 = r.box.max.x - 0.12, shelves = [];
+    for (let y = r.box.max.y - 0.05; y > 0.05;) { ray.set(new THREE.Vector3(x0, y, -1.4), new THREE.Vector3(0, -1, 0)); const hit = ray.intersectObjects(meshes, false)[0]; if (!hit) break; if (hit.point.y < r.box.max.y - 0.2) shelves.push(hit.point.y); y = hit.point.y - 0.06; }
+    const span = r.box.max.z - r.box.min.z - 0.24;
+    for (const y of shelves) {
+      let z = -1.4 - span / 2;
+      while (z < -1.4 + span / 2 - 0.05) {
+        const bw = 0.035 + rand() * 0.05, bh = 0.22 + rand() * 0.1;
+        if (rand() < 0.06) { z += 0.14; continue; }
+        const b = new THREE.Mesh(new THREE.BoxGeometry(0.24, bh, bw), S.mat(bookCols[Math.floor(rand() * bookCols.length)])); b.position.set(x0 - 0.05, y + bh / 2, z + bw / 2); b.rotation.x = rand() < 0.05 ? 0.2 : 0; S.add(b); z += bw + 0.004;
+      }
+    }
+  });
+  model(S, M('potted_plant_04'), { pos: [W / 2 - 0.3, 0.56, 1.88], width: 0.28 }).then((r) => { if (r) hide(plantParts); });
+  model(S, M('wicker_basket_01'), { pos: [-1.85, 0, fz + 0.8], ry: 0.5, width: 0.66 }).then((r) => { if (r) { hide(bed); blob(r.box, 1.15); bedCushion.position.y = 0.06; bedCushion.scale.set(0.95, 1, 0.75); bedCushion.rotation.y = 0.5; } });
+  const lampGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: blobTex, color: '#ffb35c', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); lampGlow.scale.setScalar(0.01); lampGlow.visible = false; S.add(lampGlow);
+
   // ---------------------------------------------------------------- Penny and her rounds
-  const penny = cat(S, { coat: '#6a5040', stripe: '#2e221a', belly: '#ece6dc', pose: 'walk', scale: 1.15 });
+  const penny = tabby(S, { coat: '#8a6446', belly: '#efe2cc', white: '#f6f1e8' });
   const pts = ROUTE.map((w) => new THREE.Vector3(...w.p));
 
   // glowing paw prints, laid down as she walks and fading away (toes pointing the way she went)
@@ -144,12 +193,13 @@ export function createPennyScene({ mobile, seed }) {
     const flat = Math.hypot(b.x - a.x, b.z - a.z), jump = Math.abs(b.y - a.y) > 0.2;
     let walking = false;
     if (mode === 'sit') {
-      penny.pose = 'sit';
+      penny.pose = ROUTE[leg].pose || 'sit';
       const face = ROUTE[leg].face ?? yaw;
       yaw += Math.atan2(Math.sin(face - yaw), Math.cos(face - yaw)) * Math.min(1, dt * 1.5);
       if (t > until) mode = 'walk';
     } else {
-      penny.pose = 'walk';
+      penny.pose = jump ? 'jump' : 'walk';
+      penny.speed = 0.75 + 0.35 * st.energy;
       const speed = jump ? 1 / 0.75 : (0.3 + 0.12 * st.energy) / Math.max(0.01, flat); // a jump takes 0.75 s
       u += dt * speed;
       if (u >= 1) {
@@ -192,5 +242,5 @@ export function createPennyScene({ mobile, seed }) {
     look.lerp(want, Math.min(1, dt * 0.6));
     S.camera.lookAt(look);
   });
-  return S.finalize({ portraitFov: 74 });
+  return S.finalize({ portraitFov: 60 });
 }

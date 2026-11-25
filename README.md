@@ -130,3 +130,22 @@ GitHub Pages.
 | `web/music/*.js` | One composer per world, and the shared synth voices (`voices.js`). |
 | `web/render.js` | Renderer (multisampled), bloom, a finishing pass (grain/dither, vignette, chromatic aberration), frame loop (30 fps in a session), adaptive resolution. |
 | `web/scenes/*.js` | The 3D worlds; `web/scenes/dream/*.js` the dream scenes, built from `kit.js`, `figures.js` and `interior.js`. |
+
+## Models and credits
+
+Penny's sitting room uses furniture from [Poly Haven](https://polyhaven.com) (CC0, public domain; credit
+not required, but thank you): Sofa 01, Arm Chair 01, Ottoman 01, Classic Nightstand 01, Vintage Grandfather
+Clock 01, Wooden Bookshelf Worn, Throw Pillows 01, Vintage Oil Lamp, Potted Plant 04 and Wicker Basket 01.
+Penny herself is built by hand (`web/scenes/tabby.js`).
+
+Models are shrunk for phones by `tools/pack_models.py` (needs Pillow): textures to 512/256/128 px JPEG,
+geometry quantised to 16-bit (KHR_mesh_quantization), all packed into one `.glb` each in `web/models/`.
+The full-size downloads go in `assets-src/` (not committed):
+
+```powershell
+python tools/pack_models.py assets-src/polyhaven web/models/penny Sofa_01 ArmChair_01 ...
+```
+
+Scenes load models with `model()` from `web/scenes/kit.js`; each keeps a hand-built stand-in until its
+model arrives, so a world still works if a file is missing.
+
