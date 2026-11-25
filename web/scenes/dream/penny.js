@@ -6,27 +6,8 @@
 // behind her. She walks round the furniture, never through it.
 import { createStage, motes, box, cyl, canvasTexture, model, THREE, TAU } from '../kit.js';
 import { tabby } from '../tabby.js';
+import { pennyLife } from './penny-life.js';
 import { surface, room, moonWindow, fire, candle, softBox } from '../interior.js';
-
-// her rounds: waypoints [x, y, z], with an optional pause (seconds) and the way she faces while sitting
-const ROUTE = [
-  { p: [-2.6, 0, -2.0] },
-  { p: [-1.85, 0.09, -3.2], sit: 18, face: 0.6, pose: 'curl', basket: true }, // a nap in her basket
-  { p: [-0.6, 0.06, -2.95], sit: 9, face: Math.PI }, // on the hearth, watching the embers
-  { p: [1.6, 0, -2.5] },
-  { p: [3.6, 0, -1.6] },
-  { p: [3.75, 0, 0.35] },
-  { p: [4.18, 0.56, 0.85] }, // up onto the window seat
-  { p: [4.18, 0.56, 1.5], sit: 11, face: Math.PI / 2 }, // looking out at the moon
-  { p: [3.4, 0, 2.25] }, // and down again
-  { p: [1.7, 0, 2.3] }, // behind the sofa
-  { p: [1.75, 0, 0.05] },
-  { p: [0.9, 0, -0.2] },
-  { p: [0.12, 0.57, 0.72], sofa: true }, // up onto the sofa
-  { p: [-0.55, 0.57, 0.72], sit: 10, face: Math.PI, sofa: true }, // a sit on the cushions
-  { p: [-1.0, 0, -0.25] }, // down
-  { p: [-2.4, 0, -0.55] },
-];
 
 export function createPennyScene({ mobile, seed }) {
   const S = createStage({ mobile, seed, salt: 0x9e77, bg: '#0a0806', fog: { color: '#140e0a', near: 7, far: 30 }, exposure: 1.12, bloom: [0.55, 0.5, 0.66], finish: { vignette: 0.46, grain: 0.024, ca: 0.25 }, fov: 46 });
@@ -35,6 +16,34 @@ export function createPennyScene({ mobile, seed }) {
   room(S, { w: W, d: D, h: H, floor: surface(S, 'planks', { color: '#76543a' }), walls: surface(S, 'plaster', { color: '#5f6f5c' }), ceiling: surface(S, 'plaster', { color: '#d8cfbf' }) });
   S.add(new THREE.HemisphereLight('#a0a8c8', '#5a4030', 1.25));
   const moon = new THREE.DirectionalLight('#9fb4ee', 0.35); moon.position.set(5, 4, 2); S.add(moon);
+  // where things stand on the floor (for finding her way round them), and her places
+  const OBSTACLES = [
+    { x0: -1.3, x1: 1.3, z0: -4, z1: -3.48 }, // the fireplace
+    { x: -1.85, z: -3.2, r: 0.34 }, // her basket
+    { x: -4.08, z: -3.58, r: 0.42 }, // the grandfather clock
+    { x0: -4.5, x1: -3.8, z0: -2.25, z1: -0.55 }, // the bookshelf
+    { x0: -1.98, x1: -1.42, z0: 0.62, z1: 1.08 }, // the bedside table
+    { x0: -1.12, x1: 1.12, z0: 0.42, z1: 1.38 }, // the sofa
+    { x: 2.55, z: -0.55, r: 0.6 }, // the armchair
+    { x: 2.0, z: -1.75, r: 0.36 }, // the ottoman
+    { x0: 3.94, x1: 4.5, z0: 0.42, z1: 1.98 }, // the window seat
+    { x: -2.65, z: -3.62, r: 0.13 }, { x: -3.1, z: -3.62, r: 0.13 }, // her bowls
+    { x0: 3.77, x1: 4.23, z0: -1.18, z1: -0.72 }, // the scratching post
+    { x0: -3.7, x1: -3.1, z0: 2.51, z1: 2.99 }, // the box
+    { x: 3.4, z: -3.5, r: 0.28 }, // the birdcage stand
+  ];
+  const spots = {
+    basket: { perch: [-1.85, 0.09, -3.2], approach: [-1.85, -2.65] },
+    box: { perch: [-3.4, 0.03, 2.75], approach: [-3.4, 2.2] },
+    sofa: { perch: [-0.2, 0.53, 0.72], approachFor: (p) => [THREE.MathUtils.clamp(p[0], -0.9, 0.9), 0.12] },
+    window: { perch: [4.2, 0.57, 1.2], approachFor: (p) => [3.62, THREE.MathUtils.clamp(p[2], 0.6, 1.8)] },
+    water: { x: -2.65, z: -3.62 }, food: { x: -3.1, z: -3.62 },
+    post: { x: 4.0, z: -0.95 },
+    cage: { x: 3.4, z: -3.5 },
+    yarn: [0.9, -1.4],
+    holes: [{ x: 1.75, z: -D / 2, ry: 0 }, { x: W / 2, z: -1.9, ry: -Math.PI / 2 }],
+    perches: [[-0.6, 1.53, -3.62], [0.7, 1.53, -3.62], [-4.02, 2.13, -3.52], [-4.15, 2.43, -1.4], [4.38, 3.14, 1.2], [4.25, 0.63, 1.85], [-1.62, 0.74, 0.8], [0, 2.83, -3.96]],
+  };
   const soft = (w, h, d, r, col, pos, parent = null, rot = null) => { const m = new THREE.Mesh(softBox(w, h, d, r), S.mat(col)); m.position.set(...pos); if (rot) m.rotation.set(...rot); (parent || S.scene).add(m); return m; };
 
   // skirting round every wall, and two old beams across the ceiling
@@ -82,7 +91,6 @@ export function createPennyScene({ mobile, seed }) {
   soft(0.62, 0.13, 0.64, 0.05, '#8a4a36', [0, 0.45, 0.05], chair);
   // a footstool with a ball of wool
   const stool = soft(0.55, 0.3, 0.4, 0.06, '#7a3e2c', [2.0, 0.15, -1.75]);
-  const wool = new THREE.Mesh(new THREE.SphereGeometry(0.08, 12, 10), S.mat('#c94a6a')); wool.position.set(2.1, 0.38, -1.7); S.add(wool);
 
   // the bookcase: a proper frame with shelves, full of books
   const bc = new THREE.Group(); bc.position.set(-W / 2 + 0.22, 0, -1.4); bc.rotation.y = Math.PI / 2; S.add(bc);
@@ -141,11 +149,11 @@ export function createPennyScene({ mobile, seed }) {
     if (!r) return; hide(sofa, legsGroup); blob(r.box); r.group.traverse((o) => { if (o.isMesh) sofaSeat.push(o); });
     // set her sofa waypoints to the real height of the cushions
     const ray = new THREE.Raycaster();
-    ROUTE.forEach((w, i) => { if (!w.sofa) return; ray.set(new THREE.Vector3(w.p[0], 2, w.p[2]), new THREE.Vector3(0, -1, 0)); const hit = ray.intersectObjects(sofaSeat, false)[0]; if (hit) pts[i].y = hit.point.y + 0.01; });
+    ray.set(new THREE.Vector3(-0.2, 2, 0.72), new THREE.Vector3(0, -1, 0)); const seat = ray.intersectObjects(sofaSeat, false)[0]; if (seat) spots.sofa.perch[1] = seat.point.y + 0.01;
     model(S, M('throw_pillows_01'), { pos: [0.62, 0, 1.0], ry: Math.PI + 0.15, width: 0.75 }).then((q) => { if (!q) return; ray.set(new THREE.Vector3(0.62, 2, 0.9), new THREE.Vector3(0, -1, 0)); const hit = ray.intersectObjects(sofaSeat, false)[0]; q.group.position.y = hit ? hit.point.y - 0.03 : 0.5; });
   });
   model(S, M('ArmChair_01'), { pos: [2.55, 0, -0.55], ry: -2.43, width: 1.0 }).then((r) => { if (r) { hide(chair); blob(r.box); } });
-  model(S, M('Ottoman_01'), { pos: [2.0, 0, -1.75], ry: 0.3, width: 0.62 }).then((r) => { if (r) { hide(stool); blob(r.box); wool.position.y = r.box.max.y + 0.07; } });
+  model(S, M('Ottoman_01'), { pos: [2.0, 0, -1.75], ry: 0.3, width: 0.62 }).then((r) => { if (r) { hide(stool); blob(r.box); } });
   model(S, M('ClassicNightstand_01'), { pos: [-1.7, 0, 0.85], ry: Math.PI / 2, width: 0.55 }).then((r) => {
     if (!r) return; hide(sideTable, lampParts); blob(r.box); const top = r.box.max.y;
     cup.position.y = top + 0.04;
@@ -172,9 +180,11 @@ export function createPennyScene({ mobile, seed }) {
   model(S, M('wicker_basket_01'), { pos: [-1.85, 0, fz + 0.8], ry: 0.5, width: 0.66 }).then((r) => { if (r) { hide(bed); blob(r.box, 1.15); bedCushion.position.y = 0.06; bedCushion.scale.set(0.95, 1, 0.75); bedCushion.rotation.y = 0.5; } });
   const lampGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: blobTex, color: '#ffb35c', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); lampGlow.scale.setScalar(0.01); lampGlow.visible = false; S.add(lampGlow);
 
-  // ---------------------------------------------------------------- Penny and her rounds
+  // ---------------------------------------------------------------- Penny's life
   const penny = tabby(S, { coat: '#8a6446', belly: '#efe2cc', white: '#f6f1e8' });
-  const pts = ROUTE.map((w) => new THREE.Vector3(...w.p));
+  const life = pennyLife(S, { cat: penny, rand, W, D, obstacles: OBSTACLES, spots });
+  const pos = life.pos;
+  S.scene.userData.life = life; // for looking in on her while testing
 
   // glowing paw prints, laid down as she walks and fading away (toes pointing the way she went)
   const pawTex = canvasTexture(S, 64, 64, (g) => { g.fillStyle = '#fff'; g.beginPath(); g.ellipse(32, 42, 12, 10, 0, 0, TAU); g.fill(); for (const [x, y] of [[17, 24], [27, 15], [38, 15], [48, 24]]) { g.beginPath(); g.ellipse(x, y, 5, 6.5, 0, 0, TAU); g.fill(); } });
@@ -184,43 +194,14 @@ export function createPennyScene({ mobile, seed }) {
   const born = new Float32Array(MAXP).fill(-99), col = new THREE.Color(), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), one = new THREE.Vector3(1, 1, 1), v = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
   for (let i = 0; i < MAXP; i++) { prints.setMatrixAt(i, m4.makeTranslation(0, -5, 0)); prints.setColorAt(i, col.setRGB(0, 0, 0)); }
   let pi = 0, stride = 0, side = 1;
-
-  // walking a leg of the route, hopping when it changes height, sitting where the route says
-  let leg = 0, u = 0, mode = 'walk', until = 0, yaw = 0;
-  const pos = new THREE.Vector3().copy(pts[0]), a = new THREE.Vector3(), b = new THREE.Vector3();
-  S.on((t, dt, st) => {
-    a.copy(pts[leg]); b.copy(pts[(leg + 1) % pts.length]);
-    const flat = Math.hypot(b.x - a.x, b.z - a.z), jump = Math.abs(b.y - a.y) > 0.2;
-    let walking = false;
-    if (mode === 'sit') {
-      penny.pose = ROUTE[leg].pose || 'sit';
-      const face = ROUTE[leg].face ?? yaw;
-      yaw += Math.atan2(Math.sin(face - yaw), Math.cos(face - yaw)) * Math.min(1, dt * 1.5);
-      if (t > until) mode = 'walk';
-    } else {
-      penny.pose = jump ? 'jump' : 'walk';
-      penny.speed = 0.75 + 0.35 * st.energy;
-      const speed = jump ? 1 / 0.75 : (0.3 + 0.12 * st.energy) / Math.max(0.01, flat); // a jump takes 0.75 s
-      u += dt * speed;
-      if (u >= 1) {
-        u = 0; leg = (leg + 1) % pts.length;
-        if (ROUTE[leg].sit) { mode = 'sit'; until = t + ROUTE[leg].sit; }
-        a.copy(pts[leg]); b.copy(pts[(leg + 1) % pts.length]);
-      }
-      walking = !jump;
-      const want = Math.atan2(b.x - a.x, b.z - a.z);
-      yaw += Math.atan2(Math.sin(want - yaw), Math.cos(want - yaw)) * Math.min(1, dt * (jump ? 8 : 3.5));
-    }
-    const isJump = Math.abs(b.y - a.y) > 0.2 && mode === 'walk';
-    pos.lerpVectors(a, b, mode === 'sit' ? 0 : isJump ? (1 - Math.cos(u * Math.PI)) / 2 : u);
-    if (isJump) pos.y = a.y + (b.y - a.y) * u + Math.sin(u * Math.PI) * 0.32; // a little arc through the air
-    penny.group.position.copy(pos);
-    penny.group.rotation.y = yaw;
-    // prints: alternate left and right, every step's length, only where she actually walks
-    if (walking) {
-      stride += dt * (0.3 + 0.12 * st.energy);
+  const lastPos = pos.clone();
+  S.on((t) => {
+    // prints: alternate left and right, a step's length apart, only where she actually walks
+    const moved = Math.hypot(pos.x - lastPos.x, pos.z - lastPos.z); lastPos.copy(pos);
+    if (life.walking && moved < 0.2) {
+      stride += moved;
       if (stride > 0.13) {
-        stride = 0; side = -side;
+        stride = 0; side = -side; const yaw = life.yaw;
         v.set(Math.cos(yaw) * 0.045 * side, pos.y + 0.008, -Math.sin(yaw) * 0.045 * side); v.x += pos.x; v.z += pos.z;
         prints.setMatrixAt(pi, m4.compose(v, q.setFromAxisAngle(up, yaw), one)); born[pi] = t; pi = (pi + 1) % MAXP;
         prints.instanceMatrix.needsUpdate = true;
@@ -239,6 +220,7 @@ export function createPennyScene({ mobile, seed }) {
     ang += dt * 0.012 * (0.55 + 0.45 * st.energy);
     S.camera.position.set(Math.sin(ang) * 2.6, 2.35 + Math.sin(t * 0.06) * 0.06, D / 2 - 0.7);
     want.set(pos.x * 0.85, pos.y + 0.15, pos.z * 0.85 - 0.25);
+    if (life.bird.free) want.lerp(life.bird.pos, 0.35);
     look.lerp(want, Math.min(1, dt * 0.6));
     S.camera.lookAt(look);
   });

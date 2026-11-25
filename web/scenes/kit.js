@@ -36,9 +36,14 @@ export function createStage({ mobile, seed, salt = 1, fov = 55, far = 2600, bg =
     look: { toneMapping: THREE.ACESFilmicToneMapping, exposure, bloom, finish, shadows },
   };
   stage.vmat = new THREE.MeshLambertMaterial({ vertexColors: true });
+  let clock = 0;
   stage.finalize = ({ portraitFov = 70 } = {}) => ({
     scene, camera, portraitFov, look: stage.look,
-    update(t, dt, st) {
+    update(_t, dt, st) {
+      // the world keeps its own clock, from zero when it opens (the app's clock has been running
+      // since it started, which would set off every "in a minute or so" surprise at once)
+      dt = Math.max(0, dt); clock += dt;
+      const t = clock;
       U.uTime.value = t; U.uEnergy.value = st.energy;
       U.uScale.value = innerHeight * Math.min(devicePixelRatio || 1, 2) / (2 * Math.tan(camera.fov * Math.PI / 360));
       for (const f of updaters) f(t, dt, st);

@@ -65,7 +65,7 @@ murmur, footsteps, horses, ducks, a purring cat). It all thins out as the night 
 | **The Christmas Market** | Snow on glowing stalls, fairy lights, wreaths and swaying stars, steam, a tree twinkling in the square. | A music box and strings; distant sleigh bells, a church bell, footsteps in snow. |
 | **The Endless Hiking Trail** | A little hiker on a path that never ends, between stone walls and signposts to imaginary places, towards mountains rising out of a golden haze. | Pastoral strings and flute; footsteps, birds, gusts of wind. |
 | **The Midnight Choir** | An old stone church: candles, stained glass glowing with moonlight, shafts of light, a small choir swaying as it sings. | A slow choir in a big reverberant space. |
-| **Penny's Night Patrol** | Penny the cat does her rounds of a sitting room by the embers of the fire, leaving glowing paw prints that fade. | A music box over glass pads; purring, the fire, an owl outside. |
+| **Penny's Night Patrol** | Penny the tabby lives her own night in a country-house sitting room: she naps in her basket, on the sofa or in a cardboard box, laps at her water bowl, eats, grooms, scratches her post, bats a ball of yarn round the room, watches the moon from the window seat and stares at the birdcage. When the mouse peeks out of its hole she stalks, wiggles and pounces (too late, always); when the canary slips out of its cage she follows it round the room, gazing up and swatting at the air. Glowing paw prints fade behind her. She gets sleepier as the night goes on. | A music box over glass pads; purring, the fire, an owl outside. |
 | **The Pineapple Pizza Incident** | A pizzeria after closing: the oven glows, the chef kneads, the sign says no pineapple. A pineapple appears anyway, and sometimes one rolls across the floor. | Mandolin and strings; the oven crackling, a low murmur. |
 | **Lost on the Trail** | A hiker following a glowing map route round a starlit wood, past signposts that disagree; now and then they stop and scratch their head. | Glass pads and flute; crickets, owls, footsteps. |
 | **The Stardome** | A glowing stage far below a vast starry sky, soft beams sweeping slowly, lanterns rising, stars swelling with each chord. | Dreamy electric piano and arpeggios. |
@@ -136,7 +136,9 @@ GitHub Pages.
 Penny's sitting room uses furniture from [Poly Haven](https://polyhaven.com) (CC0, public domain; credit
 not required, but thank you): Sofa 01, Arm Chair 01, Ottoman 01, Classic Nightstand 01, Vintage Grandfather
 Clock 01, Wooden Bookshelf Worn, Throw Pillows 01, Vintage Oil Lamp, Potted Plant 04 and Wicker Basket 01.
-Penny herself is built by hand (`web/scenes/tabby.js`).
+Penny herself is built by hand (`web/scenes/tabby.js`), and her behaviour lives in `web/scenes/dream/penny-life.js`:
+needs that rise and fall, a choice of what to do next, A* pathfinding round the furniture, and reactions to the
+mouse and the canary.
 
 Models are shrunk for phones by `tools/pack_models.py` (needs Pillow): textures to 512/256/128 px JPEG,
 geometry quantised to 16-bit (KHR_mesh_quantization), all packed into one `.glb` each in `web/models/`.
