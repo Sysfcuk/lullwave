@@ -120,7 +120,9 @@ blind.
 name on the sunburst backboard, its colours, its neon). Coins drop through the slot, roll down the rail and land on
 the moving shelf, which slides in and out, pushing the pile towards the edge. The coins at the front hang further
 and further over the lip, teetering with every push. Any second now. They never fall. The machine takes every coin
-(now and then one slips away into a side gutter, the house's share), the pile builds, the payout tray stays empty,
+(the top shelf full of them from the start, coins tipping off it onto the pile below with every stroke; coins
+stacked on others lean out further still), and the only way anything ever falls is sideways, into the NO WIN gutters
+at the sides, where coins hang over and teeter too until one slips away: the house's share. The pile builds, the payout tray stays empty,
 and the counter on the front says IN 004364, PAID OUT 000000. Now and then you lean in to watch the edge. The coins
 are a small simulation of our own (discs on two levels that push apart, ride on each other and climb when squeezed)
 with one rule bent: at the front edge a coin can hang almost halfway over, but no further.

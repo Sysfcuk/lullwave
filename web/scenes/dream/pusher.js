@@ -14,11 +14,12 @@ import { softBox } from '../interior.js';
 const R = 0.0129, T = 0.0021; // a 2p coin: 25.9 mm across
 const W = 0.5, HALF = W / 2, ZEDGE = 0.11, H1 = 0.034, ZBACK = -0.3, STROKE = 0.055, ZMID = -0.06, SHELF_D = 0.205;
 const N = 580;
+const GZ0 = 0.012, GW = 0.03; // the NO WIN gutters: open sides of the bed from here to the front
 const FREE = 0, SHELF = 1, BED = 2, CHUTE = 3, GONE = 4;
 const CHUTE_T = 1.3;
 
 export function createPusherScene({ mobile, seed }) {
-  const S = createStage({ mobile, seed, salt: 0x2e2e, bg: '#07060c', exposure: 1.0, bloom: [0.6, 0.45, 0.78], finish: { vignette: 0.45, grain: 0.03, ca: 0.3 }, fov: 40 });
+  const S = createStage({ mobile, seed, salt: 0x2e2e, bg: '#07060c', exposure: 1.0, bloom: [0.5, 0.42, 0.86], finish: { vignette: 0.45, grain: 0.03, ca: 0.3 }, fov: 40 });
   const { rand } = S;
   const pick = (a) => a[Math.floor(rand() * a.length)];
   const lerp = (a, b, k) => a + (b - a) * k;
@@ -28,18 +29,19 @@ export function createPusherScene({ mobile, seed }) {
   const X = new Float32Array(N), Z = new Float32Array(N), Y = new Float32Array(N), VY = new Float32Array(N);
   const DX = new Float32Array(N), DZ = new Float32Array(N), PX = new Float32Array(N), PZ = new Float32Array(N);
   const ST = new Uint8Array(N), SUP = new Int16Array(N).fill(-1), SPIN = new Float32Array(N), WOB = new Float32Array(N), AGE = new Float32Array(N);
-  const TX = new Float32Array(N), TZ = new Float32Array(N), DROPX = new Float32Array(N), SIDE = new Float32Array(N);
+  const TX = new Float32Array(N), TZ = new Float32Array(N), DROPX = new Float32Array(N), SIDE = new Float32Array(N), REL = new Uint8Array(N);
   for (let i = 0; i < N; i++) { SPIN[i] = rand() * TAU; WOB[i] = rand() * TAU; }
   let zf = ZMID, dzf = 0, pushT0 = 0, pushDur = 2.8, coinsIn = 0, shake = 0;
   const free = () => { for (let i = 0; i < N; i++) if (ST[i] === FREE) return i; return -1; };
-  const place = (st, x, z, y) => { const i = free(); if (i < 0) return -1; ST[i] = st; X[i] = x; Z[i] = z; Y[i] = y; VY[i] = 0; DX[i] = DZ[i] = 0; SUP[i] = -1; AGE[i] = 0; return i; };
+  const place = (st, x, z, y) => { const i = free(); if (i < 0) return -1; REL[i] = 0; ST[i] = st; X[i] = x; Z[i] = z; Y[i] = y; VY[i] = 0; DX[i] = DZ[i] = 0; SUP[i] = -1; AGE[i] = 0; return i; };
   // the pile, to begin with: a packed bed, a second layer towards the front, a few on the shelf
   for (let row = 0; row < 12; row++) for (let k = 0; k < 20; k++) {
     const x = -HALF + R + k * 2 * R * 0.99 + (row % 2) * R + (rand() - 0.5) * 0.004, z = ZMID + STROKE / 2 + R + row * R * 1.75;
     if (x < HALF - R && z < ZEDGE + 0.3 * R) place(BED, x, z, 0);
   }
   for (let k = 0; k < 190; k++) place(BED, (rand() - 0.5) * (W - 2 * R), lerp(-0.01, ZEDGE + 0.2 * R, Math.pow(rand(), 0.6)), T * (1 + Math.floor(rand() * 3)));
-  for (let k = 0; k < 45; k++) place(SHELF, (rand() - 0.5) * (W - 2 * R), ZMID - rand() * (SHELF_D - 2 * R), H1);
+  for (let row = 0; row < 8; row++) for (let k = 0; k < 19; k++) { if (rand() < 0.12) continue; const x = -HALF + R + k * 2 * R + (row % 2) * R * 0.9 + (rand() - 0.5) * 0.003, z = ZMID - R - row * R * 1.76; if (x < HALF - R && z > ZBACK + R) place(SHELF, x, z, H1); }
+  for (let k = 0; k < 30; k++) place(SHELF, (rand() - 0.5) * (W - 2 * R), ZMID - R - rand() * (SHELF_D - 3 * R), H1 + T);
 
   // ---------------------------------------------------------------- the simulation
   const CELL = 2 * R, grid = new Map(), key = (ix, iz) => (ix + 100) * 1000 + (iz + 100);
@@ -56,6 +58,7 @@ export function createPusherScene({ mobile, seed }) {
     // the shelf: in and out, once a bar
     const ph = (t - pushT0) / pushDur, nz = ZMID - (STROKE / 2) * Math.cos(TAU * ph);
     dzf = nz - zf; zf = nz;
+    if (dzf > 0 && Math.abs(((ph % 1) + 1) % 1 - 0.5) < 0.04) shake = Math.max(shake, 0.35);
     for (let i = 0; i < N; i++) { PX[i] = X[i]; PZ[i] = Z[i]; }
     // carried: shelf coins move with the shelf, coins riding on others move with them
     for (let i = 0; i < N; i++) {
@@ -72,7 +75,7 @@ export function createPusherScene({ mobile, seed }) {
           const dx = X[j] - X[i], dz = Z[j] - Z[i], d2 = dx * dx + dz * dz;
           if (d2 >= 4 * R * R) return;
           const d = Math.sqrt(d2) || 1e-6, ov = 2 * R - d;
-          if (ov > 0.62 * R) { const back = Z[i] < Z[j] ? i : j, front = back === i ? j : i; Y[back] = Y[front] + T; return; } // squeezed: it climbs on
+          if (ov > 0.55 * R) { const back = Z[i] < Z[j] ? i : j, front = back === i ? j : i; Y[back] = Y[front] + T; return; } // squeezed: it climbs on
           const ux = dx / d, uz = dz / d, h = ov / 2;
           X[i] -= ux * h; Z[i] -= uz * h; X[j] += ux * h; Z[j] += uz * h;
         });
@@ -82,11 +85,14 @@ export function createPusherScene({ mobile, seed }) {
         if (s === SHELF) {
           if (Z[i] < ZBACK + R) Z[i] = ZBACK + R;
           X[i] = Math.max(-HALF + R, Math.min(HALF - R, X[i]));
-          if (Z[i] > zf + 0.25 * R) { ST[i] = BED; VY[i] = 0; } // over the shelf's front: it drops to the bed
+          if (Z[i] > zf + 0.25 * R) { ST[i] = BED; VY[i] = 0; TX[i] = 0.8; } // over the shelf's front: it tips and drops to the bed
         } else if (s === BED) {
           if (Y[i] < H1 - T * 0.5 && Z[i] < zf + R) Z[i] = zf + R; // the shelf's face pushes
-          if (Z[i] > ZEDGE + 0.43 * R) { Z[i] = ZEDGE + 0.43 * R; pressFront++; } // the one rule bent: never further than this
-          X[i] = Math.max(-HALF + R, Math.min(HALF - R, X[i]));
+          const lim = ZEDGE + (Y[i] > T * 0.5 && SUP[i] >= 0 ? 0.78 : 0.47) * R; // a coin riding on another can lean out further
+          if (Z[i] > lim) { Z[i] = lim; pressFront++; } // the one rule bent: never further than this
+          const side = Z[i] > GZ0 ? HALF + (REL[i] ? 9 : 0.45 * R) : HALF - R; // over a gutter it can hang out over the side too
+          X[i] = Math.max(-side, Math.min(side, X[i]));
+          if (REL[i] && Math.abs(X[i]) > HALF + 0.55 * R) { ST[i] = GONE; AGE[i] = 0; SIDE[i] = Math.sign(X[i]); }
         }
       }
     }
@@ -105,9 +111,11 @@ export function createPusherScene({ mobile, seed }) {
       // how it sits: tipped towards the coin under it, or (at the lip) leaning out over the edge
       let tx = 0, tz = 0;
       if (who >= 0) { tx = (Z[i] - Z[who]) / (2 * R) * 0.45; tz = -(X[i] - X[who]) / (2 * R) * 0.45; }
-      const over = Z[i] - (ZEDGE - 0.15 * R);
-      if (s === BED && over > 0 && who < 0 && Y[i] < T * 0.6) tx += (over / R) * 0.55 + Math.sin(t * 6.5 + WOB[i]) * (0.02 + 0.1 * shake) * (over / R);
-      TX[i] = lerp(TX[i], tx, 0.3); TZ[i] = lerp(TZ[i], tz, 0.3);
+      const over = Z[i] - (ZEDGE - 0.15 * R), wob = Math.sin(t * 6.5 + WOB[i]) * (0.035 + 0.2 * shake);
+      if (s === BED && over > 0 && who < 0 && Y[i] < T * 0.6) tx += (over / R) * 0.85 + wob * (over / R); // leaning out over the edge, wobbling
+      const sideOver = Math.abs(X[i]) - (HALF - 0.15 * R);
+      if (s === BED && Z[i] > GZ0 && sideOver > 0 && who < 0 && Y[i] < T * 0.6) tz -= Math.sign(X[i]) * ((sideOver / R) * 0.8 + wob * (sideOver / R));
+      TX[i] = lerp(TX[i], tx, ST[i] === BED && TX[i] > 0.5 && Y[i] > 0.004 ? 0.05 : 0.3); TZ[i] = lerp(TZ[i], tz, 0.3);
     }
     for (let i = 0; i < N; i++) { DX[i] = X[i] - PX[i]; DZ[i] = Z[i] - PZ[i]; }
   }
@@ -117,10 +125,11 @@ export function createPusherScene({ mobile, seed }) {
     DROPX[i] = (rand() - 0.5) * 0.34; coinsIn++;
   }
   // the house's share: a coin nearest a side gutter slips away
-  function absorb(auto = false) {
+  function absorb(auto = false) { // the one hanging furthest over a gutter goes (it's the only way anything falls)
     let best = -1, bs = -1;
-    for (let i = 0; i < N; i++) if (ST[i] === BED && Y[i] < T * 2.5) { const sc = Math.abs(X[i]) + (Z[i] > 0 ? 0.05 : 0) + (auto ? 0 : rand() * 0.02); if (sc > bs) { bs = sc; best = i; } }
-    if (best >= 0) { ST[best] = GONE; AGE[best] = 0; SIDE[best] = Math.sign(X[best]) || 1; }
+    for (let i = 0; i < N; i++) if (ST[i] === BED && !REL[i] && Y[i] < T * 2.5 && Z[i] > GZ0) { const sc = Math.abs(X[i]) + (auto ? 0 : rand() * 0.004); if (sc > bs) { bs = sc; best = i; } }
+    if (best < 0 && auto) for (let i = 0; i < N; i++) if (ST[i] === BED && Math.abs(X[i]) > bs) { bs = Math.abs(X[i]); best = i; }
+    if (best >= 0) { REL[best] = 1; Z[best] = Math.max(Z[best], GZ0 + R); X[best] += Math.sign(X[best]) * 0.6 * R; }
   }
   const count = () => { let c = 0; for (let i = 0; i < N; i++) if (ST[i] === SHELF || ST[i] === BED) c++; return c; };
   // settle the pile before anyone looks
@@ -160,7 +169,7 @@ export function createPusherScene({ mobile, seed }) {
       }
       if (s === GONE) { // slipping into the side gutter
         const k = Math.min(1, AGE[i] / 0.55);
-        v3.set(X[i] + SIDE[i] * k * 0.03, Y[i] + T / 2 - k * k * 0.08, Z[i]); e3.set(0, 0, SIDE[i] * -k * 1.3); q.setFromEuler(e3);
+        v3.set(X[i] + SIDE[i] * k * 0.022, Y[i] + T / 2 - k * k * 0.07, Z[i] + k * 0.01); e3.set(0.2 * k, 0, SIDE[i] * -(0.6 + k * 1.2)); q.setFromEuler(e3);
         coins.setMatrixAt(i, m4.compose(v3, q, one)); continue;
       }
       v3.set(X[i], Y[i] + T / 2, Z[i]);
@@ -186,12 +195,18 @@ export function createPusherScene({ mobile, seed }) {
   const face = add(new THREE.PlaneGeometry(W, H1), new THREE.MeshStandardMaterial({ map: stripeTex, metalness: 0.3, roughness: 0.5, emissive: '#3a2a00', emissiveMap: stripeTex }), 0, H1 / 2, 0.0005, shelf);
   void shelfTop; void face;
   // side walls with neon tubes; the gutters (dark slots at the front corners, where the house's share goes)
+  const noWinM = new THREE.MeshStandardMaterial({ map: canvasTexture(S, 256, 64, (g, w, h) => { g.fillStyle = '#f2ece0'; g.fillRect(0, 0, w, h); g.fillStyle = '#c81e2a'; g.fillRect(0, 0, w, 6); g.fillRect(0, h - 6, w, 6); g.font = 'bold 40px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('NO WIN', w / 2, h / 2 + 2); }), roughness: 0.7, emissive: '#ffffff', emissiveIntensity: 0.08 });
+  noWinM.emissiveMap = noWinM.map;
   const neonCol = pick([['#ff4fb0', '#40c8ff'], ['#ffb030', '#ff4060'], ['#60ff9a', '#a060ff']]);
   for (const sx of [-1, 1]) {
-    add(new THREE.BoxGeometry(0.01, 0.42, ZEDGE - ZBACK + 0.02), new THREE.MeshStandardMaterial({ color: '#1a1622', metalness: 0.4, roughness: 0.6 }), sx * (HALF + 0.005), 0.2, (ZEDGE + ZBACK) / 2);
-    const tube = add(new THREE.CylinderGeometry(0.004, 0.004, 0.36, 8), new THREE.MeshBasicMaterial({ color: neonCol[sx > 0 ? 1 : 0], toneMapped: false }), sx * (HALF - 0.004), 0.22, ZEDGE - 0.01);
+    const wallM = new THREE.MeshStandardMaterial({ color: '#1a1622', metalness: 0.4, roughness: 0.6 });
+    add(new THREE.BoxGeometry(0.01, 0.42, GZ0 - ZBACK), wallM, sx * (HALF + 0.005), 0.2, (GZ0 + ZBACK) / 2);
+    add(new THREE.BoxGeometry(0.01, 0.42, ZEDGE - GZ0 + 0.02), wallM, sx * (HALF + GW + 0.005), 0.2, (ZEDGE + GZ0) / 2 + 0.01);
+    add(new THREE.BoxGeometry(GW + 0.01, 0.42, 0.01), wallM, sx * (HALF + GW / 2 + 0.005), 0.2, GZ0);
+    add(new THREE.BoxGeometry(GW, 0.004, ZEDGE - GZ0 + 0.02), new THREE.MeshBasicMaterial({ color: '#040306' }), sx * (HALF + GW / 2), -0.03, (ZEDGE + GZ0) / 2 + 0.01);
+    const nw = add(new THREE.PlaneGeometry(ZEDGE - GZ0 - 0.006, 0.026), noWinM, sx * (HALF + GW - 0.0005), 0.022, (ZEDGE + GZ0) / 2); nw.rotation.y = -sx * Math.PI / 2;
+    const tube = add(new THREE.CylinderGeometry(0.004, 0.004, 0.36, 8), new THREE.MeshBasicMaterial({ color: neonCol[sx > 0 ? 1 : 0], toneMapped: false }), sx * (HALF + GW - 0.004), 0.22, ZEDGE - 0.004);
     void tube;
-    add(new THREE.BoxGeometry(0.012, 0.004, 0.09), new THREE.MeshBasicMaterial({ color: '#000' }), sx * (HALF - 0.004), 0.0015, 0.05);
   }
   // the backboard: a sunburst, the machine's name, a ring of bulbs
   const NAMES = ['GOLDEN CASCADE', 'PENNY TOWER', 'TREASURE TIDE', 'COPPER COAST', 'MEGA PUSH', 'LUCKY LEDGE', 'THE BIG DROP', 'NEARLY THERE'];
@@ -202,7 +217,7 @@ export function createPusherScene({ mobile, seed }) {
     g.font = 'bold 54px sans-serif'; g.textAlign = 'center'; g.lineWidth = 10; g.strokeStyle = '#2a0a10'; g.strokeText(mname, w / 2, 90); g.fillStyle = '#fff4d0'; g.fillText(mname, w / 2, 90);
     g.font = 'bold 30px sans-serif'; g.strokeText('2p  PLAY  2p', w / 2, 150); g.fillStyle = '#ffd84a'; g.fillText('2p  PLAY  2p', w / 2, 150);
   });
-  add(new THREE.PlaneGeometry(W, 0.32), new THREE.MeshStandardMaterial({ map: boardTex, emissive: '#ffffff', emissiveMap: boardTex, emissiveIntensity: 0.28, roughness: 0.6 }), 0, 0.2, ZBACK - 0.005);
+  add(new THREE.PlaneGeometry(W, 0.32), new THREE.MeshStandardMaterial({ map: boardTex, emissive: '#ffffff', emissiveMap: boardTex, emissiveIntensity: 0.1, roughness: 0.7 }), 0, 0.2, ZBACK - 0.005);
   // the rail the coins roll down
   const railV = new THREE.Vector3().subVectors(RAIL1, RAIL0), rail = add(new THREE.CylinderGeometry(0.0025, 0.0025, railV.length(), 8), chrome, 0, 0, 0);
   rail.position.copy(RAIL0).add(RAIL1).multiplyScalar(0.5); rail.position.y -= R + 0.002; rail.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), railV.clone().normalize());
@@ -213,8 +228,8 @@ export function createPusherScene({ mobile, seed }) {
   const bulbs = [];
   const bulbCols = ['#ffd860', '#ff6a8a', '#ffd860', '#6ad0ff'];
   const addBulb = (x, y, z, size, k) => { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: bulbTex, color: bulbCols[k % 4], blending: THREE.AdditiveBlending, depthWrite: false, transparent: true })); sp.position.set(x, y, z); sp.scale.set(size, size, 1); S.add(sp); bulbs.push({ sp, k, base: new THREE.Color(bulbCols[k % 4]) }); };
-  for (let k = 0; k < 22; k++) { const a = Math.PI * (k / 21); addBulb(Math.cos(a) * -0.23, 0.36 + Math.sin(a) * 0.04 - 0.04, ZBACK + 0.002, 0.022, k); }
-  for (let k = 0; k < 18; k++) addBulb(-0.32 + k * (0.64 / 17), 0.52, 0.31, 0.03, k + 1);
+  for (let k = 0; k < 22; k++) { const a = Math.PI * (k / 21); addBulb(Math.cos(a) * -0.23, 0.36 + Math.sin(a) * 0.04 - 0.04, ZBACK + 0.002, 0.016, k); }
+  for (let k = 0; k < 18; k++) addBulb(-0.32 + k * (0.64 / 17), 0.52, 0.31, 0.022, k + 1);
   // the cabinet round the glass: painted panels, chrome trim, the marquee, the coin slot, the counter, the tray
   const cabCol = pick(['#a0182a', '#1a3a9a', '#6a1aa0', '#0a7a5a']);
   const cabM = new THREE.MeshStandardMaterial({ color: cabCol, metalness: 0.3, roughness: 0.45 });
@@ -252,8 +267,8 @@ export function createPusherScene({ mobile, seed }) {
   });
   add(new THREE.PlaneGeometry(0.6, 0.5), new THREE.MeshBasicMaterial({ map: glassTex, transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending, depthWrite: false }), 0, 0.2, 0.3);
   // light inside the machine (warm from above), the neon's colour from the sides
-  const topL = new THREE.PointLight('#ffe0b0', 0.55, 1.4, 2); topL.position.set(0, 0.42, -0.12); S.add(topL);
-  const backL = new THREE.PointLight('#ffd0a0', 0.3, 1, 2); backL.position.set(0, 0.25, -0.18); S.add(backL);
+  const topL = new THREE.PointLight('#ffe0b0', 0.55, 1.4, 2); topL.position.set(0, 0.3, 0.06); S.add(topL);
+  const backL = new THREE.PointLight('#ffd0a0', 0.12, 1, 2); backL.position.set(0, 0.25, -0.18); S.add(backL);
   const sideL = new THREE.PointLight(neonCol[0], 0.06, 0.8, 2); sideL.position.set(-0.22, 0.15, 0.08); S.add(sideL);
   const sideR = new THREE.PointLight(neonCol[1], 0.06, 0.8, 2); sideR.position.set(0.22, 0.15, 0.08); S.add(sideR);
   S.add(new THREE.HemisphereLight('#4a3a5a', '#120a10', 0.4));
@@ -304,7 +319,7 @@ export function createPusherScene({ mobile, seed }) {
     drawLed();
     // the lights: bulbs chasing round, slower and softer as the night goes on; the arcade dimming
     const chase = t * (2 + 6 * e);
-    for (const b of bulbs) { const on = (Math.floor(chase) + b.k) % 4 === 0 || (tease > 0.2 && Math.sin(t * 20 + b.k) > 0); b.sp.material.color.copy(b.base).multiplyScalar(on ? 1.4 : 0.25 + 0.15 * e); }
+    for (const b of bulbs) { const on = (Math.floor(chase) + b.k) % 4 === 0 || (tease > 0.2 && Math.sin(t * 20 + b.k) > 0); b.sp.material.color.copy(b.base).multiplyScalar(on ? 0.85 : 0.12 + 0.1 * e); }
     tease = Math.max(0, tease - dt * 0.3);
     const dim = 0.35 + 0.65 * sstep(0.2, 0.75, e);
     for (const g of glows) g.color.setScalar(0.6 * dim);
@@ -317,8 +332,8 @@ export function createPusherScene({ mobile, seed }) {
     lean = lerp(lean, leanIn, 1 - Math.exp(-dt * 0.4));
     const cam = S.camera, a = cam.aspect || 1, portrait = a < 0.8;
     const sway = Math.sin(t * 0.07) * 0.04;
-    cam.position.set(lerp(sway, 0.05 + sway * 0.3, lean), lerp(portrait ? 0.26 : 0.27, 0.075, lean), lerp(portrait ? 0.64 : 0.52, portrait ? 0.4 : 0.34, lean));
-    look.set(lerp(0, 0.02, lean), lerp(portrait ? -0.09 : 0.045, 0.004, lean), lerp(-0.04, 0.05, lean));
+    cam.position.set(lerp(sway, 0.05 + sway * 0.3, lean), lerp(portrait ? 0.26 : 0.31, 0.075, lean), lerp(portrait ? 0.64 : 0.62, portrait ? 0.4 : 0.34, lean));
+    look.set(lerp(0, 0.02, lean), lerp(portrait ? -0.09 : 0.045, 0.022, lean), lerp(-0.04, 0.05, lean));
     cam.lookAt(look);
   });
   let lean = 0;
