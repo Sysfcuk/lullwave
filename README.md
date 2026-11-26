@@ -11,9 +11,9 @@ closes, and in the last stretch of the timer everything fades out.
 
 ## Worlds
 
-Sixteen worlds are on: Crystal Cave, Night Drive, Deep Ocean, Aurora, Cotswold Valley, Disco Cat, and ten dream
+Seventeen worlds are on: Crystal Cave, Night Drive, Deep Ocean, Aurora, Cotswold Valley, Disco Cat, and eleven dream
 scenes (Moonlit Canal, Christmas Market, Midnight Choir, Penny's Night Patrol, Pineapple Pizza Incident, Counting
-Sheep, 8-Bit Night Walk, Glowing Sands, The Fantastical Snowstorm, Pineapple Fever Dream). The others are switched off with `off: true` in `WORLDS` in `web/main.js`; their code is kept, and
+Sheep, 8-Bit Night Walk, Glowing Sands, The Fantastical Snowstorm, Computer Says No, Pineapple Fever Dream). The others are switched off with `off: true` in `WORLDS` in `web/main.js`; their code is kept, and
 flipping the flag brings one back.
 
 | World | Visuals | Music |
@@ -30,7 +30,7 @@ flipping the flag brings one back.
 
 ### Dream scenes
 
-The ten dream scenes that are on each have their own hand-written composer, with its own original tunes, band and
+The eleven dream scenes that are on each have their own hand-written composer, with its own original tunes, band and
 sounds of the place (built on `web/music/bespoke.js`):
 
 | Scene | Music |
@@ -45,6 +45,7 @@ sounds of the place (built on `web/music/bespoke.js`):
 | **8-Bit Night Walk** (`chipsong.js`) | A chiptune lullaby, softened for bedtime: a triangle-wave tune with a thin pulse-wave echo, slow pulse arpeggios, a triangle bass, the faintest ticks; 8-bit crickets, a sparkle when a shooting star goes over, and the campfire crackling once the walker has stopped. The beat sets the walker's pace. |
 | **Glowing Sands** (`sandsong.js`) | Glassy and still: soft sine pads drifting through a lydian progression, tiny high bell pings falling at random like grains striking glass (fewer as the night goes on), a slow phrase on glass bells, a low hum and the faint hiss of sand. |
 | **The Fantastical Snowstorm** (`snowsong.js`) | A storm that blows itself out into a lullaby: resonant gusts that rise, howl and fade (sent to the scene, so the snow surges with them) over a low drone and a wordless choir; a glassy celesta tune in D dorian, sleigh-bell shimmers for the snow spirits. The gusts come softer and further apart through the night until only the choir, the celesta and the hush of snow are left. |
+| **Computer Says No** (`saysnosong.js`) | A soft 1980s synth lullaby in F (a warm analogue pad, a little plucked arpeggio, an electric-piano tune) in the room with the computer. The conversation runs here too: every key click as the questions are typed, the disk drive's motor and stepping head while it thinks, its two-note "no" beep, the lamp switch, all sent to the scene so the screen and the sounds land together. |
 
 In **Counting Sheep**, a flock of cloud-sheep grazes on stars growing in the grass of a floating island, above a slowly billowing sea of moonlit cloud. Each sheep has its own mind: it wanders, eats a star (which grows back), rests, or looks up to bleat. On the music's breath, one trots up and leaps the fence, sailing across the gap to the next island beneath a moon that hangs high in the sky: the run-up and the hop to the top are the in-breath, and the long, slow float down onto the quilt (ears up, legs dangling, like thistledown) is the out-breath. A number glows and fades at the top of the leap. A soft ring of light round the moon breathes with the music, swelling on the in-breath and settling on the out-breath, whether or not a sheep is jumping, so you can breathe along with it. It lands on the next island (a patchwork quilt with a pillow), finds a bed and goes to sleep; later its fleece dissolves into a soft cloud that drifts up into the sky, and a cloud may come back down to the grass as a sheep. The moon waxes through the night, from a thin, leaning crescent at bedtime (with the rest of its face just showing by earthshine) to full; when it's full it has a face, fast asleep. As the night goes on the jumps get lazier and the clouds stop coming down, until the flock is asleep on the quilt and in the sky. The ram won't jump: he watches from the fence and shakes his head. Now and then he squares up to it (backs off, paws the ground, makes a run at it), stops short, shakes his head and wanders off. In the end he falls asleep there.
 
@@ -73,6 +74,20 @@ arms, branches and plates, drift slowly past and turn; groves of ice crystals gl
 spirits ride the wind trailing light and chase one another. Through the night the storm blows itself out: the wind
 drops, the fog lifts, the clouds part on the stars and the moon, an aurora unfurls over the trees, the snow falls
 gently, and the spirits settle on the crystals and treetops like fairy lights.
+
+**Computer Says No** sits you at a bedroom desk late at night, in front of a 1980s home computer made up fresh each
+time: its maker's name and model (a Hushtron 64, a Snoozebyte 2000...), its case and keys, a green, amber, white or
+aqua screen, and whether it's an all-in-one, a monitor on a system box with two disk drives, or a wedge keyboard with
+a drive beside it. Around it: an anglepoise lamp, a clock showing the real time, a mug of cocoa, floppy disks, a
+joystick, a poster, and the town at night through the window. Someone we never see types questions, the keys going
+down as they type, and whatever they ask, the computer thinks it over (the drive whirrs, a spinner turns) and says NO.
+Sometimes it searches its records first, works it out with a progress bar, or prints it in big block letters; a
+little BASIC program to make it say yes doesn't work either. The questions start cheeky ("CAN I HAVE A PONY?"), turn
+to bedtime ("CAN I HAVE FIVE MORE MINUTES?"), then become the kind where no is a comfort ("IS THERE A MONSTER UNDER
+THE BED?"). The typing slows and slips; they ask to turn off the lamp (no) and turn it off anyway; at last they ask
+"ARE YOU STILL AWAKE?" NO. Then it goes to sleep, its words fading and its cursor blinking slower and slower. The
+screen is a small phosphor buffer in our own 5x7 font, shown through a CRT shader with curved glass, scanlines and a
+soft beam.
 
 The switched-off dream scenes use the shared ambient composer described below.
 
