@@ -11,9 +11,9 @@ closes, and in the last stretch of the timer everything fades out.
 
 ## Worlds
 
-Fifteen worlds are on: Crystal Cave, Night Drive, Deep Ocean, Aurora, Cotswold Valley, Disco Cat, and nine dream
+Sixteen worlds are on: Crystal Cave, Night Drive, Deep Ocean, Aurora, Cotswold Valley, Disco Cat, and ten dream
 scenes (Moonlit Canal, Christmas Market, Midnight Choir, Penny's Night Patrol, Pineapple Pizza Incident, Counting
-Sheep, 8-Bit Night Walk, Glowing Sands, Pineapple Fever Dream). The others are switched off with `off: true` in `WORLDS` in `web/main.js`; their code is kept, and
+Sheep, 8-Bit Night Walk, Glowing Sands, The Fantastical Snowstorm, Pineapple Fever Dream). The others are switched off with `off: true` in `WORLDS` in `web/main.js`; their code is kept, and
 flipping the flag brings one back.
 
 | World | Visuals | Music |
@@ -30,7 +30,7 @@ flipping the flag brings one back.
 
 ### Dream scenes
 
-The nine dream scenes that are on each have their own hand-written composer, with its own original tunes, band and
+The ten dream scenes that are on each have their own hand-written composer, with its own original tunes, band and
 sounds of the place (built on `web/music/bespoke.js`):
 
 | Scene | Music |
@@ -44,6 +44,7 @@ sounds of the place (built on `web/music/bespoke.js`):
 | **Counting Sheep** (`sheepsong.js`) | A music-box waltz over soft strings that slowly winds down through the night like a box running down. It breathes with the jumps: a rising swell as each sheep starts its run-up (breathe in), a falling one as it floats down beneath the moon (breathe out), with a bell that climbs the scale as the count goes up. A bleat now and then, the ram's huff, the box being wound again. |
 | **8-Bit Night Walk** (`chipsong.js`) | A chiptune lullaby, softened for bedtime: a triangle-wave tune with a thin pulse-wave echo, slow pulse arpeggios, a triangle bass, the faintest ticks; 8-bit crickets, a sparkle when a shooting star goes over, and the campfire crackling once the walker has stopped. The beat sets the walker's pace. |
 | **Glowing Sands** (`sandsong.js`) | Glassy and still: soft sine pads drifting through a lydian progression, tiny high bell pings falling at random like grains striking glass (fewer as the night goes on), a slow phrase on glass bells, a low hum and the faint hiss of sand. |
+| **The Fantastical Snowstorm** (`snowsong.js`) | A storm that blows itself out into a lullaby: resonant gusts that rise, howl and fade (sent to the scene, so the snow surges with them) over a low drone and a wordless choir; a glassy celesta tune in D dorian, sleigh-bell shimmers for the snow spirits. The gusts come softer and further apart through the night until only the choir, the celesta and the hush of snow are left. |
 
 In **Counting Sheep**, a flock of cloud-sheep grazes on stars growing in the grass of a floating island, above a slowly billowing sea of moonlit cloud. Each sheep has its own mind: it wanders, eats a star (which grows back), rests, or looks up to bleat. On the music's breath, one trots up and leaps the fence, sailing across the gap to the next island beneath a moon that hangs high in the sky: the run-up and the hop to the top are the in-breath, and the long, slow float down onto the quilt (ears up, legs dangling, like thistledown) is the out-breath. A number glows and fades at the top of the leap. A soft ring of light round the moon breathes with the music, swelling on the in-breath and settling on the out-breath, whether or not a sheep is jumping, so you can breathe along with it. It lands on the next island (a patchwork quilt with a pillow), finds a bed and goes to sleep; later its fleece dissolves into a soft cloud that drifts up into the sky, and a cloud may come back down to the grass as a sheep. The moon waxes through the night, from a thin, leaning crescent at bedtime (with the rest of its face just showing by earthshine) to full; when it's full it has a face, fast asleep. As the night goes on the jumps get lazier and the clouds stop coming down, until the flock is asleep on the quilt and in the sky. The ram won't jump: he watches from the fence and shakes his head. Now and then he squares up to it (backs off, paws the ground, makes a run at it), stops short, shakes his head and wanders off. In the end he falls asleep there.
 
@@ -63,6 +64,15 @@ and lets go with a rush. When the stream stops, the hourglass slowly turns over 
 its own way); every grain keeps its
 colour, so each turn stirs the layers into new chevrons and stripes. A glow behind the glass takes the colour of the
 falling stream. Through the night the sand runs slower and dimmer, and at the end the glass comes to rest.
+
+**The Fantastical Snowstorm** circles a hilltop clearing in a snowy pine wood, with a lantern-lit cabin and its
+chimney smoking. At bedtime it's a whiteout: thousands of flakes streak along a swirling wind (each stretched along
+the way it's being blown), gusts surge with the music, snow devils spiral across the clearing, spindrift streams over
+the ground and the pines sway. And it's not an ordinary storm: giant snowflakes, each drawn in code with its own
+arms, branches and plates, drift slowly past and turn; groves of ice crystals glow among the trees; little snow
+spirits ride the wind trailing light and chase one another. Through the night the storm blows itself out: the wind
+drops, the fog lifts, the clouds part on the stars and the moon, an aurora unfurls over the trees, the snow falls
+gently, and the spirits settle on the crystals and treetops like fairy lights.
 
 The switched-off dream scenes use the shared ambient composer described below.
 

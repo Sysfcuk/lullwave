@@ -32,9 +32,10 @@ import { createFeverScene } from './scenes/dream/fever.js';
 import { createSheepScene } from './scenes/dream/sheep.js';
 import { createPixelScene } from './scenes/dream/pixel.js';
 import { createSandsScene } from './scenes/dream/sands.js';
+import { createSnowstormScene } from './scenes/dream/snowstorm.js';
 
 const SCENES = { cave: createCaveScene, drive: createDriveScene, ocean: createOceanScene, aurora: createAuroraScene, rain: createRainScene, space: createSpaceScene, disco: createDiscoScene, eventing: createEventingScene, cotswold: createCotswoldScene,
-  meadow: createMeadowScene, estate: createEstateScene, woolpack: createWoolpackScene, canal: createCanalScene, stables: createStablesScene, market: createMarketScene, trail: createTrailScene, choir: createChoirScene, penny: createPennyScene, pizza: createPizzaScene, lost: createLostScene, stardome: createStardomeScene, bakery: createBakeryScene, fever: createFeverScene, sheep: createSheepScene, pixel: createPixelScene, sands: createSandsScene };
+  meadow: createMeadowScene, estate: createEstateScene, woolpack: createWoolpackScene, canal: createCanalScene, stables: createStablesScene, market: createMarketScene, trail: createTrailScene, choir: createChoirScene, penny: createPennyScene, pizza: createPizzaScene, lost: createLostScene, stardome: createStardomeScene, bakery: createBakeryScene, fever: createFeverScene, sheep: createSheepScene, pixel: createPixelScene, sands: createSandsScene, snowstorm: createSnowstormScene };
 
 // The finishing pass, after tone mapping: a little chromatic aberration towards the edges, a
 // vignette, and fine animated grain, which also dithers away the banding that dark gradients
