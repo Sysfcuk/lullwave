@@ -117,7 +117,8 @@ down, the lamp clicks off, and you lie down in the berth under a tartan blanket 
 blind.
 
 **Any Second Now** is a 2p coin pusher in a seaside amusement arcade late at night, made up fresh each time (its
-name on the sunburst backboard, its colours, its neon). Coins drop through the slot, roll down the rail and land on
+name in fat gold letters on the printed backboard, faded and grubby from years in the arcade, its colours, its
+neon). The pusher is scuffed, brushed stainless steel. Coins drop through the slot, roll down the rail and land on
 the moving shelf, which slides in and out, pushing the pile towards the edge. The coins at the front hang further
 and further over the lip, teetering with every push. Any second now. They never fall. The machine takes every coin
 (the top shelf full of them from the start, coins tipping off it onto the pile below with every stroke; coins

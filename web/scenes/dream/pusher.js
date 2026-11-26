@@ -189,11 +189,18 @@ export function createPusherScene({ mobile, seed }) {
   add(new THREE.BoxGeometry(W, 0.16, 0.01), new THREE.MeshStandardMaterial({ color: '#141418', metalness: 0.5, roughness: 0.5 }), 0, -0.09, ZEDGE + 0.012);
   // the shelf
   const shelf = new THREE.Group(); S.add(shelf);
-  const shelfTop = add(new THREE.BoxGeometry(W, H1, SHELF_D), new THREE.MeshStandardMaterial({ color: '#2a2832', metalness: 0.6, roughness: 0.4 }), 0, H1 / 2, -SHELF_D / 2, shelf);
-  const stripeTex = canvasTexture(S, 256, 32, (g, w, h) => { for (let k = 0; k < 16; k++) { g.fillStyle = k % 2 ? '#ffd040' : '#202024'; g.beginPath(); g.moveTo(k * 16, h); g.lineTo(k * 16 + 16, h); g.lineTo(k * 16 + 32, 0); g.lineTo(k * 16 + 16, 0); g.fill(); } });
-  stripeTex.wrapS = THREE.RepeatWrapping; stripeTex.repeat.set(3, 1);
-  const face = add(new THREE.PlaneGeometry(W, H1), new THREE.MeshStandardMaterial({ map: stripeTex, metalness: 0.3, roughness: 0.5, emissive: '#3a2a00', emissiveMap: stripeTex }), 0, H1 / 2, 0.0005, shelf);
-  void shelfTop; void face;
+  // the pusher: brushed stainless steel, years of coins dragged across it (scuffs, a dent or two, grime along the bottom)
+  const steelTex = canvasTexture(S, 1024, 96, (g, w, h) => {
+    g.fillStyle = '#a4a6ac'; g.fillRect(0, 0, w, h);
+    for (let k = 0; k < 2600; k++) { const v = Math.random() < 0.5 ? 255 : 0; g.fillStyle = `rgba(${v},${v},${v},${0.03 + Math.random() * 0.06})`; g.fillRect(Math.random() * w, Math.random() * h, 30 + Math.random() * 200, 1); }
+    for (let k = 0; k < 40; k++) { g.strokeStyle = `rgba(40,36,30,${0.08 + Math.random() * 0.15})`; g.lineWidth = 1; g.beginPath(); const x = Math.random() * w, y = Math.random() * h; g.moveTo(x, y); g.lineTo(x + (Math.random() - 0.3) * 60, y + (Math.random() - 0.5) * 8); g.stroke(); }
+    for (let k = 0; k < 4; k++) { const x = Math.random() * w, y = h * (0.3 + Math.random() * 0.4); const gr = g.createRadialGradient(x - 3, y - 3, 1, x, y, 12); gr.addColorStop(0, 'rgba(255,255,255,.25)'); gr.addColorStop(0.6, 'rgba(0,0,0,.18)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(x - 14, y - 14, 28, 28); }
+    const gr = g.createLinearGradient(0, h * 0.55, 0, h); gr.addColorStop(0, 'rgba(60,40,20,0)'); gr.addColorStop(1, 'rgba(60,40,20,.55)'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+  });
+  const steel = new THREE.MeshStandardMaterial({ color: '#ffffff', map: steelTex, metalness: 0.9, roughness: 0.36, envMapIntensity: 0.9 });
+  const steelTopTex = S.keep(steelTex.clone()); steelTopTex.needsUpdate = true; steelTopTex.wrapS = steelTopTex.wrapT = THREE.RepeatWrapping; steelTopTex.repeat.set(1, 3);
+  add(new THREE.BoxGeometry(W, H1, SHELF_D), [steel, steel, new THREE.MeshStandardMaterial({ color: '#8a8c92', map: steelTopTex, metalness: 0.85, roughness: 0.42, envMapIntensity: 0.7 }), steel, steel, steel], 0, H1 / 2, -SHELF_D / 2, shelf);
+  const nose = add(new THREE.CylinderGeometry(0.0035, 0.0035, W, 12), steel, 0, H1 - 0.0035, 0.0005, shelf); nose.rotation.z = Math.PI / 2;
   // side walls with neon tubes; the gutters (dark slots at the front corners, where the house's share goes)
   const noWinM = new THREE.MeshStandardMaterial({ map: canvasTexture(S, 256, 64, (g, w, h) => { g.fillStyle = '#f2ece0'; g.fillRect(0, 0, w, h); g.fillStyle = '#c81e2a'; g.fillRect(0, 0, w, 6); g.fillRect(0, h - 6, w, 6); g.font = 'bold 40px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('NO WIN', w / 2, h / 2 + 2); }), roughness: 0.7, emissive: '#ffffff', emissiveIntensity: 0.08 });
   noWinM.emissiveMap = noWinM.map;
@@ -211,13 +218,37 @@ export function createPusherScene({ mobile, seed }) {
   // the backboard: a sunburst, the machine's name, a ring of bulbs
   const NAMES = ['GOLDEN CASCADE', 'PENNY TOWER', 'TREASURE TIDE', 'COPPER COAST', 'MEGA PUSH', 'LUCKY LEDGE', 'THE BIG DROP', 'NEARLY THERE'];
   const mname = pick(NAMES), sun = pick([['#c81e3a', '#ffcf3a'], ['#1e5ac8', '#ffd84a'], ['#7a1ec8', '#ff8a3a']]);
-  const boardTex = canvasTexture(S, 512, 320, (g, w, h) => {
-    for (let k = 0; k < 24; k++) { const a0 = (k / 24) * TAU, a1 = ((k + 1) / 24) * TAU; g.fillStyle = k % 2 ? sun[0] : sun[1]; g.beginPath(); g.moveTo(w / 2, h * 1.05); g.arc(w / 2, h * 1.05, w * 1.2, a0, a1); g.fill(); }
-    g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(0, 0, w, h);
-    g.font = 'bold 54px sans-serif'; g.textAlign = 'center'; g.lineWidth = 10; g.strokeStyle = '#2a0a10'; g.strokeText(mname, w / 2, 90); g.fillStyle = '#fff4d0'; g.fillText(mname, w / 2, 90);
-    g.font = 'bold 30px sans-serif'; g.strokeText('2p  PLAY  2p', w / 2, 150); g.fillStyle = '#ffd84a'; g.fillText('2p  PLAY  2p', w / 2, 150);
+  // printed artwork on a glossy panel, a bit faded and grubby from years in the arcade: a deep sky, a soft burst of
+  // light, a heap of painted treasure, the name in fat gold letters, a ribbon, sparkles
+  const BG = { '#c81e3a': ['#2a0612', '#6a1024'], '#1e5ac8': ['#06122e', '#143a7a'], '#7a1ec8': ['#14062a', '#3e1270'] }[sun[0]];
+  const FONT = "Impact, 'Arial Black', sans-serif";
+  const boardTex = canvasTexture(S, 1024, 640, (g, w, h) => {
+    const bg = g.createLinearGradient(0, 0, 0, h); bg.addColorStop(0, BG[0]); bg.addColorStop(1, BG[1]); g.fillStyle = bg; g.fillRect(0, 0, w, h);
+    g.globalAlpha = 0.12; for (let k = 0; k < 32; k++) { const a0 = (k / 32) * TAU, a1 = ((k + 0.5) / 32) * TAU; g.fillStyle = sun[1]; g.beginPath(); g.moveTo(w / 2, h * 0.42); g.arc(w / 2, h * 0.42, w, a0, a1); g.fill(); } g.globalAlpha = 1;
+    const glow = g.createRadialGradient(w / 2, h * 0.42, 10, w / 2, h * 0.42, w * 0.45); glow.addColorStop(0, 'rgba(255,220,140,.35)'); glow.addColorStop(1, 'rgba(255,220,140,0)'); g.fillStyle = glow; g.fillRect(0, 0, w, h);
+    for (let y = 8; y < h; y += 14) for (let x = 8 + (y % 28 ? 7 : 0); x < w; x += 14) { g.fillStyle = 'rgba(255,255,255,.035)'; g.beginPath(); g.arc(x, y, 2.2, 0, TAU); g.fill(); }
+    const coin = (x, y, r, tilt) => { g.save(); g.translate(x, y); g.scale(1, tilt); const cg = g.createRadialGradient(-r * 0.35, -r * 0.35, r * 0.1, 0, 0, r); cg.addColorStop(0, '#fff2b8'); cg.addColorStop(0.45, '#e8b040'); cg.addColorStop(1, '#8a5a14'); g.fillStyle = cg; g.beginPath(); g.arc(0, 0, r, 0, TAU); g.fill(); g.strokeStyle = 'rgba(80,40,0,.6)'; g.lineWidth = r * 0.12; g.beginPath(); g.arc(0, 0, r * 0.78, 0, TAU); g.stroke(); g.restore(); };
+    for (let k = 0; k < 70; k++) { const side = k % 2 ? 1 : -1, x = w / 2 + side * (w * 0.26 + Math.random() * w * 0.26), y = h * (0.66 + Math.random() * 0.36); coin(x, y, 18 + Math.random() * 22, 0.45 + Math.random() * 0.5); }
+    for (let k = 0; k < 40; k++) coin(w * (0.15 + Math.random() * 0.7), h * (0.86 + Math.random() * 0.16), 16 + Math.random() * 18, 0.4 + Math.random() * 0.3);
+    let fs = 132; g.font = `900 ${fs}px ${FONT}`; while (g.measureText(mname).width > w * 0.9 && fs > 60) { fs -= 4; g.font = `900 ${fs}px ${FONT}`; }
+    g.textAlign = 'center'; g.textBaseline = 'middle'; const ty = h * 0.4;
+    g.fillStyle = 'rgba(0,0,0,.55)'; g.fillText(mname, w / 2 + 8, ty + 10);
+    g.lineJoin = 'round'; g.lineWidth = 22; g.strokeStyle = '#1a0a04'; g.strokeText(mname, w / 2, ty);
+    g.lineWidth = 10; g.strokeStyle = sun[0]; g.strokeText(mname, w / 2, ty);
+    const gold = g.createLinearGradient(0, ty - fs / 2, 0, ty + fs / 2); gold.addColorStop(0, '#fffbe0'); gold.addColorStop(0.35, '#ffd860'); gold.addColorStop(0.6, '#e09a20'); gold.addColorStop(1, '#a8600c'); g.fillStyle = gold; g.fillText(mname, w / 2, ty);
+    g.save(); g.beginPath(); g.rect(0, ty - fs / 2, w, fs * 0.28); g.clip(); g.fillStyle = 'rgba(255,255,255,.35)'; g.fillText(mname, w / 2, ty); g.restore();
+    const ry = h * 0.6, rw = 300; g.fillStyle = '#8a0c18';
+    for (const sx of [-1, 1]) { g.beginPath(); g.moveTo(w / 2 + sx * (rw / 2 - 20), ry - 28); g.lineTo(w / 2 + sx * (rw / 2 + 60), ry - 22); g.lineTo(w / 2 + sx * (rw / 2 + 36), ry + 4); g.lineTo(w / 2 + sx * (rw / 2 + 60), ry + 30); g.lineTo(w / 2 + sx * (rw / 2 - 20), ry + 26); g.fill(); }
+    const rg = g.createLinearGradient(0, ry - 34, 0, ry + 34); rg.addColorStop(0, '#f0303c'); rg.addColorStop(1, '#a01020'); g.fillStyle = rg; g.fillRect(w / 2 - rw / 2, ry - 34, rw, 62);
+    g.font = `900 46px ${FONT}`; g.lineWidth = 6; g.strokeStyle = '#4a0408'; g.strokeText('2p  PLAY', w / 2, ry - 2); g.fillStyle = '#fff4d8'; g.fillText('2p  PLAY', w / 2, ry - 2);
+    for (let k = 0; k < 26; k++) { const x = Math.random() * w, y = Math.random() * h * 0.7, r = 4 + Math.random() * 10; g.fillStyle = 'rgba(255,250,220,.8)'; g.beginPath(); g.moveTo(x, y - r); g.lineTo(x + r * 0.22, y - r * 0.22); g.lineTo(x + r, y); g.lineTo(x + r * 0.22, y + r * 0.22); g.lineTo(x, y + r); g.lineTo(x - r * 0.22, y + r * 0.22); g.lineTo(x - r, y); g.lineTo(x - r * 0.22, y - r * 0.22); g.fill(); }
+    g.fillStyle = 'rgba(200,190,170,.06)'; g.fillRect(0, 0, w, h);
+    const vg = g.createRadialGradient(w / 2, h / 2, h * 0.3, w / 2, h / 2, w * 0.65); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(10,6,2,.55)'); g.fillStyle = vg; g.fillRect(0, 0, w, h);
+    for (let k = 0; k < 2500; k++) { g.fillStyle = Math.random() < 0.5 ? `rgba(0,0,0,${Math.random() * 0.06})` : `rgba(255,255,255,${Math.random() * 0.06})`; g.fillRect(Math.random() * w, Math.random() * h, 2, 2); }
+    g.strokeStyle = 'rgba(255,255,255,.12)'; for (let k = 0; k < 12; k++) { g.beginPath(); const x = Math.random() * w, y = Math.random() * h; g.moveTo(x, y); g.lineTo(x + (Math.random() - 0.5) * 140, y + (Math.random() - 0.5) * 30); g.stroke(); }
   });
-  add(new THREE.PlaneGeometry(W, 0.32), new THREE.MeshStandardMaterial({ map: boardTex, emissive: '#ffffff', emissiveMap: boardTex, emissiveIntensity: 0.1, roughness: 0.7 }), 0, 0.2, ZBACK - 0.005);
+  add(new THREE.PlaneGeometry(W, 0.32), new THREE.MeshStandardMaterial({ map: boardTex, emissive: '#ffffff', emissiveMap: boardTex, emissiveIntensity: 0.08, roughness: 0.55, metalness: 0, envMapIntensity: 0.45 }), 0, 0.2, ZBACK - 0.005);
+  for (const [fw, fh, fx, fy] of [[W + 0.02, 0.012, 0, 0.36], [W + 0.02, 0.012, 0, 0.04], [0.012, 0.33, -HALF - 0.004, 0.2], [0.012, 0.33, HALF + 0.004, 0.2]]) add(new THREE.BoxGeometry(fw, fh, 0.012), steel, fx, fy, ZBACK + 0.001); // its frame
   // the rail the coins roll down
   const railV = new THREE.Vector3().subVectors(RAIL1, RAIL0), rail = add(new THREE.CylinderGeometry(0.0025, 0.0025, railV.length(), 8), chrome, 0, 0, 0);
   rail.position.copy(RAIL0).add(RAIL1).multiplyScalar(0.5); rail.position.y -= R + 0.002; rail.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), railV.clone().normalize());
@@ -227,8 +258,14 @@ export function createPusherScene({ mobile, seed }) {
   const bulbTex = canvasTexture(S, 64, 64, (g, w, h) => { const gr = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.25, 'rgba(255,255,255,.6)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h); });
   const bulbs = [];
   const bulbCols = ['#ffd860', '#ff6a8a', '#ffd860', '#6ad0ff'];
-  const addBulb = (x, y, z, size, k) => { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: bulbTex, color: bulbCols[k % 4], blending: THREE.AdditiveBlending, depthWrite: false, transparent: true })); sp.position.set(x, y, z); sp.scale.set(size, size, 1); S.add(sp); bulbs.push({ sp, k, base: new THREE.Color(bulbCols[k % 4]) }); };
-  for (let k = 0; k < 22; k++) { const a = Math.PI * (k / 21); addBulb(Math.cos(a) * -0.23, 0.36 + Math.sin(a) * 0.04 - 0.04, ZBACK + 0.002, 0.016, k); }
+  const socketM = new THREE.MeshStandardMaterial({ color: '#2a2a2e', metalness: 0.6, roughness: 0.5 }), socketG = new THREE.CylinderGeometry(0.0055, 0.0065, 0.006, 10), bulbG = new THREE.SphereGeometry(0.0048, 10, 8);
+  const addBulb = (x, y, z, size, k) => { // a real little bulb in its socket, with a soft glow
+    const sock = new THREE.Mesh(socketG, socketM); sock.rotation.x = Math.PI / 2; sock.position.set(x, y, z + 0.003); S.add(sock);
+    const bm = new THREE.MeshBasicMaterial({ color: bulbCols[k % 4], toneMapped: false }); const bulb = new THREE.Mesh(bulbG, bm); bulb.position.set(x, y, z + 0.008); S.add(bulb);
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: bulbTex, color: bulbCols[k % 4], blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.55 })); sp.position.set(x, y, z + 0.01); sp.scale.set(size * 1.3, size * 1.3, 1); S.add(sp);
+    bulbs.push({ sp, bm, k, base: new THREE.Color(bulbCols[k % 4]) });
+  };
+  for (let k = 0; k < 20; k++) addBulb(-HALF + 0.01 + k * ((W - 0.02) / 19), 0.375, ZBACK + 0.001, 0.016, k);
   for (let k = 0; k < 18; k++) addBulb(-0.32 + k * (0.64 / 17), 0.52, 0.31, 0.022, k + 1);
   // the cabinet round the glass: painted panels, chrome trim, the marquee, the coin slot, the counter, the tray
   const cabCol = pick(['#a0182a', '#1a3a9a', '#6a1aa0', '#0a7a5a']);
@@ -315,11 +352,10 @@ export function createPusherScene({ mobile, seed }) {
     shake = Math.max(0, shake - dt * 0.35);
     drawCoins();
     shelf.position.z = zf;
-    stripeTex.offset.x = (t * 0.2) % 1;
     drawLed();
     // the lights: bulbs chasing round, slower and softer as the night goes on; the arcade dimming
     const chase = t * (2 + 6 * e);
-    for (const b of bulbs) { const on = (Math.floor(chase) + b.k) % 4 === 0 || (tease > 0.2 && Math.sin(t * 20 + b.k) > 0); b.sp.material.color.copy(b.base).multiplyScalar(on ? 0.85 : 0.12 + 0.1 * e); }
+    for (const b of bulbs) { const on = (Math.floor(chase) + b.k) % 4 === 0 || (tease > 0.2 && Math.sin(t * 20 + b.k) > 0); b.sp.material.color.copy(b.base).multiplyScalar(on ? 0.7 : 0.04); b.bm.color.copy(b.base).multiplyScalar(on ? 1.1 : 0.22 + 0.1 * e); }
     tease = Math.max(0, tease - dt * 0.3);
     const dim = 0.35 + 0.65 * sstep(0.2, 0.75, e);
     for (const g of glows) g.color.setScalar(0.6 * dim);
