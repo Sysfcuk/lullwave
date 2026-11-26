@@ -11,9 +11,9 @@ closes, and in the last stretch of the timer everything fades out.
 
 ## Worlds
 
-Eighteen worlds are on: Crystal Cave, Night Drive, Deep Ocean, Aurora, Cotswold Valley, Disco Cat, and twelve dream
+Nineteen worlds are on: Crystal Cave, Night Drive, Deep Ocean, Aurora, Cotswold Valley, Disco Cat, and thirteen dream
 scenes (Moonlit Canal, Christmas Market, Midnight Choir, Penny's Night Patrol, Pineapple Pizza Incident, Counting
-Sheep, 8-Bit Night Walk, Glowing Sands, The Fantastical Snowstorm, Computer Says No, The Sleeper Train, Pineapple Fever Dream). The others are switched off with `off: true` in `WORLDS` in `web/main.js`; their code is kept, and
+Sheep, 8-Bit Night Walk, Glowing Sands, The Fantastical Snowstorm, Computer Says No, The Sleeper Train, Any Second Now, Pineapple Fever Dream). The others are switched off with `off: true` in `WORLDS` in `web/main.js`; their code is kept, and
 flipping the flag brings one back.
 
 | World | Visuals | Music |
@@ -30,7 +30,7 @@ flipping the flag brings one back.
 
 ### Dream scenes
 
-The twelve dream scenes that are on each have their own hand-written composer, with its own original tunes, band and
+The thirteen dream scenes that are on each have their own hand-written composer, with its own original tunes, band and
 sounds of the place (built on `web/music/bespoke.js`):
 
 | Scene | Music |
@@ -47,6 +47,7 @@ sounds of the place (built on `web/music/bespoke.js`):
 | **The Fantastical Snowstorm** (`snowsong.js`) | A storm that blows itself out into a lullaby: resonant gusts that rise, howl and fade (sent to the scene, so the snow surges with them) over a low drone and a wordless choir; a glassy celesta tune in D dorian, sleigh-bell shimmers for the snow spirits. The gusts come softer and further apart through the night until only the choir, the celesta and the hush of snow are left. |
 | **Computer Says No** (`saysnosong.js`) | A soft 1980s synth lullaby in F (a warm analogue pad, a little plucked arpeggio, an electric-piano tune) in the room with the computer. The conversation runs here too: every key click as the questions are typed, the disk drive's motor and stepping head while it thinks, its two-note "no" beep, the lamp switch, all sent to the scene so the screen and the sounds land together. |
 | **The Sleeper Train** (`trainsong.js`) | The rails are the rhythm: every axle crossing a rail joint knocks (the rear bogie of the carriage ahead, then our front bogie: the clickety-clack), and at a cruise one rail length is one beat. It also runs the journey (`train-journey.js`), so every sound lands where the train is: brakes squealing into a station, the sigh as it stops, the platform chime and the guard's whistle, the engine chuffing away again; the roar of a tunnel (with a whistle before it), the hollow knock of a viaduct, a level crossing's bell rising and falling in pitch as it goes by, another train's horn bending down as it flashes past. Over it, a night-train lullaby in D (soft electric-piano chords, a round bass) whose tune changes with the country: electric piano in the city, clarinet over the farmland and lower in the mountains, glass bells by the lake, a celesta in the snow. Rain patters on the glass, snow hushes everything, and on the walk through the train you hear the door slide, your footsteps, the gangway's rattle and the dining car's murmur and clinking glasses; at bedtime, the lamp's switch. |
+| **Any Second Now** (`pushersong.js`) | A slow seaside-arcade waltz in G: a music-box tune and soft vibes over a warm pad, the sea outside, and the other machines' far-off jingles fading as the arcade empties. And the machine itself, sent to the scene so it all lines up: the shelf's push once a bar with the pile shuffling forward, every coin that goes in (the slot, the rattle down the rail, the clink as it lands), the clatter of one slipping into a side gutter, and now and then a hopeful run of notes up as the edge looks closest... and a soft two-note "nearly" back down. |
 
 In **Counting Sheep**, a flock of cloud-sheep grazes on stars growing in the grass of a floating island, above a slowly billowing sea of moonlit cloud. Each sheep has its own mind: it wanders, eats a star (which grows back), rests, or looks up to bleat. On the music's breath, one trots up and leaps the fence, sailing across the gap to the next island beneath a moon that hangs high in the sky: the run-up and the hop to the top are the in-breath, and the long, slow float down onto the quilt (ears up, legs dangling, like thistledown) is the out-breath. A number glows and fades at the top of the leap. A soft ring of light round the moon breathes with the music, swelling on the in-breath and settling on the out-breath, whether or not a sheep is jumping, so you can breathe along with it. It lands on the next island (a patchwork quilt with a pillow), finds a bed and goes to sleep; later its fleece dissolves into a soft cloud that drifts up into the sky, and a cloud may come back down to the grass as a sheep. The moon waxes through the night, from a thin, leaning crescent at bedtime (with the rest of its face just showing by earthshine) to full; when it's full it has a face, fast asleep. As the night goes on the jumps get lazier and the clouds stop coming down, until the flock is asleep on the quilt and in the sky. The ram won't jump: he watches from the fence and shakes his head. Now and then he squares up to it (backs off, paws the ground, makes a run at it), stops short, shakes his head and wanders off. In the end he falls asleep there.
 
@@ -114,6 +115,15 @@ red-shaded lamps, a passenger reading, another asleep, the steward polishing gla
 observation car at the very back, to sit and watch the rails run away into the dark. Late on, the blind comes half
 down, the lamp clicks off, and you lie down in the berth under a tartan blanket and watch the night go by beneath the
 blind.
+
+**Any Second Now** is a 2p coin pusher in a seaside amusement arcade late at night, made up fresh each time (its
+name on the sunburst backboard, its colours, its neon). Coins drop through the slot, roll down the rail and land on
+the moving shelf, which slides in and out, pushing the pile towards the edge. The coins at the front hang further
+and further over the lip, teetering with every push. Any second now. They never fall. The machine takes every coin
+(now and then one slips away into a side gutter, the house's share), the pile builds, the payout tray stays empty,
+and the counter on the front says IN 004364, PAID OUT 000000. Now and then you lean in to watch the edge. The coins
+are a small simulation of our own (discs on two levels that push apart, ride on each other and climb when squeezed)
+with one rule bent: at the front edge a coin can hang almost halfway over, but no further.
 
 The switched-off dream scenes use the shared ambient composer described below.
 
