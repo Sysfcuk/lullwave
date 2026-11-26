@@ -39,6 +39,7 @@ const ALL_WORLDS = [
   { id: 'saysno', group: 1, name: 'Computer Says No', tag: 'A 1980s computer on a bedroom desk, asked question after question late at night. Whatever it is asked, it says no.' },
   { id: 'train', group: 1, name: 'The Sleeper Train', tag: 'A cosy compartment on a night train, rocking through a papercut countryside of moonlit hills and glowing farmhouses.' },
   { id: 'pusher', group: 1, name: 'Any Second Now', tag: 'A 2p coin pusher in a seaside arcade at night, its coins hanging right over the edge. It looks about to pay out. It never does.' },
+  { id: 'spiro', group: 1, name: 'Round and Round', tag: 'Spirographs of light draw themselves in the dark with a glittering pen, then slowly melt into a swirling haze as the next one begins.' },
   { id: 'fever', group: 1, name: 'Pineapple Fever Dream', tag: 'A giant pineapple snoozes on an endless rolling checkerboard, while pineapples drift by under a pineapple moon.' },
 ];
 const GROUPS = ['Original worlds', 'Dream scenes'];
@@ -56,7 +57,7 @@ const THEMES = {
   rain: ['#ff7ab8', '#7ad7ff'], space: ['#c7a6ff', '#ffb38a'], eventing: ['#ffc58a', '#bde07a'], cotswold: ['#f2cf8c', '#a8d48a'], disco: ['#ff8fd8', '#8fe8ff'],
   meadow: ['#b8d8ff', '#c9f08a'], estate: ['#e9d29a', '#a8c8ff'], woolpack: ['#ffb27a', '#f2d08c'], canal: ['#a8c4ff', '#9fe0c8'], stables: ['#ffbf7a', '#d8b48a'],
   market: ['#ffd27a', '#ff8a8a'], trail: ['#ffc48a', '#9fd88a'], choir: ['#a8b8ff', '#ffd08a'], penny: ['#ffb070', '#d8c0a8'], pizza: ['#ff9a6a', '#f2e07a'],
-  lost: ['#8affb0', '#ff8a9a'], stardome: ['#ff8ae0', '#b39aff'], bakery: ['#ffcf8a', '#f2e6d0'], fever: ['#ffd84a', '#ff8ad0'], sheep: ['#ffe2a8', '#b8b4ff'], pixel: ['#ffd27a', '#8a95c8'], sands: ['#ff8ae8', '#5ae0d8'], snowstorm: ['#bfefff', '#d8c8ff'], saysno: ['#3dff7a', '#ffb02e'], train: ['#ffc46a', '#8aa0d8'], pusher: ['#e08a50', '#ff4fb0'],
+  lost: ['#8affb0', '#ff8a9a'], stardome: ['#ff8ae0', '#b39aff'], bakery: ['#ffcf8a', '#f2e6d0'], fever: ['#ffd84a', '#ff8ad0'], sheep: ['#ffe2a8', '#b8b4ff'], pixel: ['#ffd27a', '#8a95c8'], sands: ['#ff8ae8', '#5ae0d8'], snowstorm: ['#bfefff', '#d8c8ff'], saysno: ['#3dff7a', '#ffb02e'], train: ['#ffc46a', '#8aa0d8'], pusher: ['#e08a50', '#ff4fb0'], spiro: ['#ff7ad0', '#6ae0ff'],
 };
 const TIMERS = [15, 30, 45, 60, 90, 0];
 const FADES = [[5, '5m'], [15, '15m'], [30, '30m'], [0, 'Never']];

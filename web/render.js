@@ -36,9 +36,10 @@ import { createSnowstormScene } from './scenes/dream/snowstorm.js';
 import { createSaysNoScene } from './scenes/dream/saysno.js';
 import { createTrainScene } from './scenes/dream/train.js';
 import { createPusherScene } from './scenes/dream/pusher.js';
+import { createSpiroScene } from './scenes/dream/spiro.js';
 
 const SCENES = { cave: createCaveScene, drive: createDriveScene, ocean: createOceanScene, aurora: createAuroraScene, rain: createRainScene, space: createSpaceScene, disco: createDiscoScene, eventing: createEventingScene, cotswold: createCotswoldScene,
-  meadow: createMeadowScene, estate: createEstateScene, woolpack: createWoolpackScene, canal: createCanalScene, stables: createStablesScene, market: createMarketScene, trail: createTrailScene, choir: createChoirScene, penny: createPennyScene, pizza: createPizzaScene, lost: createLostScene, stardome: createStardomeScene, bakery: createBakeryScene, fever: createFeverScene, sheep: createSheepScene, pixel: createPixelScene, sands: createSandsScene, snowstorm: createSnowstormScene, saysno: createSaysNoScene, train: createTrainScene, pusher: createPusherScene };
+  meadow: createMeadowScene, estate: createEstateScene, woolpack: createWoolpackScene, canal: createCanalScene, stables: createStablesScene, market: createMarketScene, trail: createTrailScene, choir: createChoirScene, penny: createPennyScene, pizza: createPizzaScene, lost: createLostScene, stardome: createStardomeScene, bakery: createBakeryScene, fever: createFeverScene, sheep: createSheepScene, pixel: createPixelScene, sands: createSandsScene, snowstorm: createSnowstormScene, saysno: createSaysNoScene, train: createTrainScene, pusher: createPusherScene, spiro: createSpiroScene };
 
 // The finishing pass, after tone mapping: a little chromatic aberration towards the edges, a
 // vignette, and fine animated grain, which also dithers away the banding that dark gradients
