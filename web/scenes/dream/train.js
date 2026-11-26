@@ -6,13 +6,17 @@
 // one through the night, cows and sheep in the fields, telegraph poles whipping past, and the train's
 // own lit windows throwing moving squares of warm light over everything it passes.
 //
-// The rails set the pace: the music's beat is one rail length, so the clickety-clack and the speed
-// of the train are the same thing.
+// The rails set the pace: the music runs the journey (train-journey.js) and tells the scene how fast
+// the train is going and what's coming, so the clickety-clack, the stations, tunnels, viaducts, level
+// crossings and passing trains are where the sounds say they are. The train stops at country
+// stations (lamps, a nameboard, a clock with the real time, a cat on a bench, the guard walking up
+// with his lantern); in tunnels the window turns into a mirror and you see the compartment in it.
 //
 // Everything outside lives along the track: it's generated in 50 m chunks ahead and recycled behind,
 // into one ribbon geometry (hills, ground, the track bed) and one instanced set of paper cutouts.
 import { createStage, canvasTexture, THREE, TAU } from '../kit.js';
 import { softBox } from '../interior.js';
+import { createJourney } from './train-journey.js';
 
 const SEG = 2, CHUNK = 50, NCH = 26, BEHIND = 9, K = 72, RAIL = 18;
 const CARLEN = 20.5, BOGIE = 7, NCARS = 7, OURS = 3; // ours is the fourth carriage, three ahead and three behind
@@ -21,21 +25,26 @@ const FL = 1.2; // the compartment floor, above the rails
 // ------------------------------------------------------------------ the papercut world's layers
 // walls: cut-paper ribbons standing beside the line; flats: the ground and the track bed
 const STRIPS = [
-  { wall: true, d: 55, step: 2, base: 4, amp: 5, f: 1 / 23, col: '#172240', trees: true },
-  { wall: true, d: 95, step: 5, base: 8, amp: 12, f: 1 / 95, col: '#22345e' },
-  { wall: true, d: 160, step: 6.25, base: 14, amp: 26, f: 1 / 230, col: '#2f4676' },
-  { wall: true, d: 265, step: 10, base: 22, amp: 58, f: 1 / 470, col: '#3f5890' },
-  { wall: true, d: -42, step: 2.5, base: 4, amp: 5, f: 1 / 27, col: '#1b2744', trees: true },
-  { wall: true, d: -120, step: 6.25, base: 10, amp: 22, f: 1 / 180, col: '#26375f' },
-  { flat: true, l0: 5.9, l1: 56, y: -0.7, step: 10, kind: 1, col: '#1c2b34' },
-  { flat: true, l0: -1.9, l1: 5.9, y: -0.45, step: 2, kind: 2, col: '#2a2a32' },
-  { flat: true, l0: -43, l1: -1.9, y: -0.7, step: 10, kind: 1, col: '#1c2b34' },
+  { wall: true, d: 55, step: 2, base: 4, amp: 5, f: 1 / 23, col: '#172240', trees: true, hillK: 1, drop: 30 },
+  { wall: true, d: 95, step: 5, base: 8, amp: 12, f: 1 / 95, col: '#22345e', hillK: 0.8, drop: 34 },
+  { wall: true, d: 160, step: 6.25, base: 14, amp: 26, f: 1 / 230, col: '#2f4676', hillK: 0.3, drop: 52 },
+  { wall: true, d: 265, step: 10, base: 22, amp: 58, f: 1 / 470, col: '#3f5890', hillK: 0, drop: 0 },
+  { wall: true, d: -42, step: 2.5, base: 4, amp: 5, f: 1 / 27, col: '#1b2744', trees: true, hillK: 1, drop: 30 },
+  { wall: true, d: -120, step: 6.25, base: 10, amp: 22, f: 1 / 180, col: '#26375f', hillK: 0.6, drop: 14 },
+  { wall: true, d: 7.4, step: 2, near: 'cut', col: '#1d2436' },
+  { wall: true, d: -3.2, step: 2, near: 'cut', col: '#1d2436' },
+  { wall: true, d: 6.1, step: 2, near: 'para', col: '#262836' },
+  { flat: true, l0: 5.9, l1: 56, y: -0.7, step: 5, kind: 1, col: '#1c2b34', ground: true, widen: true },
+  { flat: true, l0: -1.9, l1: 5.9, y: -0.45, step: 2, kind: 2, col: '#2a2a32', bed: true },
+  { flat: true, l0: -43, l1: -1.9, y: -0.7, step: 5, kind: 1, col: '#1c2b34', ground: true },
+  { flat: true, l0: 56, l1: 262, y: -0.7, step: 10, kind: 1, col: '#1a2a36', valley: true },
+  { flat: true, l0: 175, l1: 228, y: -0.7, step: 10, kind: 4, col: '#2a3a6a', river: true },
 ];
 let VPS = 0, IPS = 0; // vertices and indices per chunk slot
 for (const s of STRIPS) { s.cols = Math.round(CHUNK / s.step) + 1; s.v0 = VPS; VPS += s.cols * 2; IPS += (s.cols - 1) * 6; }
 
 const PAPER_COMMON = `
-uniform vec4 uCar[${NCARS}]; uniform float uCarL[${NCARS}]; uniform vec3 uFog, uWarm; uniform float uFogD, uLitFrac;
+uniform vec4 uCar[${NCARS}]; uniform float uCarL[${NCARS}]; uniform vec3 uFog, uWarm; uniform float uFogD, uLitFrac, uTime;
 float h21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
 float vn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(h21(i), h21(i + vec2(1, 0)), f.x), mix(h21(i + vec2(0, 1)), h21(i + vec2(1, 1)), f.x), f.y); }
 // warm light from the train's windows, falling on whatever is beside the line
@@ -93,10 +102,32 @@ void main() {
     float fur = h2 > 0.5 ? sin(vSL.x * 5.0) : sin(vSL.y * 5.0);
     col *= 0.94 + 0.06 * fur * step(0.35, h2);
     col *= 0.92 + 0.16 * vn(vSL * 1.7);
+    if (vSL.y > 66.0) { // down in the valley, the lights of farms and a village
+      vec2 cc = floor(vSL / 9.0); float h = h21(cc + 3.1);
+      if (h > 0.84 && fract(h * 41.0) < uLitFrac) { vec2 dd = abs(vSL - (cc + 0.5) * 9.0); float sz = 0.8 + vDist * 0.004; if (dd.x < sz && dd.y < sz * 0.8) col = uWarm * (0.8 + 0.3 * fract(h * 13.0)); }
+    }
+  } else if (vKind > 2.5 && vKind < 3.5) { // a tunnel's lining: sooty brick, a lamp now and then, the train's windows sliding along it
+    float row = floor(vW.y / 0.32), bx = fract((vSL.x + mod(row, 2.0) * 0.45) / 0.9), by = fract(vW.y / 0.32);
+    col = vec3(0.022, 0.019, 0.021) * (0.8 + 0.4 * h21(vec2(floor((vSL.x + mod(row, 2.0) * 0.45) / 0.9), row)));
+    col *= 0.75 + 0.25 * step(0.06, bx) * step(0.1, by);
+    float ld = mod(vSL.x + 22.5, 45.0) - 22.5, ly = vW.y - 3.4;
+    col += vec3(1.0, 0.85, 0.6) * (exp(-(ld * ld + ly * ly * 2.0) * 6.0) * 3.0 + exp(-(ld * ld + ly * ly) * 0.08) * 0.08);
+  } else if (vKind > 3.5 && vKind < 4.5) { // the river in the valley: dark water, the moon glittering on it
+    col = vCol * (0.8 + 0.3 * vn(vSL * vec2(0.08, 0.3)));
+    float gl = vn(vec2(vSL.x * 0.6 + uTime * 0.5, vSL.y * 3.0 - uTime * 0.2));
+    col += vec3(0.7, 0.75, 0.9) * smoothstep(0.72, 0.92, gl) * 0.9;
+  } else if (vKind > 4.5 && vKind < 5.5) { // the platform: flagstones, a white edge, pools of lamplight
+    vec2 fl = fract(vec2(vSL.x / 0.9, vSL.y / 0.9));
+    col *= (0.85 + 0.25 * h21(floor(vec2(vSL.x / 0.9, vSL.y / 0.9)))) * (0.8 + 0.2 * step(0.05, fl.x) * step(0.05, fl.y));
+    col = mix(col, vec3(0.55, 0.55, 0.6), 1.0 - smoothstep(2.05, 2.15, vSL.y));
+    float ld = mod(vSL.x - vTop + 7.5, 15.0) - 7.5, lw = vSL.y - 7.4;
+    col += vec3(1.0, 0.78, 0.45) * exp(-(ld * ld) / 12.0 - (lw * lw) / 9.0) * 0.32;
+  } else if (vKind > 5.5) { // the platform's edge
+    col *= 0.7 + 0.3 * step(0.8, vW.y) + 0.1 * vn(vSL * vec2(3.0, 3.0));
   } else { // the track bed: ballast, sleepers and rails for both lines (the sleepers blur at speed)
     float l = vSL.y, best = 9.0;
     for (int k = 0; k < 2; k++) {
-      float ll = l - (k == 0 ? 0.0 : 4.2);
+      float ll = l - (k == 0 ? 0.0 : vTop);
       if (abs(ll) < 1.3) {
         float sl = 0.5 + 0.5 * cos(6.2832 * vSL.x / 0.65) * exp(-uBlur * uBlur * 14.0);
         col = mix(col, vec3(0.05, 0.04, 0.035), 0.6 * sl);
@@ -106,13 +137,13 @@ void main() {
     col *= 0.85 + 0.3 * vn(vSL * vec2(9.0, 9.0));
     col = mix(col, vec3(0.42, 0.46, 0.56), 1.0 - smoothstep(0.015, 0.05, best));
   }
-  gl_FragColor = vec4(finish(col, carLight(vW), vDist), 1.0);
+  gl_FragColor = vec4(finish(col, carLight(vW) * (vKind > 2.5 && vKind < 3.5 ? 0.3 : 1.0), vDist), 1.0);
 }`;
 const ITEM_V = `
 attribute vec2 aCell; attribute vec3 aCol, aGlow; attribute float aRnd;
 varying vec2 vUv; varying vec3 vCol, vGlow, vW; varying float vRnd, vDist;
 void main() {
-  vUv = (aCell + uv) / 4.0; vCol = aCol; vGlow = aGlow; vRnd = aRnd;
+  vUv = (aCell + uv) / vec2(8.0, 4.0); vCol = aCol; vGlow = aGlow; vRnd = aRnd;
   vec4 w = modelMatrix * instanceMatrix * vec4(position, 1.0); vW = w.xyz;
   vec4 mv = viewMatrix * w; vDist = -mv.z; gl_Position = projectionMatrix * mv;
 }`;
@@ -123,9 +154,12 @@ void main() {
   vec4 t = texture2D(uAtlas, vUv);
   if (t.a < 0.5) discard;
   vec3 col = vCol * (t.g / 0.78) * (0.92 + 0.12 * vn(vUv * 300.0));
-  if (t.r > 0.5) col = vRnd < uLitFrac ? vGlow * 1.7 : vCol * 0.45;   // a window: lit, or not any more
+  float on = vRnd < -0.5 ? step(0.5, fract(uTime * 0.85 + (vRnd < -1.5 ? 0.5 : 0.0))) : step(vRnd, uLitFrac); // crossing lights flash in turn
+  if (t.r > 0.5) col = on > 0.5 ? vGlow * 1.7 : vCol * 0.45;   // a window or a lamp: lit, or not any more
   gl_FragColor = vec4(finish(col, carLight(vW), vDist), 1.0);
 }`;
+const GLASS_V = `uniform mat4 uTexMat; varying vec4 vR; void main() { vec4 w = modelMatrix * vec4(position, 1.0); vR = uTexMat * w; gl_Position = projectionMatrix * viewMatrix * w; }`;
+const GLASS_F = `uniform sampler2D uRefl; uniform float uStrength; varying vec4 vR; void main() { vec3 c = texture2DProj(uRefl, vR).rgb; gl_FragColor = vec4(c * uStrength + vec3(0.012, 0.015, 0.02), 1.0); }`;
 const SKY_V = `varying vec3 vDir; void main() { vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
 const SKY_F = `
 uniform vec3 uTop, uHor, uMoon; uniform float uTime;
@@ -182,6 +216,25 @@ export function createTrainScene({ mobile, seed }) {
   extend(dist + (NCH - BEHIND + 2) * CHUNK);
   { const h0 = th[0] + (th[0] - th[dist / SEG]); tx.length = tz.length = th.length = 1; th[0] = h0; extend(dist + (NCH - BEHIND + 2) * CHUNK); } // so we're facing it where we begin
 
+  // ---------------------------------------------------------------- what's on the line here: tunnels, viaducts, stations, crossings
+  const features = [];
+  function fAt(s) {
+    let cut = -1.5, lining = 0, hill = 0, vf = 0, wid = 0, para = -1.5;
+    for (const f of features) {
+      if (s < f.s0 - 420 || s > f.s1 + 420) continue;
+      if (f.kind === 'tunnel') {
+        cut = Math.max(cut, lerp(-1.5, 11, Math.min(sstep(f.s0 - 150, f.s0, s), 1 - sstep(f.s1, f.s1 + 150, s))));
+        if (s >= f.s0 && s <= f.s1) lining = 1;
+        hill = Math.max(hill, Math.min(sstep(f.s0 - 280, f.s0 - 30, s), 1 - sstep(f.s1 + 30, f.s1 + 280, s)));
+      } else if (f.kind === 'viaduct') {
+        vf = Math.max(vf, Math.min(sstep(f.s0 - 40, f.s0 + 30, s), 1 - sstep(f.s1 - 30, f.s1 + 40, s)));
+        if (s > f.s0 - 45 && s < f.s1 + 45) para = 1.25;
+      } else if (f.kind === 'station') wid = Math.max(wid, Math.min(sstep(f.s0 - 200, f.s0 - 140, s), 1 - sstep(f.s0 + 150, f.s0 + 210, s)));
+    }
+    return { cut, lining, hill, vf, wid: wid * 6.3, para };
+  }
+  const groundY = (s, fa = fAt(s)) => -0.7 - 30 * fa.vf;
+
   // ---------------------------------------------------------------- the sky: a gradient, stars, a paper moon
   const skyU = { uTop: { value: new THREE.Color('#060a1e') }, uHor: { value: new THREE.Color('#34447a') }, uMoon: { value: MOON }, uTime: S.U.uTime };
   const moonL = new THREE.DirectionalLight('#8a9ad0', 0.6); moonL.position.set(0.62, 0.3, 0.72); S.add(moonL);
@@ -191,7 +244,7 @@ export function createTrainScene({ mobile, seed }) {
 
   // ---------------------------------------------------------------- the papercut world: one ribbon geometry, recycled chunk by chunk
   const carU = Array.from({ length: NCARS }, () => new THREE.Vector4());
-  const PU = { uCar: { value: carU }, uCarL: { value: new Array(NCARS).fill(1) }, uFog: { value: new THREE.Color('#2e3e70') }, uWarm: { value: new THREE.Color('#ffb868') }, uFogD: { value: 0.0042 }, uBlur: { value: 0 }, uLitFrac: { value: 0.8 } };
+  const PU = { uCar: { value: carU }, uCarL: { value: new Array(NCARS).fill(1) }, uFog: { value: new THREE.Color('#2e3e70') }, uWarm: { value: new THREE.Color('#ffb868') }, uFogD: { value: 0.0042 }, uBlur: { value: 0 }, uLitFrac: { value: 0.8 }, uTime: S.U.uTime };
   const wg = new THREE.BufferGeometry();
   const wPos = new Float32Array(VPS * NCH * 3), wCol = new Float32Array(VPS * NCH * 3), wTop = new Float32Array(VPS * NCH), wKind = new Float32Array(VPS * NCH), wSL = new Float32Array(VPS * NCH * 2);
   const wIdx = new Uint32Array(IPS * NCH);
@@ -203,8 +256,9 @@ export function createTrainScene({ mobile, seed }) {
   const world = new THREE.Mesh(wg, new THREE.ShaderMaterial({ uniforms: PU, vertexShader: WORLD_V, fragmentShader: WORLD_F, side: THREE.DoubleSide }));
   world.frustumCulled = false; S.add(world);
   const tmpC = new THREE.Color();
-  const wallTop = (s, st, i) => {
-    let h = st.base + st.amp * fbm(s * st.f, 10 + i * 7);
+  const wallTop = (s, st, i, fa) => {
+    if (st.near) return st.near === 'cut' ? fa.cut : fa.para;
+    let h = st.base + st.amp * fbm(s * st.f, 10 + i * 7) + 34 * fa.hill * st.hillK - st.drop * fa.vf;
     if (st.trees) { const w = n1(s / 70, 90 + i); h += w > 0.3 ? (2 + 5 * (w - 0.45)) * (0.6 + 0.4 * Math.abs(Math.sin(s * 0.35 + 3 * n1(s / 9, 95)))) : 0; } // a tree line, here and there
     return h;
   };
@@ -214,26 +268,31 @@ export function createTrainScene({ mobile, seed }) {
       tmpC.set(st.col);
       for (let k = 0; k < st.cols; k++) {
         const s = s0 + k * st.step; track(s, p);
-        const nx = -p.dz, nz = p.dx;
+        const nx = -p.dz, nz = p.dx, fa = fAt(s), gy = groundY(s, fa);
+        let kind = st.wall ? (st.near === 'cut' && fa.lining ? 3 : 0) : st.kind;
         for (let v = 0; v < 2; v++) {
           const vi = slot * VPS + st.v0 + k * 2 + v;
           let x, y, z, lat, top;
-          if (st.wall) { lat = st.d; top = wallTop(s, st, si); x = p.x + nx * lat; z = p.z + nz * lat; y = v ? top : -12; }
-          else { lat = v ? st.l1 : st.l0; x = p.x + nx * lat; z = p.z + nz * lat; y = st.y; top = y; }
+          if (st.wall) { lat = st.d; top = wallTop(s, st, si, fa); x = p.x + nx * lat; z = p.z + nz * lat; y = v ? top : Math.min(-12, top - 10) - (st.near ? 0 : 30 * fa.vf); }
+          else {
+            lat = v ? st.l1 + (st.bed ? fa.wid : 0) : st.l0 + (st.widen ? fa.wid : 0);
+            x = p.x + nx * lat; z = p.z + nz * lat;
+            y = st.ground ? gy : st.river ? gy + 0.35 * fa.vf - 5 * (1 - fa.vf) : st.valley ? gy + 0.05 * fa.vf - 5 * (1 - fa.vf) : st.y;
+            top = st.bed ? 4.2 + fa.wid : y;
+          }
           wPos[vi * 3] = x; wPos[vi * 3 + 1] = y; wPos[vi * 3 + 2] = z;
           wCol[vi * 3] = tmpC.r; wCol[vi * 3 + 1] = tmpC.g; wCol[vi * 3 + 2] = tmpC.b;
-          wTop[vi] = top; wKind[vi] = st.wall ? 0 : st.kind; wSL[vi * 2] = s % 2280; wSL[vi * 2 + 1] = lat;
+          wTop[vi] = top; wKind[vi] = kind; wSL[vi * 2] = s % 2280; wSL[vi * 2 + 1] = lat;
         }
       }
-      if (st.flat && st.kind === 1) {} // (fields are drawn by the shader)
     });
     for (const k of ['position', 'aCol', 'aTop', 'aKind', 'aSL']) wg.attributes[k].needsUpdate = true;
   }
 
   // ---------------------------------------------------------------- paper cutouts: an atlas of shapes, instanced
   // red channel: windows and lamps (they glow); green: the paper's shading; alpha: the cut
-  const atlas = canvasTexture(S, 1024, 1024, (g) => {
-    const cell = (i, fn) => { g.save(); g.translate((i % 4) * 256 + 128, Math.floor(i / 4) * 256 + 256); fn(); g.restore(); };
+  const atlas = canvasTexture(S, 2048, 1024, (g) => {
+    const cell = (i, fn) => { g.save(); g.translate((i % 8) * 256 + 128, Math.floor(i / 8) * 256 + 256); fn(); g.restore(); };
     const paper = (v) => `rgb(0,${v},0)`, glow = 'rgb(255,200,0)';
     const poly = (pts, fill) => { g.fillStyle = fill; g.beginPath(); pts.forEach(([x, y], k) => (k ? g.lineTo(x + (Math.random() - 0.5) * 1.5, y + (Math.random() - 0.5) * 1.5) : g.moveTo(x, y))); g.closePath(); g.fill(); };
     const circ = (x, y, r, fill) => { g.fillStyle = fill; g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill(); };
@@ -254,6 +313,17 @@ export function createTrainScene({ mobile, seed }) {
     cell(13, () => { rect(-5, -40, 10, 40, paper(150)); g.fillStyle = paper(195); g.beginPath(); g.ellipse(0, -140, 34, 112, 0, 0, TAU); g.fill(); g.fillStyle = paper(215); g.beginPath(); g.ellipse(-8, -150, 14, 80, 0, 0, TAU); g.fill(); }); // poplar
     cell(14, () => { rect(-4, -230, 8, 230, paper(160)); rect(-18, -236, 36, 64, paper(150)); circ(0, -218, 10, glow); rect(-30, -150, 60, 6, paper(170)); }); // signal
     cell(15, () => { for (const [x, y, r] of [[-90, -90, 46], [-50, -130, 60], [0, -110, 64], [52, -140, 58], [92, -96, 44], [20, -180, 46], [-30, -190, 40]]) circ(x, y, r, paper(185 + ((x * 7) & 31))); rect(-110, -50, 220, 50, paper(170)); }); // a copse
+    cell(16, () => { rect(-120, -120, 240, 120, paper(195)); poly([[-126, -118], [-90, -170], [90, -170], [126, -118]], paper(140)); rect(60, -196, 20, 40, paper(160)); rect(-80, -205, 18, 50, paper(160)); for (const x of [-104, -64, 36, 76]) { rect(x, -100, 26, 40, glow); rect(x, -100, 26, 3, paper(150)); } rect(-20, -78, 36, 78, paper(110)); rect(-14, -72, 24, 30, glow); rect(-128, -62, 256, 8, paper(120)); for (let x = -126; x < 126; x += 12) poly([[x, -54], [x + 12, -54], [x + 6, -44]], paper(120)); }); // the station building
+    cell(17, () => { rect(-3, -230, 6, 230, paper(140)); rect(-9, -12, 18, 12, paper(140)); poly([[-16, -232], [16, -232], [12, -200], [-12, -200]], paper(150)); rect(-10, -226, 20, 22, glow); poly([[-18, -232], [0, -246], [18, -232]], paper(140)); rect(-14, -200, 28, 4, paper(140)); }); // a platform lamp
+    cell(18, () => { rect(-90, -70, 180, 8, paper(170)); rect(-90, -84, 180, 8, paper(170)); rect(-90, -100, 180, 8, paper(170)); for (let k = 0; k < 4; k++) rect(-90, -48 - k * 10, 180, 6, paper(180)); for (const x of [-80, 72]) rect(x, -48, 8, 48, paper(130)); rect(-90, -50, 180, 6, paper(150)); }); // a bench
+    cell(19, () => { g.fillStyle = paper(190); g.beginPath(); g.ellipse(0, -40, 90, 40, 0, 0, TAU); g.fill(); circ(70, -58, 34, paper(200)); poly([[48, -84], [56, -112], [72, -88]], paper(200)); poly([[82, -86], [96, -110], [100, -80]], paper(200)); g.strokeStyle = paper(170); g.lineWidth = 16; g.beginPath(); g.arc(-60, -20, 40, Math.PI * 0.6, Math.PI * 1.6); g.stroke(); }); // a sleeping cat
+    cell(20, () => { circ(-40, -205, 18, paper(180)); rect(-58, -228, 36, 10, paper(120)); rect(-60, -186, 40, 100, paper(150)); rect(-58, -86, 14, 86, paper(130)); rect(-36, -86, 14, 86, paper(130)); rect(-22, -150, 50, 10, paper(150)); rect(20, -110, 100, 12, paper(140)); circ(40, -18, 18, paper(110)); circ(100, -18, 18, paper(110)); rect(30, -100, 80, 60, paper(200)); rect(36, -150, 66, 50, paper(180)); rect(30, -40, 90, 10, paper(140)); }); // a porter and his trolley
+    cell(21, () => { rect(-80, -120, 160, 120, paper(170)); rect(-90, -210, 180, 92, paper(195)); poly([[-100, -208], [0, -250], [100, -208]], paper(140)); rect(-80, -190, 160, 46, glow); for (let x = -80; x <= 80; x += 32) rect(x - 2, -192, 4, 50, paper(150)); for (let k = 0; k < 6; k++) rect(80 + k * 6, -120 + k * 20, 10, 6, paper(140)); }); // a signal box
+    cell(22, () => { rect(-4, -200, 8, 200, paper(170)); rect(-30, -200, 60, 40, paper(140)); circ(-15, -180, 11, glow); poly([[-30, -150], [30, -110], [30, -100], [-30, -140]], paper(220)); poly([[30, -150], [-30, -110], [-30, -100], [30, -140]], paper(220)); }); // a crossing light
+    cell(23, () => { for (let k = 0; k < 8; k++) rect(-126 + k * 30, -30, 30, 10, paper(k % 2 ? 110 : 235)); rect(-126, -32, 12, 32, paper(150)); }); // a barrier arm
+    cell(24, () => { g.fillStyle = paper(170); g.beginPath(); g.moveTo(-110, -20); g.lineTo(-110, -70); g.quadraticCurveTo(-100, -84, -70, -86); g.lineTo(-56, -130); g.quadraticCurveTo(0, -142, 56, -130); g.lineTo(70, -86); g.quadraticCurveTo(100, -84, 110, -70); g.lineTo(110, -20); g.closePath(); g.fill(); rect(-50, -124, 100, 34, paper(110)); circ(-78, -60, 15, glow); circ(78, -60, 15, glow); rect(-40, -64, 80, 18, paper(130)); rect(-104, -20, 30, 20, paper(90)); rect(74, -20, 30, 20, paper(90)); }); // a car, waiting
+    cell(25, () => { for (const [x, h] of [[-50, 90], [-8, 80], [32, 96]]) { rect(x, -h, 34, h, paper(200)); rect(x + 6, -h - 14, 22, 14, paper(170)); rect(x, -h * 0.55, 34, 6, paper(150)); } }); // milk churns
+    cell(26, () => { circ(0, -200, 16, paper(180)); rect(-20, -224, 40, 10, paper(110)); rect(-14, -230, 28, 8, paper(110)); poly([[-26, -184], [26, -184], [34, -80], [-34, -80]], paper(140)); rect(-26, -82, 18, 82, paper(120)); rect(8, -82, 18, 82, paper(120)); rect(26, -170, 40, 12, paper(140)); rect(56, -158, 6, 16, paper(160)); rect(50, -142, 18, 22, glow); }); // the guard, with his lantern
   });
   atlas.colorSpace = THREE.NoColorSpace; atlas.premultiplyAlpha = false;
   const IU = { ...PU, uAtlas: { value: atlas } };
@@ -269,9 +339,14 @@ export function createTrainScene({ mobile, seed }) {
   const WARM = ['#ffc46a', '#ffb050', '#ffd890'];
   function buildItems(c, slot) {
     const r = mulberry((c * 7919) ^ R), s0 = c * CHUNK, list = [];
-    const add = (cell, s, lat, size, col, glowCol = '#ffc46a', lit = r()) => list.push({ cell, s, lat, size, col, glowCol, lit });
+    const add = (cell, s, lat, size, col, glowCol = '#ffc46a', lit = r(), y = null, keep = false) => list.push({ cell, s, lat, size, col, glowCol, lit, y, keep });
+    const e0 = s0 + CHUNK, inC = (s) => s >= s0 && s < e0;
+    const tun = features.some((f) => f.kind === 'tunnel' && e0 > f.s0 - 40 && s0 < f.s1 + 40);
+    const via = features.some((f) => f.kind === 'viaduct' && e0 > f.s0 - 50 && s0 < f.s1 + 50);
+    const st = features.find((f) => f.kind === 'station' && e0 > f.s0 - 210 && s0 < f.s0 + 220);
+    const cr = features.find((f) => f.kind === 'crossing' && e0 > f.s0 - 20 && s0 < f.s0 + 20);
     const village = sstep(0.5, 0.7, n1(s0 / 1100, 300)), woods = sstep(0.55, 0.75, n1(s0 / 800, 310));
-    add(7, s0 + 3, 5.8, 8.5, COLS.pole[0]); // telegraph poles along the line
+    if (!via && !st) add(7, s0 + 3, 5.8, 8.5, COLS.pole[0]); // telegraph poles along the line
     if (r() < 0.07) add(14, s0 + 20, -2.6, 6, COLS.pole[0], r() < 0.6 ? '#40ff80' : '#ff4030', 0); // a signal
     for (const side of [1, -1]) {
       const n = side > 0 ? 1 : 0.55;
@@ -290,17 +365,39 @@ export function createTrainScene({ mobile, seed }) {
       }
       if (r() < 0.2 * n) add(15, s0 + r() * CHUNK, side * (35 + r() * 15), 16, pick(COLS.tree));
     }
+    // not where the hill is (over a tunnel), not on the platform, not in the road
+    for (let k = list.length - 1; k >= 0; k--) {
+      const it = list[k];
+      if (tun || (st && it.s > st.s0 - 210 && it.s < st.s0 + 220 && (it.lat > 0 ? it.lat < 26 : it.lat > -7)) || (cr && Math.abs(it.s - cr.s0) < 9 && Math.abs(it.lat) < 45)) list.splice(k, 1);
+    }
+    if (st) { // the station: lamps along the platform, benches (a cat asleep on one), the building, a porter, a signal box
+      const P = 0.9;
+      for (let k = -6; k < 8; k++) { const ls = st.s0 + 3.4 + k * 15; if (inC(ls)) add(17, ls, 7.6, 4.4, '#141820', '#ffd890', 0, P); }
+      for (const [ds, cell, lat, size, col, y] of [[-3.2, 18, 7.2, 1.7, '#2c2228', P], [-33, 18, 7.2, 1.7, '#2c2228', P], [27, 18, 7.2, 1.7, '#2c2228', P], [-3.0, 19, 7.15, 0.75, '#4a3e40', P + 0.62], [1, 16, 16, 10, '#2a2638', P], [-28, 16, 16, 10, '#2a2638', P], [6.5, 20, 8.2, 2.3, '#2a2834', P], [-9, 25, 7.8, 1.2, '#5a5a66', P], [125, 21, 10, 9, '#3a3448', null]]) {
+        if (inC(st.s0 + ds)) add(cell, st.s0 + ds, lat, size, col, cell === 16 ? '#b07838' : '#ffc878', 0, y);
+      }
+      for (let k = 0; k < 20; k++) { const fs = st.s0 - 95 + k * 10; if (inC(fs) && Math.abs(fs - st.s0 - 1) > 12) add(8, fs, 11.8, 10, '#151a28', '#fff', 1, P); } // the fence behind the platform
+    }
+    if (cr && inC(cr.s0)) { // a level crossing: barriers down, lights flashing in turn, a car waiting
+      add(23, cr.s0 - 4, 7.8, 8, '#8a3030', '#fff', 1); add(23, cr.s0 + 4, -3.4, 8, '#8a3030', '#fff', 1);
+      add(22, cr.s0 - 4.6, 8.1, 3.4, '#1a1c26', '#ff3020', -1); add(22, cr.s0 + 4.6, 8.1, 3.4, '#1a1c26', '#ff3020', -2);
+      add(22, cr.s0 - 4.6, -3.7, 3.4, '#1a1c26', '#ff3020', -2); add(22, cr.s0 + 4.6, -3.7, 3.4, '#1a1c26', '#ff3020', -1);
+      add(24, cr.s0 + 1.2, 13.5, 3.4, pick(['#5a2a2a', '#2a3a5a', '#3a4a3a']), '#fff2c8', 0);
+      add(3, cr.s0 + 16, 19, 8, pick(COLS.house), pick(WARM));
+      cr.road = true;
+    }
     const p = {};
     for (let k = 0; k < K; k++) {
       const i = slot * K + k, it = list[k];
       if (!it) { items.setMatrixAt(i, zero); continue; }
+      if (it.s < s0 - 30 || it.s > e0 + 30) { items.setMatrixAt(i, zero); continue; }
       track(it.s, p);
       const nx = -p.dz, nz = p.dx, side = Math.sign(it.lat);
-      v3.set(p.x + nx * it.lat, -0.7, p.z + nz * it.lat);
+      v3.set(p.x + nx * it.lat, it.y ?? groundY(it.s), p.z + nz * it.lat);
       const fx = -nx * side, fz = -nz * side; // face the line
       q4.setFromAxisAngle(up, Math.atan2(fx, fz) + (it.cell === 8 ? 0 : (r() - 0.5) * 0.4));
       items.setMatrixAt(i, m4.compose(v3, q4, sc3.set(it.size, it.size, 1)));
-      aCell[i * 2] = it.cell % 4; aCell[i * 2 + 1] = 3 - Math.floor(it.cell / 4);
+      aCell[i * 2] = it.cell % 8; aCell[i * 2 + 1] = 3 - Math.floor(it.cell / 8);
       tmpC.set(it.col); aCol.set([tmpC.r, tmpC.g, tmpC.b], i * 3);
       tmpC.set(it.glowCol); aGlow.set([tmpC.r, tmpC.g, tmpC.b], i * 3); aRnd[i] = it.lit;
     }
@@ -308,6 +405,9 @@ export function createTrainScene({ mobile, seed }) {
     for (const k of ['aCell', 'aCol', 'aGlow', 'aRnd']) quad.attributes[k].needsUpdate = true;
   }
   const built = new Array(NCH).fill(-1);
+  function rebuild(s0, s1) { // a new feature: build the chunks it touches again
+    for (let c = Math.floor(s0 / CHUNK); c <= Math.floor(s1 / CHUNK); c++) { const slot = ((c % NCH) + NCH) % NCH; if (built[slot] === c) built[slot] = -1; }
+  }
   function chunks(max = 99) {
     const cur = Math.floor(dist / CHUNK);
     for (let c = cur - BEHIND; c < cur - BEHIND + NCH && max > 0; c++) {
@@ -454,20 +554,171 @@ export function createTrainScene({ mobile, seed }) {
   for (const sx of [-1, 1]) { const c = new THREE.Mesh(new THREE.PlaneGeometry(0.22, WY1 - WY0 + 0.25), curtM); c.position.set(sx * (WX + 0.06), (WY0 + WY1) / 2 + 0.05, Z1 - 0.07); inner.add(c); }
   // the glass, with the lamp's reflection in it
   const glareTex = canvasTexture(S, 128, 128, (g, w, h) => { const gr = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2); gr.addColorStop(0, 'rgba(255,220,170,.9)'); gr.addColorStop(0.25, 'rgba(255,200,140,.25)'); gr.addColorStop(1, 'rgba(255,200,140,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h); });
-  const glass = new THREE.Mesh(new THREE.PlaneGeometry(WX * 2, WY1 - WY0), new THREE.MeshBasicMaterial({ color: '#7a8aa8', transparent: true, opacity: 0.06, depthWrite: false })); glass.position.set(0, (WY0 + WY1) / 2, Z1 + 0.01); glass.rotation.y = Math.PI; inner.add(glass);
+  const reflRT = S.keep(new THREE.WebGLRenderTarget(mobile ? 384 : 640, mobile ? 256 : 400, {}));
+  const GU = { uRefl: { value: reflRT.texture }, uStrength: { value: 0.1 }, uTexMat: { value: new THREE.Matrix4() } };
+  const glass = new THREE.Mesh(new THREE.PlaneGeometry(WX * 2, WY1 - WY0), new THREE.ShaderMaterial({ uniforms: GU, vertexShader: GLASS_V, fragmentShader: GLASS_F, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+  glass.position.set(0, (WY0 + WY1) / 2, Z1 + 0.012); glass.rotation.y = Math.PI; inner.add(glass);
+  const vcam = new THREE.PerspectiveCamera(); vcam.layers.set(1);
+  const mN = new THREE.Vector3(), mP = new THREE.Vector3(), cPos = new THREE.Vector3(), cDir = new THREE.Vector3(), cUp = new THREE.Vector3(), tgt = new THREE.Vector3();
+  const reflect = (v, isDir) => { const d = isDir ? v.dot(mN) : tgt.subVectors(v, mP).dot(mN); return v.addScaledVector(mN, -2 * d); };
+  const bias = new THREE.Matrix4().set(0.5, 0, 0, 0.5, 0, 0.5, 0, 0.5, 0, 0, 0.5, 0.5, 0, 0, 0, 1);
+  let mirroring = false;
+  glass.onBeforeRender = (renderer, scene, camera) => {
+    if (mirroring || GU.uStrength.value < 0.01 || camera !== S.camera) return;
+    mirroring = true;
+    glass.updateMatrixWorld();
+    mP.setFromMatrixPosition(glass.matrixWorld); mN.set(0, 0, 1).transformDirection(glass.matrixWorld);
+    camera.getWorldPosition(cPos); camera.getWorldDirection(cDir); cUp.set(0, 1, 0).applyQuaternion(camera.getWorldQuaternion(q4));
+    reflect(cPos, false); reflect(cDir, true); reflect(cUp, true);
+    vcam.position.copy(cPos); vcam.up.copy(cUp); vcam.lookAt(tgt.copy(cPos).add(cDir));
+    vcam.projectionMatrix.copy(camera.projectionMatrix); vcam.updateMatrixWorld(); vcam.matrixWorldInverse.copy(vcam.matrixWorld).invert();
+    GU.uTexMat.value.copy(bias).multiply(vcam.projectionMatrix).multiply(vcam.matrixWorldInverse);
+    const rt = renderer.getRenderTarget(), bg = scene.background;
+    glass.visible = false; scene.background = null;
+    renderer.setRenderTarget(reflRT); renderer.setClearColor(0x000000, 1); renderer.clear(); renderer.render(scene, vcam);
+    renderer.setRenderTarget(rt); scene.background = bg; glass.visible = true;
+    mirroring = false;
+  };
   const glare = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.5), new THREE.MeshBasicMaterial({ map: glareTex, transparent: true, opacity: 0.1, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })); glare.position.set(0.22, WY0 + 0.2, Z1 + 0.005); glare.rotation.y = Math.PI; inner.add(glare);
+
+  inner.traverse((o) => o.layers.enable(1)); // the compartment is what the glass reflects
+  glass.layers.disable(1);
+
+  // ---------------------------------------------------------------- stations, crossings: their own meshes, built when announced
+  const featG = new THREE.Group(); S.add(featG);
+  const NAMES = [['Little ', 'Upper ', 'Lower ', 'Great ', 'Nether ', '', '', ''], ['Dozing', 'Nodding', 'Yawnley', 'Slumberford', 'Hushwell', 'Lullcombe', 'Dreamsby', 'Pillowden', 'Starling', 'Moonford', 'Owlcombe', 'Featherbed', 'Blanketby', 'Snugglestone'], ['', '', ' Halt', ' Junction', ' Parva', '-on-the-Marsh', '-by-the-Sea', ' Road']];
+  const faceTrack = (obj, s, lat, y) => { const pp = track(s, {}); obj.position.set(pp.x - pp.dz * lat, y, pp.z + pp.dx * lat); obj.rotation.set(0, Math.atan2(pp.dz * Math.sign(lat), -pp.dx * Math.sign(lat)) , 0); };
+  const clockFaces = [];
+  function drawClock(c, now) {
+    const g = c.getContext('2d'), w = c.width; g.clearRect(0, 0, w, w);
+    g.fillStyle = '#20202a'; g.beginPath(); g.arc(w / 2, w / 2, w / 2, 0, TAU); g.fill(); g.fillStyle = '#f2ead6'; g.beginPath(); g.arc(w / 2, w / 2, w / 2 - 8, 0, TAU); g.fill();
+    g.fillStyle = '#20202a'; for (let k = 0; k < 12; k++) { const a = (k / 12) * TAU; g.fillRect(w / 2 + Math.sin(a) * (w / 2 - 20) - 3, w / 2 - Math.cos(a) * (w / 2 - 20) - 3, 6, 6); }
+    const hand = (a, len, wd) => { g.save(); g.translate(w / 2, w / 2); g.rotate(a); g.fillRect(-wd / 2, -len, wd, len + 8); g.restore(); };
+    const m = now.getMinutes(), h = now.getHours() % 12;
+    hand(((h + m / 60) / 12) * TAU, w * 0.26, 8); hand((m / 60) * TAU, w * 0.38, 5);
+  }
+  function stationMeshes(f) {
+    const G = new THREE.Group(); featG.add(G); f.group = G;
+    // the platform: flagstones on top, a stone face to the track
+    const a = f.s0 - 100, b = f.s0 + 106, cols = Math.round((b - a) / 2) + 1, pp = {};
+    track(f.s0, pp); const ox = pp.x, oz = pp.z; G.position.set(ox, 0, oz);
+    const pos = [], col = [], top = [], kind = [], sl = [], idx = [];
+    const pc = new THREE.Color('#4a4a56'), ec = new THREE.Color('#3a3846'), phase = ((f.s0 + 3.4) % 2280 + 2280) % 2280;
+    for (let k = 0; k < cols; k++) {
+      const s = a + k * 2; track(s, pp); const nx = -pp.dz, nz = pp.dx;
+      for (const [lat, y, kd, c] of [[1.7, 0.9, 5, pc], [8.6, 0.9, 5, pc], [1.7, 0.9, 6, ec], [1.7, -0.45, 6, ec]]) {
+        pos.push(pp.x + nx * lat - ox, y, pp.z + nz * lat - oz); col.push(c.r, c.g, c.b); top.push(phase); kind.push(kd); sl.push(((s % 2280) + 2280) % 2280, lat);
+      }
+      if (k < cols - 1) for (const q of [0, 2]) { const i0 = k * 4 + q; idx.push(i0, i0 + 1, i0 + 4, i0 + 1, i0 + 5, i0 + 4); }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('aCol', new THREE.Float32BufferAttribute(col, 3));
+    geo.setAttribute('aTop', new THREE.Float32BufferAttribute(top, 1)); geo.setAttribute('aKind', new THREE.Float32BufferAttribute(kind, 1)); geo.setAttribute('aSL', new THREE.Float32BufferAttribute(sl, 2)); geo.setIndex(idx);
+    const plat = new THREE.Mesh(geo, world.material); plat.frustumCulled = false; G.add(plat);
+    // the nameboard, on two posts, just along from our window; a clock under the canopy
+    const name = (pick(NAMES[0]) + pick(NAMES[1]) + pick(NAMES[2])).toUpperCase();
+    f.name = name;
+    const nb = canvasTexture(S, 512, 96, (g, w, h) => { g.fillStyle = '#1e2a52'; g.fillRect(0, 0, w, h); g.strokeStyle = '#e8e0c8'; g.lineWidth = 5; g.strokeRect(6, 6, w - 12, h - 12); g.fillStyle = '#f0e8d0'; g.textAlign = 'center'; g.textBaseline = 'middle'; let fs = 46; g.font = `bold ${fs}px sans-serif`; while (g.measureText(name).width > w - 40 && fs > 18) { fs -= 2; g.font = `bold ${fs}px sans-serif`; } g.fillText(name, w / 2, h / 2 + 2); });
+    const board = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 0.68), new THREE.MeshBasicMaterial({ map: nb, color: '#8a8a8a' })); G.add(board);
+    faceTrack(board, f.s0, 9.5, 2.85); board.position.x -= ox; board.position.z -= oz;
+    for (const d of [-1.5, 1.5]) { const post = new THREE.Mesh(new THREE.BoxGeometry(0.08, 2.4, 0.08), S.mat('#1a1a22')); G.add(post); faceTrack(post, f.s0 + d, 9.55, 0.9 + 1.2); post.position.x -= ox; post.position.z -= oz; }
+    const cc = document.createElement('canvas'); cc.width = cc.height = 128; drawClock(cc, new Date());
+    const ct = S.keep(new THREE.CanvasTexture(cc)); ct.colorSpace = THREE.SRGBColorSpace;
+    const clockM = new THREE.Mesh(new THREE.CircleGeometry(0.34, 24), new THREE.MeshBasicMaterial({ map: ct, color: '#9a9a9a' })); G.add(clockM);
+    faceTrack(clockM, f.s0 + 2.2, 7.7, 3.05); clockM.position.x -= ox; clockM.position.z -= oz;
+    clockFaces.push({ c: cc, t: ct, f });
+    const glowT = glowTex2;
+    for (let k = -6; k < 8; k++) { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowT, color: '#ffc878', blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.55 })); sp.scale.set(1.6, 1.6, 1); G.add(sp); const p2 = track(f.s0 + 3.4 + k * 15, {}); sp.position.set(p2.x - p2.dz * 7.6 - ox, 0.9 + 4.4 * 0.93, p2.z + p2.dx * 7.6 - oz); }
+  }
+  function crossingMeshes(f) {
+    const G = new THREE.Group(); featG.add(G); f.group = G;
+    const pp = track(f.s0, {}); G.position.set(pp.x, -0.66, pp.z); G.rotation.y = Math.atan2(-pp.dz, pp.dx);
+    const road = new THREE.Mesh(new THREE.PlaneGeometry(6, 110), S.mat('#24242c')); road.rotation.x = -Math.PI / 2; G.add(road);
+    for (let k = -8; k <= 8; k++) { if (Math.abs(k) < 2) continue; const line = new THREE.Mesh(new THREE.PlaneGeometry(0.15, 2.5), S.mat('#8a8a80')); line.rotation.x = -Math.PI / 2; line.position.set(0, 0.01, k * 6); G.add(line); }
+    for (const z of [-0.6, 0.6]) { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex2, color: '#fff0c0', blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.8 })); sp.scale.set(1.2, 1.2, 1); sp.position.set(1.2 + z * 1.3, 0.75, 13.5); G.add(sp); }
+  }
+  const glowTex2 = canvasTexture(S, 64, 64, (g, w, h) => { const gr = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.2, 'rgba(255,255,255,.5)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h); });
+  function addFeature(f) {
+    if (features.some((g) => g.kind === f.kind && Math.abs(g.s0 - f.s0) < 5)) return;
+    features.push(f);
+    rebuild(f.s0 - 300, f.s1 + 300);
+    if (f.kind === 'station') stationMeshes(f);
+    if (f.kind === 'crossing') crossingMeshes(f);
+  }
+  function dropFeature(f) {
+    if (f.group) { f.group.traverse((o) => { o.geometry?.dispose(); if (o.material && o.material !== world.material) { o.material.map?.dispose(); o.material.dispose(); } }); featG.remove(f.group); }
+    const ci = clockFaces.findIndex((c) => c.f === f); if (ci >= 0) clockFaces.splice(ci, 1);
+  }
+
+  // ---------------------------------------------------------------- other trains: an express on the other line, the other way
+  const exTex = canvasTexture(S, 512, 96, (g, w, h) => { g.fillStyle = '#1c2848'; g.fillRect(0, 0, w, h); g.fillStyle = '#d8ccb0'; g.fillRect(0, 24, w, 3); g.fillRect(0, 66, w, 3); for (let k = 0; k < 10; k++) { g.fillStyle = '#2a2a30'; g.fillRect(8 + k * 50, 30, 38, 32); } });
+  const exGlow = canvasTexture(S, 512, 96, (g, w, h) => { g.fillStyle = '#000'; g.fillRect(0, 0, w, h); for (let k = 0; k < 10; k++) { g.fillStyle = Math.random() < 0.25 ? '#6a6050' : '#fff0d0'; g.fillRect(10 + k * 50, 32, 34, 28); } });
+  const exMat = new THREE.MeshLambertMaterial({ map: exTex, emissiveMap: exGlow, emissive: '#ffe2b8', emissiveIntensity: 0.45 });
+  const NEX = 11;
+  const exBodies = new THREE.InstancedMesh(bodyGeo.clone().deleteAttribute('aLit'), exMat, NEX); exBodies.frustumCulled = false; S.add(exBodies);
+  const exRoofs = new THREE.InstancedMesh(roofGeo, S.mat('#22262c'), NEX); exRoofs.frustumCulled = false; S.add(exRoofs);
+  const exHead = new THREE.Group(); S.add(exHead);
+  for (const zz of [-0.8, 0.8]) { const hl = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex2, color: '#fff4d8', blending: THREE.AdditiveBlending, depthWrite: false, transparent: true })); hl.scale.set(1.6, 1.6, 1); hl.position.set(0, 1.5, zz); exHead.add(hl); }
+  let express = null; // { s0, speed, cars, metAt }
+  function placeExpress(t) {
+    const f = express;
+    for (let k = 0; k < NEX; k++) { exBodies.setMatrixAt(k, zero); exRoofs.setMatrixAt(k, zero); }
+    exHead.visible = false;
+    if (f) {
+      let sf;
+      if (f.metAt == null) { if (dist >= f.s0) f.metAt = t; sf = f.s0 + (f.s0 - dist) * (f.speed / Math.max(4, speed)); }
+      if (f.metAt != null) sf = f.s0 - f.speed * (t - f.metAt);
+      if (sf < dist - 1500) express = null;
+      else if (sf < dist + 1600) {
+        for (let k = 0; k < f.cars; k++) {
+          const s = sf + 10.25 + k * CARLEN, lat = 4.2 + fAt(s).wid;
+          const o = placeOnTrack(s, BOGIE, null, co);
+          cq.setFromAxisAngle(up, o.yaw + Math.PI); cp.set(o.x - o.dz * lat, 0, o.z + o.dx * lat);
+          cm.compose(cp, cq, one); exBodies.setMatrixAt(k, cm); exRoofs.setMatrixAt(k, cm);
+          if (k === 0) { exHead.position.set(cp.x - o.dx * 10, 0, cp.z - o.dz * 10); exHead.rotation.y = o.yaw; exHead.visible = true; }
+        }
+        f.near = Math.abs(sf + f.cars * CARLEN * 0.5 - dist) < f.cars * CARLEN * 0.5 + 6;
+      }
+    }
+    exBodies.instanceMatrix.needsUpdate = exRoofs.instanceMatrix.needsUpdate = true;
+  }
+
+  // ---------------------------------------------------------------- the guard, walking up the platform with his lantern
+  const gq = new THREE.PlaneGeometry(1, 1); gq.translate(0, 0.5, 0);
+  { const gc = new THREE.Color('#262833'), gg = new THREE.Color('#ffc060');
+    gq.setAttribute('aCell', new THREE.InstancedBufferAttribute(new Float32Array([26 % 8, 3 - Math.floor(26 / 8)]), 2)); gq.setAttribute('aCol', new THREE.InstancedBufferAttribute(new Float32Array([gc.r, gc.g, gc.b]), 3));
+    gq.setAttribute('aGlow', new THREE.InstancedBufferAttribute(new Float32Array([gg.r, gg.g, gg.b]), 3)); gq.setAttribute('aRnd', new THREE.InstancedBufferAttribute(new Float32Array([0]), 1)); }
+  const guard = new THREE.InstancedMesh(gq, items.material, 1); guard.frustumCulled = false; guard.setMatrixAt(0, zero); S.add(guard);
+  const lanternGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex2, color: '#ffb860', blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.8 })); lanternGlow.scale.set(1.1, 1.1, 1); lanternGlow.visible = false; S.add(lanternGlow);
+  let arrived = null, waved = -99;
 
   // ---------------------------------------------------------------- the camera: sat on the berth by the door, gazing out
   car.add(S.camera);
 
   // ---------------------------------------------------------------- motion
-  let speed = 16, speedT = 16, lastRail = -99, bump = 0, bumpV = 0, clock = 0, clink = 0, rebaseX = 0;
+  let speed = 16, bump = 0, bumpV = 0, clock = 0, clink = 0, rebaseX = 0, shake = 0;
   let lastJoint = Math.floor(dist / RAIL);
-  S.onEvent((ev) => {
-    if (ev.type === 'rail') { speedT = RAIL / Math.max(0.3, ev.beat); lastRail = clock; }
+  let J = null, jOff = null, lastSpeed = -99, vNow = 16, aNow = 0;
+  function handleEv(ev) {
+    if (ev.type === 'plan') { if (jOff === null) return; const f = { kind: ev.kind, s0: ev.s0 + jOff, s1: ev.s1 + jOff, no: ev.no, dwell: ev.dwell, speed: ev.speed, cars: ev.cars }; if (f.kind === 'pass') { if (!express) express = f; } else addFeature(f); }
+    else if (ev.type === 'arrive') arrived = { t: clock, dwell: ev.dwell, st: features.find((f) => f.kind === 'station' && Math.abs(f.s0 - dist) < 40) };
+    else if (ev.type === 'guard') waved = clock;
     else if (ev.type === 'clack') bumpV -= 0.012 * (ev.vel || 1);
     else if (ev.type === 'clink') clink = 1;
     else if (ev.type === 'whistle') puff = 1.5;
+    else if (ev.type === 'meet') shake = 1;
+  }
+  S.onEvent((ev) => {
+    if (ev.type === 'speed') { // the music's journey: where we are and how fast we're going
+      if (J) { J = null; jOff = null; }
+      lastSpeed = clock;
+      if (jOff === null) jOff = dist - ev.pos;
+      const err = ev.pos + jOff - dist;
+      if (Math.abs(err) > 60) dist += err; else dist += err * 0.3;
+      vNow = ev.v; aNow = ev.a;
+      return;
+    }
+    handleEv(ev);
   });
   const p = {}, pa = {}, pb = {};
   function placeOnTrack(s, half, obj, o = {}) { // a body set on two bogies: its middle and its heading from the chord between them
@@ -480,6 +731,7 @@ export function createTrainScene({ mobile, seed }) {
   }
   const cm = new THREE.Matrix4(), off = new THREE.Matrix4(), cq = new THREE.Quaternion(), cp = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1), camW = new THREE.Vector3();
   const lean = { v: 0 }, co = {}, look = new THREE.Vector3();
+  let darkness = 0, stationGlow = 0, lampLvlNow = 1, valleyLook = 0;
   function rebase() { // keep the numbers small: move the whole world back to the origin now and then
     const ox = p.x, oz = p.z;
     for (let i = 0; i < tx.length; i++) { tx[i] -= ox; tz[i] -= oz; }
@@ -488,19 +740,24 @@ export function createTrainScene({ mobile, seed }) {
     const ia = items.instanceMatrix.array; for (let i = 0; i < NI; i++) { if (ia[i * 16] === 0 && ia[i * 16 + 5] === 0) continue; ia[i * 16 + 12] -= ox; ia[i * 16 + 14] -= oz; }
     items.instanceMatrix.needsUpdate = true;
     for (let i = 0; i < NSM; i++) { smPos[i * 3] -= ox; smPos[i * 3 + 2] -= oz; }
+    for (const g of featG.children) { g.position.x -= ox; g.position.z -= oz; }
     rebaseX++;
   }
 
   S.on((t, dt, st) => {
     clock = t;
     const e = st.energy;
-    // the pace: one rail length a beat (or our own, with no music)
-    if (t - lastRail > 4) speedT = 15 + 7 * e;
-    speed = lerp(speed, speedT, 1 - Math.exp(-dt / 2.5));
-    dist += speed * dt;
+    // the journey: the music's, or (with no music) our own
+    if (!J && t - lastSpeed > 3) { J = createJourney(Math.random); jOff = dist; }
+    if (J) { for (const ev of J.step(dt, e, 15 + 7 * e)) handleEv(ev); vNow = J.v; aNow = 0; dist = J.pos + jOff; }
+    else { vNow = Math.max(0, vNow + aNow * dt); dist += vNow * dt; }
+    speed = vNow;
     extend(dist + (NCH - BEHIND + 2) * CHUNK);
     chunks(2);
-    if (t - lastRail > 4) { const j = Math.floor(dist / RAIL); if (j !== lastJoint) { lastJoint = j; bumpV -= 0.012; } }
+    if (J) { const j = Math.floor(dist / RAIL); if (j !== lastJoint) { lastJoint = j; bumpV -= 0.012; } }
+    // features well behind us go
+    for (let i = features.length - 1; i >= 0; i--) if (features[i].s1 < dist - 700) { dropFeature(features[i]); features.splice(i, 1); }
+    if (Math.floor(t / 20) !== Math.floor((t - dt) / 20)) for (const c of clockFaces) { drawClock(c.c, new Date()); c.t.needsUpdate = true; }
     // bumps over the joints, a hum of vibration
     bumpV += (-bump * 260 - bumpV * 18) * dt; bump += bumpV * dt;
     // the carriages: ours at `dist`, three ahead, three behind, the engine in front
@@ -528,6 +785,33 @@ export function createTrainScene({ mobile, seed }) {
     inner.position.y = bump + 0.0012 * Math.sin(t * 47) * Math.sin(t * 3.1) + 0.0008 * Math.sin(t * 13.7);
     inner.rotation.z = 0.003 * Math.sin(t * 0.9) * Math.sin(t * 0.37);
     PU.uBlur.value = (speed * Math.max(dt, 1 / 60)) / 0.65 * 0.6;
+    // another train going by: it rocks us, and its windows flicker light into ours
+    placeExpress(t);
+    shake = Math.max(0, shake - dt * 0.5);
+    if (express?.near) { bumpV += (Math.random() - 0.5) * 0.02; inner.rotation.z += Math.sin(t * 9) * 0.004; }
+    // in a tunnel the window's a mirror; at a station, lamplight comes in
+    const fh = fAt(dist), tunnelIn = fh.lining;
+    darkness = lerp(darkness, tunnelIn, 1 - Math.exp(-dt * 6));
+    valleyLook = lerp(valleyLook, fh.vf, 1 - Math.exp(-dt * 0.8));
+    PU.uFogD.value = 0.0042 * (1 - 0.55 * valleyLook);
+    GU.uStrength.value = 0.06 * lampLvlNow + 0.65 * darkness;
+    const stNear = features.find((f) => f.kind === 'station' && Math.abs(f.s0 - dist) < 110);
+    stationGlow = lerp(stationGlow, stNear ? 1 - Math.abs(stNear.s0 - dist) / 110 : 0, 1 - Math.exp(-dt * 2));
+    fill.intensity = 0.35 + 0.5 * stationGlow + (express?.near ? 0.35 * (0.5 + 0.5 * Math.sin(t * 37)) : 0);
+    // the guard: up the platform, a wave of the lantern, and he stays as we pull away
+    const gst = arrived?.st;
+    if (gst && dist - gst.s0 < 260) {
+      const k = Math.min(1, (t - arrived.t) / Math.max(10, arrived.dwell * 0.6)), gs = gst.s0 + 60 - 59 * Math.sqrt(k);
+      const walking = k < 1, lift = Math.max(0, 1 - Math.abs(t - waved - 1.2) / 1.5);
+      const pg = track(gs, {}), nx = -pg.dz, nz = pg.dx, lat = 4.6;
+      v3.set(pg.x + nx * lat, 0.9 + (walking ? Math.abs(Math.sin(t * 5)) * 0.04 : 0), pg.z + nz * lat);
+      q4.setFromAxisAngle(up, Math.atan2(-nx, -nz));
+      guard.setMatrixAt(0, m4.compose(v3, q4, sc3.set(2, 2, 1)));
+      lanternGlow.visible = true;
+      const lx = 0.4 + Math.sin(t * 5) * 0.03 * (walking ? 1 : 0), ly = 1.0 + lift * 0.7;
+      lanternGlow.position.set(v3.x + (-pg.dx) * lx * 0 + pg.dx * -lx, v3.y + ly, v3.z + pg.dz * -lx);
+    } else { guard.setMatrixAt(0, zero); lanternGlow.visible = false; if (gst) arrived = null; }
+    guard.instanceMatrix.needsUpdate = true;
     // the cup rattles on its saucer
     clink = Math.max(0, clink - dt * 3);
     cupG.position.x = -0.3 + Math.sin(t * 61) * 0.0012 * (clink + Math.min(1, -bumpV * 40));
@@ -538,7 +822,7 @@ export function createTrainScene({ mobile, seed }) {
     cordG.rotation.x = Math.sin(t * 0.9 + 1) * 0.05 - bumpV * 2;
     blind.scale.y = blindDown; blind.position.y = WY1 + 0.01 - blindDown / 2;
     // the lamp: warm, dimming a little later on
-    const lampLvl = 0.75 + 0.25 * e;
+    const lampLvl = 0.75 + 0.25 * e; lampLvlNow = lampLvl;
     lamp.intensity = 1.1 * lampLvl; shadeM.emissiveIntensity = 0.45 * lampLvl;
     // houses' windows go out as the night goes on
     IU.uLitFrac.value = 0.15 + 0.7 * sstep(0.2, 0.9, e);
@@ -558,7 +842,7 @@ export function createTrainScene({ mobile, seed }) {
     const gaze = 0.18 * Math.sin(t * 0.031) + 0.08 * Math.sin(t * 0.083 + 1);
     cam.position.set((portrait ? 0.1 : 0.05) + Math.sin(t * 0.05) * 0.03, FL + 1.13 + bump * 0.6, portrait ? -0.5 : -0.38);
     car.updateMatrixWorld();
-    look.set(portrait ? 0.14 + gaze * 0.4 : 0.1 + gaze * 1.5, FL + 1.18 - (portrait ? 0.2 : 0), Z1 + 1.0); car.localToWorld(look); cam.lookAt(look);
+    look.set(portrait ? 0.14 + gaze * 0.4 : 0.1 + gaze * 1.5, FL + 1.18 - (portrait ? 0.2 : 0) - 0.25 * valleyLook, Z1 + 1.0); car.localToWorld(look); cam.lookAt(look);
     cam.position.y += inner.position.y * 0.6;
     // the sky goes with us
     cam.getWorldPosition(camW); sky.position.copy(camW);
@@ -566,6 +850,6 @@ export function createTrainScene({ mobile, seed }) {
     if (Math.hypot(p.x, p.z) > 3000) rebase();
   });
 
-  S.scene.userData.train = { get dist() { return dist; }, get speed() { return speed; }, get rebased() { return rebaseX; }, get lean() { return lean.v; } };
+  S.scene.userData.train = { get dist() { return dist; }, get speed() { return speed; }, get rebased() { return rebaseX; }, get lean() { return lean.v; }, get features() { return features.map((f) => ({ kind: f.kind, s0: Math.round(f.s0 - dist), s1: Math.round(f.s1 - dist), name: f.name })); }, get state() { return J ? J.state : 'music'; }, get express() { return express && { s0: Math.round(express.s0 - dist), near: !!express.near }; }, get darkness() { return darkness; }, handleEv, get jOff() { return jOff; } };
   return S.finalize({ portraitFov: 64 });
 }
