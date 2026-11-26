@@ -12,11 +12,18 @@
 // stations (lamps, a nameboard, a clock with the real time, a cat on a bench, the guard walking up
 // with his lantern); in tunnels the window turns into a mirror and you see the compartment in it.
 //
+// The night goes from a city terminus through farmland, up into the mountains (tight bends, where you
+// lean to the glass and watch the engine curve round ahead), along a lake and over a snowy pass, with
+// rain, fog and snow along the way. In the middle of the night we walk back through the train (the
+// corridor, the dining car, the observation car at the back); late on, the blind comes half down,
+// the lamp goes off, and we lie down in the berth and watch the night go by under the blind.
+//
 // Everything outside lives along the track: it's generated in 50 m chunks ahead and recycled behind,
 // into one ribbon geometry (hills, ground, the track bed) and one instanced set of paper cutouts.
 import { createStage, canvasTexture, THREE, TAU } from '../kit.js';
 import { softBox } from '../interior.js';
-import { createJourney } from './train-journey.js';
+import { createJourney, WALK } from './train-journey.js';
+import { buildCorridor, buildDining, buildObservation } from './train-cars.js';
 
 const SEG = 2, CHUNK = 50, NCH = 26, BEHIND = 9, K = 72, RAIL = 18;
 const CARLEN = 20.5, BOGIE = 7, NCARS = 7, OURS = 3; // ours is the fourth carriage, three ahead and three behind
@@ -44,7 +51,7 @@ let VPS = 0, IPS = 0; // vertices and indices per chunk slot
 for (const s of STRIPS) { s.cols = Math.round(CHUNK / s.step) + 1; s.v0 = VPS; VPS += s.cols * 2; IPS += (s.cols - 1) * 6; }
 
 const PAPER_COMMON = `
-uniform vec4 uCar[${NCARS}]; uniform float uCarL[${NCARS}]; uniform vec3 uFog, uWarm; uniform float uFogD, uLitFrac, uTime;
+uniform vec4 uCar[${NCARS}]; uniform float uCarL[${NCARS}]; uniform vec3 uFog, uWarm, uMoon; uniform float uFogD, uLitFrac, uTime;
 float h21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
 float vn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(h21(i), h21(i + vec2(1, 0)), f.x), mix(h21(i + vec2(0, 1)), h21(i + vec2(1, 1)), f.x), f.y); }
 // warm light from the train's windows, falling on whatever is beside the line
@@ -80,7 +87,7 @@ uniform float uBlur;
 varying vec3 vCol, vW; varying float vTop, vKind, vDist; varying vec2 vSL;
 void main() {
   vec3 col = vCol;
-  if (vKind < 0.5) { // a paper hill: fibres, a moonlit cut edge along the top, darker lower down
+  if (vKind < 0.5 || vKind > 6.5) { // a paper hill: fibres, a moonlit cut edge along the top, darker lower down
     float g = vn(vec2(vSL.x * 0.9, vW.y * 0.9)) * 0.5 + vn(vec2(vSL.x * 4.0, vW.y * 4.0)) * 0.5;
     col *= 0.9 + 0.14 * g;
     col *= 0.62 + 0.38 * smoothstep(vTop - 14.0, vTop, vW.y);
@@ -94,6 +101,15 @@ void main() {
         float sz = 0.45 + vDist * 0.0018;
         if (abs(vSL.x - wx) < sz && abs(vW.y - wy) < sz * 0.8 && fract(h * 53.0) < uLitFrac) col = uWarm * (0.9 + 0.2 * fract(h * 7.0));
       }
+    }
+    if (vKind > 6.5 && vKind < 7.5) { // the town: rows of windows, some lit
+      vec2 wc = vec2(vSL.x / 2.4, vW.y / 2.9), wf = fract(wc); float h = h21(floor(wc) + floor(vSL.y));
+      if (wf.x > 0.32 && wf.x < 0.68 && wf.y > 0.35 && wf.y < 0.75 && vW.y < vTop - 1.4 && vW.y > -0.3) col = h > 1.0 - uLitFrac * 0.5 ? uWarm * (0.7 + 0.3 * fract(h * 9.0)) : col * 0.7;
+    } else if (vKind > 7.5 && vKind < 8.5) { // snow: pale paper, whiter along the top
+      col = mix(col, vec3(0.7, 0.76, 0.92), smoothstep(vTop - 7.0, vTop - 0.5, vW.y) * 0.45);
+    } else if (vKind > 8.5) { // the mountains: snow on the high tops
+      float cap = smoothstep(38.0, 70.0, vTop) * smoothstep(vTop - 16.0 - 8.0 * vn(vec2(vSL.x * 0.08, 1.0)), vTop - 3.0, vW.y);
+      col = mix(col, vec3(0.6, 0.66, 0.84), cap * 0.85);
     }
   } else if (vKind < 1.5) { // fields: patches of paper in different shades, some ploughed
     vec2 c = floor(vec2(vSL.x / 38.0, vSL.y / 26.0));
@@ -114,8 +130,11 @@ void main() {
     col += vec3(1.0, 0.85, 0.6) * (exp(-(ld * ld + ly * ly * 2.0) * 6.0) * 3.0 + exp(-(ld * ld + ly * ly) * 0.08) * 0.08);
   } else if (vKind > 3.5 && vKind < 4.5) { // the river in the valley: dark water, the moon glittering on it
     col = vCol * (0.8 + 0.3 * vn(vSL * vec2(0.08, 0.3)));
-    float gl = vn(vec2(vSL.x * 0.6 + uTime * 0.5, vSL.y * 3.0 - uTime * 0.2));
-    col += vec3(0.7, 0.75, 0.9) * smoothstep(0.72, 0.92, gl) * 0.9;
+    vec3 vd = normalize(vW - cameraPosition), rf = reflect(vd, vec3(0.0, 1.0, 0.0));
+    float rip = vn(vec2(vSL.x * 0.5 + uTime * 0.4, vSL.y * 2.0 - uTime * 0.25)), path = pow(max(dot(rf, uMoon), 0.0), 50.0);
+    col += vec3(0.85, 0.85, 0.95) * path * smoothstep(0.4, 0.85, rip) * 1.3;   // the moon's path across the water
+    col += vec3(0.6, 0.65, 0.8) * smoothstep(0.8, 0.95, rip) * 0.3;
+    col += vec3(0.06, 0.08, 0.14) * pow(1.0 - abs(rf.y), 3.0);
   } else if (vKind > 4.5 && vKind < 5.5) { // the platform: flagstones, a white edge, pools of lamplight
     vec2 fl = fract(vec2(vSL.x / 0.9, vSL.y / 0.9));
     col *= (0.85 + 0.25 * h21(floor(vec2(vSL.x / 0.9, vSL.y / 0.9)))) * (0.8 + 0.2 * step(0.05, fl.x) * step(0.05, fl.y));
@@ -194,10 +213,20 @@ export function createTrainScene({ mobile, seed }) {
   const MOON = new THREE.Vector3(0.62, 0.2, 0.72).normalize();
   const tx = [0], tz = [0], th = [Math.atan2(-MOON.x, MOON.z) - 0.35]; // start off with the moon in the window
   const ph = [rand() * 100, rand() * 100, rand() * 100];
+  // the country we're passing through: a list of borders, announced well ahead
+  const regions = [{ name: 'city', s0: -1e12 }];
+  function regionW(s) { // the countries either side of the nearest border, and how far across it we are
+    let i = 0; for (let k = 1; k < regions.length; k++) if (regions[k].s0 - 170 <= s) i = k;
+    const b = regions[i], a = regions[Math.max(0, i - 1)];
+    return { a: a.name, b: b.name, k: i === 0 ? 1 : sstep(b.s0 - 170, b.s0 + 170, s) };
+  }
+  const regionAt = (s) => { let r = regions[0]; for (const g of regions) if (g.s0 <= s) r = g; return r.name; };
+  const BENDY = { city: 0.7, farm: 1, mountain: 3.4, lake: 0.8, snow: 1.9 };
   const curv = (s) => {
     const k = 0.62 * Math.sin(s / 640 + ph[0]) + 0.38 * Math.sin(s / 251 + ph[1]);
-    const straight = sstep(0.15, 0.45, Math.abs(Math.sin(s / 1900 + ph[2])));
-    return (Math.max(-1, Math.min(1, k * 1.5)) * straight) / 470;
+    const rw = regionW(s), bend = lerp(BENDY[rw.a], BENDY[rw.b], rw.k);
+    const straight = Math.max(sstep(0.15, 0.45, Math.abs(Math.sin(s / 1900 + ph[2]))), sstep(1.3, 2.6, bend));
+    return (Math.max(-1, Math.min(1, k * 1.5)) * straight * bend) / 470;
   };
   function extend(sMax) {
     while ((tx.length - 1) * SEG < sMax) {
@@ -234,6 +263,15 @@ export function createTrainScene({ mobile, seed }) {
     return { cut, lining, hill, vf, wid: wid * 6.3, para };
   }
   const groundY = (s, fa = fAt(s)) => -0.7 - 30 * fa.vf;
+  // each country's paper walls: [base, height, roughness, colour, kind] for the six of them
+  const RW = {
+    city: [[7, 11, 'block', '#1e1c30', 7], [10, 24, 'block', '#252640', 7], [16, 36, 'block', '#30344e', 7], [22, 58, 1, '#3f5890', 0], [6, 9, 'block', '#201e32', 7], [10, 20, 'block', '#282640', 7]],
+    mountain: [[9, 8, 1, '#131d2e', 0], [16, 36, 1.4, '#22304e', 9], [30, 75, 1.3, '#2c3c62', 9], [55, 165, 1.2, '#3a4e7e', 9], [12, 16, 1.6, '#182234', 9], [40, 75, 1.3, '#2a3858', 9]],
+    lake: [[-3, 0, 1, '#172240', 0], [-3, 0, 1, '#22345e', 0], [-3, 0, 1, '#2f4676', 0], [16, 34, 1, '#3a4e82', 0], [4, 6, 1, '#1b2744', 0], [10, 22, 1, '#26375f', 0]],
+    snow: [[6, 7, 1, '#36426a', 8], [12, 26, 1.3, '#44527e', 8], [24, 52, 1.2, '#536294', 8], [40, 115, 1.2, '#6474a4', 8], [8, 11, 1.4, '#3a466e', 8], [24, 46, 1.2, '#4a5886', 8]],
+  };
+  const GROUND = { city: '#1a1a26', farm: '#1c2b34', mountain: '#18222e', lake: '#1a2a52', snow: '#4a5480' };
+  const smoothN = (s, w, o) => { let sx = 0, sz = 0; for (let q = -4; q <= 4; q++) { const u = Math.max(0, Math.min(th.length - 1, Math.round((s + (q * w) / 4) / SEG))); sx += Math.cos(th[u]); sz += Math.sin(th[u]); } const l = Math.hypot(sx, sz) || 1; o.nx = -sz / l; o.nz = sx / l; return o; };
 
   // ---------------------------------------------------------------- the sky: a gradient, stars, a paper moon
   const skyU = { uTop: { value: new THREE.Color('#060a1e') }, uHor: { value: new THREE.Color('#34447a') }, uMoon: { value: MOON }, uTime: S.U.uTime };
@@ -244,7 +282,7 @@ export function createTrainScene({ mobile, seed }) {
 
   // ---------------------------------------------------------------- the papercut world: one ribbon geometry, recycled chunk by chunk
   const carU = Array.from({ length: NCARS }, () => new THREE.Vector4());
-  const PU = { uCar: { value: carU }, uCarL: { value: new Array(NCARS).fill(1) }, uFog: { value: new THREE.Color('#2e3e70') }, uWarm: { value: new THREE.Color('#ffb868') }, uFogD: { value: 0.0042 }, uBlur: { value: 0 }, uLitFrac: { value: 0.8 }, uTime: S.U.uTime };
+  const PU = { uCar: { value: carU }, uCarL: { value: new Array(NCARS).fill(1) }, uFog: { value: new THREE.Color('#2e3e70') }, uWarm: { value: new THREE.Color('#ffb868') }, uFogD: { value: 0.0042 }, uBlur: { value: 0 }, uLitFrac: { value: 0.8 }, uTime: S.U.uTime, uMoon: { value: MOON } };
   const wg = new THREE.BufferGeometry();
   const wPos = new Float32Array(VPS * NCH * 3), wCol = new Float32Array(VPS * NCH * 3), wTop = new Float32Array(VPS * NCH), wKind = new Float32Array(VPS * NCH), wSL = new Float32Array(VPS * NCH * 2);
   const wIdx = new Uint32Array(IPS * NCH);
@@ -256,28 +294,44 @@ export function createTrainScene({ mobile, seed }) {
   const world = new THREE.Mesh(wg, new THREE.ShaderMaterial({ uniforms: PU, vertexShader: WORLD_V, fragmentShader: WORLD_F, side: THREE.DoubleSide }));
   world.frustumCulled = false; S.add(world);
   const tmpC = new THREE.Color();
-  const wallTop = (s, st, i, fa) => {
-    if (st.near) return st.near === 'cut' ? fa.cut : fa.para;
-    let h = st.base + st.amp * fbm(s * st.f, 10 + i * 7) + 34 * fa.hill * st.hillK - st.drop * fa.vf;
-    if (st.trees) { const w = n1(s / 70, 90 + i); h += w > 0.3 ? (2 + 5 * (w - 0.45)) * (0.6 + 0.4 * Math.abs(Math.sin(s * 0.35 + 3 * n1(s / 9, 95)))) : 0; } // a tree line, here and there
+  const topIn = (rg, s, st, i) => { // how high a paper wall stands, in a given country
+    const R = RW[rg];
+    if (!R) { let h = st.base + st.amp * fbm(s * st.f, 10 + i * 7); if (st.trees) { const w = n1(s / 70, 90 + i); h += w > 0.3 ? (2 + 5 * (w - 0.45)) * (0.6 + 0.4 * Math.abs(Math.sin(s * 0.35 + 3 * n1(s / 9, 95)))) : 0; } return h; }
+    const [base, amp, rough] = R[i];
+    if (rough === 'block') return base + amp * hash(Math.floor(s / (8 + 6 * hash(Math.floor(s / 40), 70 + i))), 60 + i) * (0.4 + 0.6 * hash(Math.floor(s / 90), 80 + i));
+    let h = base + amp * Math.pow(fbm(s * st.f * rough, 10 + i * 7), rg === 'mountain' || rg === 'snow' ? 1.7 : 1) * (rg === 'mountain' || rg === 'snow' ? 1.5 : 1);
+    if (st.trees && rg !== 'lake') h += Math.abs(Math.sin(s * 0.45 + 3 * n1(s / 9, 95))) * 3;
     return h;
+  };
+  const colIn = (rg, st, i) => (RW[rg] ? RW[rg][i][3] : st.col), kindIn = (rg, i) => (RW[rg] ? RW[rg][i][4] : 0);
+  const tc2 = new THREE.Color();
+  const wallTop = (s, st, i, fa, rw) => {
+    if (st.near) return st.near === 'cut' ? fa.cut : fa.para;
+    const h = lerp(topIn(rw.a, s, st, i), topIn(rw.b, s, st, i), rw.k);
+    return h + 34 * fa.hill * st.hillK - st.drop * fa.vf;
   };
   function buildRibbons(c, slot) {
     const s0 = c * CHUNK, p = {};
     STRIPS.forEach((st, si) => {
-      tmpC.set(st.col);
       for (let k = 0; k < st.cols; k++) {
         const s = s0 + k * st.step; track(s, p);
-        const nx = -p.dz, nz = p.dx, fa = fAt(s), gy = groundY(s, fa);
-        let kind = st.wall ? (st.near === 'cut' && fa.lining ? 3 : 0) : st.kind;
+        let nx = -p.dz, nz = p.dx;
+        if (st.wall && Math.abs(st.d) >= 90) { smoothN(s, Math.abs(st.d) * 0.7, p); nx = p.nx; nz = p.nz; } // far walls follow the line's general way, not every bend
+        const fa = fAt(s), gy = groundY(s, fa), rw = regionW(s), rg = rw.k < 0.5 ? rw.a : rw.b;
+        let kind = st.wall ? (st.near === 'cut' && fa.lining ? 3 : st.near ? 0 : kindIn(rg, si)) : st.kind;
+        const lakeHere = rg === 'lake' && !st.wall && (st.widen || st.valley) && !fa.wid;
+        if (st.wall && !st.near) { tmpC.set(colIn(rw.a, st, si)); tc2.set(colIn(rw.b, st, si)); tmpC.lerp(tc2, rw.k); }
+        else if (st.ground || st.valley) { tmpC.set(GROUND[rw.a]); tc2.set(GROUND[rw.b]); tmpC.lerp(tc2, rw.k); if (st.valley) tmpC.multiplyScalar(0.95); }
+        else if (st.bed && rg === 'snow') tmpC.set('#6a7090'); else tmpC.set(st.col);
+        if (lakeHere) { kind = 4; tmpC.set('#22325e'); }
         for (let v = 0; v < 2; v++) {
           const vi = slot * VPS + st.v0 + k * 2 + v;
           let x, y, z, lat, top;
-          if (st.wall) { lat = st.d; top = wallTop(s, st, si, fa); x = p.x + nx * lat; z = p.z + nz * lat; y = v ? top : Math.min(-12, top - 10) - (st.near ? 0 : 30 * fa.vf); }
+          if (st.wall) { lat = st.d; top = wallTop(s, st, si, fa, rw); x = p.x + nx * lat; z = p.z + nz * lat; y = v ? top : Math.min(-12, top - 10) - (st.near ? 0 : 30 * fa.vf); }
           else {
             lat = v ? st.l1 + (st.bed ? fa.wid : 0) : st.l0 + (st.widen ? fa.wid : 0);
             x = p.x + nx * lat; z = p.z + nz * lat;
-            y = st.ground ? gy : st.river ? gy + 0.35 * fa.vf - 5 * (1 - fa.vf) : st.valley ? gy + 0.05 * fa.vf - 5 * (1 - fa.vf) : st.y;
+            y = lakeHere ? -0.95 : st.ground ? gy : st.river ? gy + 0.35 * fa.vf - 5 * (1 - fa.vf) : st.valley ? gy + 0.05 * fa.vf - 5 * (1 - fa.vf) : st.y;
             top = st.bed ? 4.2 + fa.wid : y;
           }
           wPos[vi * 3] = x; wPos[vi * 3 + 1] = y; wPos[vi * 3 + 2] = z;
@@ -324,6 +378,11 @@ export function createTrainScene({ mobile, seed }) {
     cell(24, () => { g.fillStyle = paper(170); g.beginPath(); g.moveTo(-110, -20); g.lineTo(-110, -70); g.quadraticCurveTo(-100, -84, -70, -86); g.lineTo(-56, -130); g.quadraticCurveTo(0, -142, 56, -130); g.lineTo(70, -86); g.quadraticCurveTo(100, -84, 110, -70); g.lineTo(110, -20); g.closePath(); g.fill(); rect(-50, -124, 100, 34, paper(110)); circ(-78, -60, 15, glow); circ(78, -60, 15, glow); rect(-40, -64, 80, 18, paper(130)); rect(-104, -20, 30, 20, paper(90)); rect(74, -20, 30, 20, paper(90)); }); // a car, waiting
     cell(25, () => { for (const [x, h] of [[-50, 90], [-8, 80], [32, 96]]) { rect(x, -h, 34, h, paper(200)); rect(x + 6, -h - 14, 22, 14, paper(170)); rect(x, -h * 0.55, 34, 6, paper(150)); } }); // milk churns
     cell(26, () => { circ(0, -200, 16, paper(180)); rect(-20, -224, 40, 10, paper(110)); rect(-14, -230, 28, 8, paper(110)); poly([[-26, -184], [26, -184], [34, -80], [-34, -80]], paper(140)); rect(-26, -82, 18, 82, paper(120)); rect(8, -82, 18, 82, paper(120)); rect(26, -170, 40, 12, paper(140)); rect(56, -158, 6, 16, paper(160)); rect(50, -142, 18, 22, glow); }); // the guard, with his lantern
+    cell(27, () => { for (let k = 0; k < 4; k++) { const x0 = -124 + k * 62, h = 170 + ((k * 37) % 30); rect(x0, -h, 60, h, paper(185 + (k % 2) * 15)); poly([[x0 - 2, -h], [x0 + 30, -h - 26], [x0 + 62, -h]], paper(135)); rect(x0 + 40, -h - 30, 10, 22, paper(150)); for (let r = 0; r < 3; r++) for (let q = 0; q < 2; q++) rect(x0 + 10 + q * 26, -h + 18 + r * 46, 15, 24, glow); rect(x0 + 22, -34, 16, 34, paper(100)); } }); // a terrace of houses
+    cell(28, () => { poly([[-14, -250], [14, -250], [22, -60], [-22, -60]], paper(175)); for (let k = 0; k < 4; k++) rect(-18 + k * 1, -230 + k * 40, 36 - k * 2, 6, paper(140)); rect(-110, -70, 220, 70, paper(160)); poly([[-114, -68], [-80, -100], [-46, -68]], paper(140)); poly([[-46, -68], [-12, -100], [22, -68]], paper(140)); for (let x = -96; x < 100; x += 30) rect(x, -50, 16, 20, glow); }); // a mill and its chimney
+    cell(29, () => { g.strokeStyle = paper(170); g.lineWidth = 6; g.beginPath(); g.ellipse(0, -130, 110, 14, 0, 0, TAU); g.stroke(); for (let x = -110; x <= 110; x += 27.5) { g.beginPath(); g.moveTo(x, -130); g.lineTo(x, 0); g.stroke(); } for (const y of [-90, -45]) { g.beginPath(); g.moveTo(-110, y); g.lineTo(110, y); g.stroke(); } rect(-104, -100, 208, 100, paper(150)); }); // a gasholder
+    cell(30, () => poly([[-110, 0], [-96, -46], [-60, -78], [-10, -96], [40, -84], [86, -60], [110, -20], [112, 0]], paper(170))); // a boulder
+    cell(31, () => { for (let k = 0; k < 26; k++) { const x = -120 + k * 9.4 + ((k * 37) % 7), h = 70 + ((k * 53) % 60); g.fillStyle = paper(170 + (k % 3) * 15); g.beginPath(); g.moveTo(x - 2, 0); g.lineTo(x + 2, 0); g.lineTo(x + ((k % 5) - 2) * 4, -h); g.closePath(); g.fill(); if (k % 4 === 0) rect(x - 3 + ((k % 5) - 2) * 3, -h + 4, 6, 18, paper(110)); } }); // reeds
   });
   atlas.colorSpace = THREE.NoColorSpace; atlas.premultiplyAlpha = false;
   const IU = { ...PU, uAtlas: { value: atlas } };
@@ -346,10 +405,31 @@ export function createTrainScene({ mobile, seed }) {
     const st = features.find((f) => f.kind === 'station' && e0 > f.s0 - 210 && s0 < f.s0 + 220);
     const cr = features.find((f) => f.kind === 'crossing' && e0 > f.s0 - 20 && s0 < f.s0 + 20);
     const village = sstep(0.5, 0.7, n1(s0 / 1100, 300)), woods = sstep(0.55, 0.75, n1(s0 / 800, 310));
-    if (!via && !st) add(7, s0 + 3, 5.8, 8.5, COLS.pole[0]); // telegraph poles along the line
+    const rg = regionAt(s0 + 25);
+    if (!via && !st && rg !== 'city') add(7, s0 + 3, 5.8, 8.5, COLS.pole[0]); // telegraph poles along the line
     if (r() < 0.07) add(14, s0 + 20, -2.6, 6, COLS.pole[0], r() < 0.6 ? '#40ff80' : '#ff4030', 0); // a signal
     for (const side of [1, -1]) {
       const n = side > 0 ? 1 : 0.55;
+      if (rg === 'city') { // terraces, street lamps, a mill chimney, a gasholder, a church
+        for (let x = s0 + r() * 6; x < e0; x += 13 + r() * 4) add(27, x, side * (13 + r() * 10), 13 + r() * 3, pick(['#2e2a40', '#34304a', '#2a2a3e']), pick(WARM));
+        for (let x = s0 + r() * 22; x < e0; x += 22) add(17, x, side * 9.5, 5, '#141820', '#ffcf80', 0);
+        if (r() < 0.18 * n) add(28, s0 + r() * CHUNK, side * (40 + r() * 20), 34, '#2a2638', pick(WARM));
+        if (r() < 0.1 * n) add(29, s0 + r() * CHUNK, side * (32 + r() * 16), 22, '#262434');
+        if (r() < 0.08 * n) add(6, s0 + r() * CHUNK, side * (30 + r() * 20), 22, COLS.church[0], '#ffd890');
+        continue;
+      }
+      if (rg === 'mountain' || rg === 'snow') { // pines up the slopes, boulders, now and then a chalet with a light on
+        const snowy = rg === 'snow';
+        for (let k = 0, m = Math.floor((snowy ? 9 : 14) * n * (0.7 + r() * 0.6)); k < m; k++) add(0, s0 + r() * CHUNK, side * (9 + r() * 52), 8 + r() * (snowy ? 7 : 10), snowy ? pick(['#3e4a72', '#38446a', '#46527a']) : pick(COLS.tree));
+        if (r() < 0.6) for (let k = 0; k < 2; k++) add(30, s0 + r() * CHUNK, side * (7 + r() * 16), 2 + r() * 4, snowy ? '#7a86b0' : '#262a3a');
+        if (r() < 0.07 * n) add(3, s0 + r() * CHUNK, side * (20 + r() * 25), 9, snowy ? '#4a4a6a' : '#3a3448', pick(WARM));
+        continue;
+      }
+      if (rg === 'lake' && side > 0) { // reeds at the water's edge, a jetty with a lamp, a boathouse
+        for (let x = s0 + r() * 5; x < e0; x += 4 + r() * 7) add(31, x, 6.6 + r() * 2.5, 2.4 + r(), '#18243c', '#fff', 1, -0.95);
+        if (r() < 0.12) { const x = s0 + r() * 40; add(17, x, 7.2, 4, '#141820', '#ffcf80', 0, -0.95); add(4, x + 8, 12, 9, '#2a2a3e', pick(WARM), r(), -0.95); }
+        continue;
+      }
       if (r() < 0.55 * n) { const l = side * (8 + r() * 3); for (let k = 0; k < 5; k++) add(8, s0 + k * 10 + 5, l, 10, COLS.pole[0]); } // a fence
       for (let k = 0, m = Math.floor((6 + woods * 10) * n * (0.6 + r() * 0.8)); k < m; k++) { const l = side * (10 + r() * (side > 0 ? 42 : 30)); add(r() < 0.35 ? 0 : r() < 0.2 ? 13 : 1, s0 + r() * CHUNK, l, 7 + r() * 7, pick(COLS.tree)); }
       if (r() < 0.7 * n) { const l = side * (12 + r() * 30); for (let k = 0; k < 4; k++) add(2, s0 + r() * CHUNK, l + side * k * 0.5, 8 + r() * 4, pick(COLS.tree)); } // hedgerows
@@ -368,7 +448,7 @@ export function createTrainScene({ mobile, seed }) {
     // not where the hill is (over a tunnel), not on the platform, not in the road
     for (let k = list.length - 1; k >= 0; k--) {
       const it = list[k];
-      if (tun || (st && it.s > st.s0 - 210 && it.s < st.s0 + 220 && (it.lat > 0 ? it.lat < 26 : it.lat > -7)) || (cr && Math.abs(it.s - cr.s0) < 9 && Math.abs(it.lat) < 45)) list.splice(k, 1);
+      if ((tun && Math.abs(it.lat) < 70) || (st && it.s > st.s0 - 210 && it.s < st.s0 + 220 && (it.lat > 0 ? it.lat < 26 : it.lat > -7)) || (cr && Math.abs(it.s - cr.s0) < 9 && Math.abs(it.lat) < 45)) list.splice(k, 1);
     }
     if (st) { // the station: lamps along the platform, benches (a cat asleep on one), the building, a porter, a signal box
       const P = 0.9;
@@ -616,7 +696,7 @@ export function createTrainScene({ mobile, seed }) {
     geo.setAttribute('aTop', new THREE.Float32BufferAttribute(top, 1)); geo.setAttribute('aKind', new THREE.Float32BufferAttribute(kind, 1)); geo.setAttribute('aSL', new THREE.Float32BufferAttribute(sl, 2)); geo.setIndex(idx);
     const plat = new THREE.Mesh(geo, world.material); plat.frustumCulled = false; G.add(plat);
     // the nameboard, on two posts, just along from our window; a clock under the canopy
-    const name = (pick(NAMES[0]) + pick(NAMES[1]) + pick(NAMES[2])).toUpperCase();
+    const name = f.city ? (pick(NAMES[1]) + ' ' + pick(['Central', 'Terminus', 'Grand Central'])).toUpperCase() : (pick(NAMES[0]) + pick(NAMES[1]) + pick(NAMES[2])).toUpperCase();
     f.name = name;
     const nb = canvasTexture(S, 512, 96, (g, w, h) => { g.fillStyle = '#1e2a52'; g.fillRect(0, 0, w, h); g.strokeStyle = '#e8e0c8'; g.lineWidth = 5; g.strokeRect(6, 6, w - 12, h - 12); g.fillStyle = '#f0e8d0'; g.textAlign = 'center'; g.textBaseline = 'middle'; let fs = 46; g.font = `bold ${fs}px sans-serif`; while (g.measureText(name).width > w - 40 && fs > 18) { fs -= 2; g.font = `bold ${fs}px sans-serif`; } g.fillText(name, w / 2, h / 2 + 2); });
     const board = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 0.68), new THREE.MeshBasicMaterial({ map: nb, color: '#8a8a8a' })); G.add(board);
@@ -640,6 +720,7 @@ export function createTrainScene({ mobile, seed }) {
   const glowTex2 = canvasTexture(S, 64, 64, (g, w, h) => { const gr = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.2, 'rgba(255,255,255,.5)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h); });
   function addFeature(f) {
     if (features.some((g) => g.kind === f.kind && Math.abs(g.s0 - f.s0) < 5)) return;
+    if (f.kind === 'station' && f.city) f.cityName = true;
     features.push(f);
     rebuild(f.s0 - 300, f.s1 + 300);
     if (f.kind === 'station') stationMeshes(f);
@@ -692,6 +773,74 @@ export function createTrainScene({ mobile, seed }) {
   const lanternGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex2, color: '#ffb860', blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.8 })); lanternGlow.scale.set(1.1, 1.1, 1); lanternGlow.visible = false; S.add(lanternGlow);
   let arrived = null, waved = -99;
 
+  // ---------------------------------------------------------------- weather: rain and snow going by, drops and frost on the glass, fog
+  const wx = { rain: 0, fog: 0, snow: 0 }, wxT = { rain: 0, fog: 0.05, snow: 0 };
+  const NP = mobile ? 260 : 420;
+  const mkFall = (col) => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(NP * 6), 3)); const l = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: col, transparent: true, opacity: 0, depthWrite: false })); l.frustumCulled = false; return l; };
+  const rainL = mkFall('#8a9ac8'), snowL = mkFall('#e6ecff');
+  const fallP = Array.from({ length: NP }, () => [(Math.random() - 0.5) * 60, -1 + Math.random() * 11, (Math.random() < 0.75 ? 1 : -1) * (1.8 + Math.random() * 26), Math.random()]);
+  car.add(rainL); car.add(snowL);
+  const DROP_F = `uniform float uRain, uSnow, uTime, uSpeed; varying vec2 vUv;
+    float h21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    float vn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(h21(i), h21(i + vec2(1, 0)), f.x), mix(h21(i + vec2(0, 1)), h21(i + vec2(1, 1)), f.x), f.y); }
+    void main() {
+      vec2 m = vUv * vec2(1.32, 0.95); float a = 0.0, hi = 0.0;
+      vec2 g = m * 26.0, c = floor(g), f = fract(g) - 0.5; float h = h21(c);
+      if (h > 1.0 - 0.22 * uRain) { float r = 0.12 + 0.18 * fract(h * 7.0); vec2 o = f - (vec2(fract(h * 13.0), fract(h * 29.0)) - 0.5) * 0.5; float d = length(o); a += smoothstep(r, r * 0.6, d) * 0.5; hi += smoothstep(r * 0.5, 0.0, length(o + vec2(r * 0.3, -r * 0.3))); }
+      for (int k = 0; k < 3; k++) { // drops blown along the glass
+        float fk = float(k), row = floor(m.y * 14.0 + fk * 0.37), sp = (0.08 + 0.05 * uSpeed) * (0.6 + 0.8 * h21(vec2(row, fk)));
+        vec2 q = vec2(m.x * 9.0 + uTime * sp * 9.0 + h21(vec2(row, fk + 3.0)) * 9.0, m.y * 14.0 + fk * 0.37);
+        vec2 qc = floor(q), qf = fract(q) - vec2(0.5); float qh = h21(qc + fk * 17.0);
+        if (qh > 1.0 - 0.16 * uRain) { float tl = 0.2 + 0.5 * fract(qh * 37.0); float d = length(vec2(min(qf.x, 0.0) * tl + max(qf.x, 0.0) * 1.8, (qf.y + 0.15 * sin(q.x * 3.0)) * 2.6)); a += smoothstep(0.3, 0.1, d) * 0.4; }
+      }
+      vec2 e = abs(vUv - 0.5) * 2.0; float edge = length(max(e - 0.55, 0.0)) * 1.6 + max(e.x, e.y) * 0.4 + 0.22 * vn(vUv * vec2(14.0, 10.0)) + 0.1 * vn(vUv * vec2(60.0, 44.0)) - 0.2;
+      float frost = smoothstep(0.55, 0.95, edge) * uSnow * (0.75 + 0.25 * vn(vUv * vec2(120.0, 90.0)));
+      vec3 col = vec3(0.62, 0.7, 0.86) * (0.35 + hi * 1.2);
+      gl_FragColor = vec4(mix(col, vec3(0.78, 0.84, 0.96), frost), clamp(a * 0.55 + hi * 0.3 + frost * 0.55, 0.0, 0.8));
+    }`;
+  const DU = { uRain: { value: 0 }, uSnow: { value: 0 }, uTime: S.U.uTime, uSpeed: { value: 1 } };
+  const drops = new THREE.Mesh(new THREE.PlaneGeometry(WX * 2, WY1 - WY0), new THREE.ShaderMaterial({ uniforms: DU, transparent: true, depthWrite: false, vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }', fragmentShader: DROP_F }));
+  drops.position.set(0, (WY0 + WY1) / 2, Z1 - 0.004); drops.rotation.y = Math.PI; inner.add(drops);
+  function weatherStep(t, dt, parentSpeed) {
+    for (const k of ['rain', 'fog', 'snow']) wx[k] = lerp(wx[k], wxT[k], 1 - Math.exp(-dt / 12));
+    DU.uRain.value = wx.rain; DU.uSnow.value = wx.snow; DU.uSpeed.value = Math.min(1.5, parentSpeed / 20);
+    rainL.material.opacity = 0.32 * wx.rain; snowL.material.opacity = 0.75 * wx.snow;
+    rainL.visible = wx.rain > 0.02; snowL.visible = wx.snow > 0.02;
+    if (!rainL.visible && !snowL.visible) return;
+    const ra = rainL.geometry.attributes.position.array, sa = snowL.geometry.attributes.position.array;
+    for (let i = 0; i < NP; i++) {
+      const q = fallP[i];
+      const fallV = i % 2 ? 9 : 1.2 + q[3]; // half are raindrops, half flakes
+      q[0] -= (parentSpeed + 1.5) * dt; q[1] -= fallV * dt; if (i % 2 === 0) { q[2] += Math.sin(t * 0.8 + i) * 0.3 * dt; }
+      if (q[0] < -30) q[0] += 60; if (q[1] < -1) { q[1] += 11; q[0] = (Math.random() - 0.5) * 60; }
+      const arr = i % 2 ? ra : sa, o = i * 6, len = i % 2 ? 0.032 : 0.018;
+      arr[o] = q[0]; arr[o + 1] = q[1]; arr[o + 2] = q[2];
+      arr[o + 3] = q[0] + (parentSpeed + 1.5) * len + 0.02; arr[o + 4] = q[1] + fallV * len; arr[o + 5] = q[2];
+    }
+    rainL.geometry.attributes.position.needsUpdate = true; snowL.geometry.attributes.position.needsUpdate = true;
+  }
+
+  // ---------------------------------------------------------------- the walk back through the train
+  const corridor = buildCorridor(S, { FL, woodM, brass, Z0 }); inner.add(corridor.group); corridor.group.visible = false;
+  const dine = buildDining(S, { FL, woodM, brass, pick }); const dineCar = new THREE.Group(); dineCar.add(dine.group); S.add(dineCar); dineCar.visible = false;
+  const obs = buildObservation(S, { FL, woodM, brass, pick, glowTex: glowTex2 }); const obsCar = new THREE.Group(); obsCar.add(obs.group); S.add(obsCar); obsCar.visible = false;
+  const fadeM = new THREE.MeshBasicMaterial({ color: '#000', transparent: true, opacity: 0, depthTest: false, depthWrite: false });
+  const fade = new THREE.Mesh(new THREE.PlaneGeometry(4, 4), fadeM); fade.position.z = -0.12; fade.renderOrder = 1000; S.camera.add(fade);
+  const PH = []; { let acc = 0; for (const [name, d] of WALK) { PH.push({ name, t0: acc, d }); acc += d; } }
+  let walkT0 = -1, bedT0 = -1, bend = 0;
+  const walkAmb = new THREE.AmbientLight('#ffd8b0', 0); S.add(walkAmb);
+  const inCarSeat = (ph) => ph.name === 'up' && ph.k < 0.3;
+  function walkPhase(t) {
+    if (walkT0 < 0) return null;
+    const u = t - walkT0;
+    for (const ph of PH) if (u < ph.t0 + ph.d) return { name: ph.name, k: Math.max(0, (u - ph.t0) / ph.d), u: u - ph.t0, d: ph.d };
+    return null;
+  }
+  // the berth made up for the night: a pillow and a blanket
+  const pillow = new THREE.Mesh(softBox(0.42, 0.1, 0.32, 0.05), S.mat('#eee8dc')); pillow.position.set(-0.8, FL + 0.56, -0.38); pillow.visible = false; inner.add(pillow);
+  const blanketM = new THREE.MeshLambertMaterial({ map: canvasTexture(S, 64, 64, (g, w, h) => { g.fillStyle = '#3a4a6a'; g.fillRect(0, 0, w, h); g.fillStyle = 'rgba(200,150,80,.5)'; for (let k = 0; k < w; k += 16) { g.fillRect(k, 0, 3, h); g.fillRect(0, k, w, 3); } g.fillStyle = 'rgba(160,40,40,.4)'; for (let k = 8; k < w; k += 16) { g.fillRect(k, 0, 2, h); g.fillRect(0, k, w, 2); } }) });
+  const blanket = new THREE.Mesh(softBox(0.56, 0.12, 1.5, 0.05), blanketM); blanket.position.set(-0.8, FL + 0.56, 0.42); blanket.visible = false; inner.add(blanket);
+
   // ---------------------------------------------------------------- the camera: sat on the berth by the door, gazing out
   car.add(S.camera);
 
@@ -700,7 +849,15 @@ export function createTrainScene({ mobile, seed }) {
   let lastJoint = Math.floor(dist / RAIL);
   let J = null, jOff = null, lastSpeed = -99, vNow = 16, aNow = 0;
   function handleEv(ev) {
-    if (ev.type === 'plan') { if (jOff === null) return; const f = { kind: ev.kind, s0: ev.s0 + jOff, s1: ev.s1 + jOff, no: ev.no, dwell: ev.dwell, speed: ev.speed, cars: ev.cars }; if (f.kind === 'pass') { if (!express) express = f; } else addFeature(f); }
+    if (ev.type === 'plan') {
+      if (jOff === null) return;
+      if (ev.kind === 'region') { if (ev.s0 < -1e4) return; const s0 = ev.s0 + jOff; if (!regions.some((g) => Math.abs(g.s0 - s0) < 5)) { regions.push({ name: ev.name, s0 }); regions.sort((a, b) => a.s0 - b.s0); rebuild(s0 - 450, s0 + 450); } return; }
+      const f = { kind: ev.kind, s0: ev.s0 + jOff, s1: ev.s1 + jOff, no: ev.no, dwell: ev.dwell, speed: ev.speed, cars: ev.cars, city: ev.city };
+      if (f.kind === 'pass') { if (!express) express = f; } else addFeature(f);
+    }
+    else if (ev.type === 'weather') { wxT.rain = ev.rain; wxT.fog = ev.fog; wxT.snow = ev.snow; }
+    else if (ev.type === 'walk') { if (walkT0 < 0) walkT0 = clock; }
+    else if (ev.type === 'bed') { if (bedT0 < 0) bedT0 = clock; }
     else if (ev.type === 'arrive') arrived = { t: clock, dwell: ev.dwell, st: features.find((f) => f.kind === 'station' && Math.abs(f.s0 - dist) < 40) };
     else if (ev.type === 'guard') waved = clock;
     else if (ev.type === 'clack') bumpV -= 0.012 * (ev.vel || 1);
@@ -731,7 +888,7 @@ export function createTrainScene({ mobile, seed }) {
   }
   const cm = new THREE.Matrix4(), off = new THREE.Matrix4(), cq = new THREE.Quaternion(), cp = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1), camW = new THREE.Vector3();
   const lean = { v: 0 }, co = {}, look = new THREE.Vector3();
-  let darkness = 0, stationGlow = 0, lampLvlNow = 1, valleyLook = 0;
+  let darkness = 0, stationGlow = 0, lampLvlNow = 1, valleyLook = 0, lampFade = 1, leanG = 0;
   function rebase() { // keep the numbers small: move the whole world back to the origin now and then
     const ox = p.x, oz = p.z;
     for (let i = 0; i < tx.length; i++) { tx[i] -= ox; tz[i] -= oz; }
@@ -793,7 +950,8 @@ export function createTrainScene({ mobile, seed }) {
     const fh = fAt(dist), tunnelIn = fh.lining;
     darkness = lerp(darkness, tunnelIn, 1 - Math.exp(-dt * 6));
     valleyLook = lerp(valleyLook, fh.vf, 1 - Math.exp(-dt * 0.8));
-    PU.uFogD.value = 0.0042 * (1 - 0.55 * valleyLook);
+    PU.uFogD.value = 0.0042 * (1 - 0.55 * valleyLook) * (1 + 3.2 * wx.fog + 1.5 * wx.rain + 1.2 * wx.snow);
+    tmpC.set('#2e3e70').lerp(tc2.set('#4a5582'), Math.min(1, wx.fog * 0.8 + wx.snow * 0.4)).lerp(tc2.set('#232c4c'), wx.rain * 0.6); PU.uFog.value.copy(tmpC); skyU.uHor.value.copy(tmpC);
     GU.uStrength.value = 0.06 * lampLvlNow + 0.65 * darkness;
     const stNear = features.find((f) => f.kind === 'station' && Math.abs(f.s0 - dist) < 110);
     stationGlow = lerp(stationGlow, stNear ? 1 - Math.abs(stNear.s0 - dist) / 110 : 0, 1 - Math.exp(-dt * 2));
@@ -821,9 +979,13 @@ export function createTrainScene({ mobile, seed }) {
     cordG.rotation.z = Math.sin(t * 1.3) * 0.08 + lean.v * 3 + inner.rotation.z * 6;
     cordG.rotation.x = Math.sin(t * 0.9 + 1) * 0.05 - bumpV * 2;
     blind.scale.y = blindDown; blind.position.y = WY1 + 0.01 - blindDown / 2;
-    // the lamp: warm, dimming a little later on
-    const lampLvl = 0.75 + 0.25 * e; lampLvlNow = lampLvl;
-    lamp.intensity = 1.1 * lampLvl; shadeM.emissiveIntensity = 0.45 * lampLvl;
+    // the lamp: warm, dimming a little later on, and off at bedtime; the blind comes half down
+    const bedK = bedT0 < 0 ? 0 : t - bedT0, lampOff = bedT0 >= 0 && bedK > 8;
+    lampFade = lampOff ? Math.max(0, lampFade - dt * 4) : 1;
+    const lampLvl = (0.75 + 0.25 * e) * lampFade; lampLvlNow = lampLvl;
+    lamp.intensity = 1.1 * lampLvl; shadeM.emissiveIntensity = 0.45 * lampLvl + 0.02; bulbM.color.setScalar(0.1 + 0.9 * lampFade).multiply(tc2.set('#fff2d0'));
+    glare.visible = lampFade > 0.05;
+    if (bedT0 >= 0) { blindDown = lerp(0.06, (WY1 - WY0) * 0.5, sstep(0, 16, bedK)); fill.intensity = lerp(fill.intensity, 0.08, sstep(6, 12, bedK)); pillow.visible = blanket.visible = bedK > 3; }
     // houses' windows go out as the night goes on
     IU.uLitFrac.value = 0.15 + 0.7 * sstep(0.2, 0.9, e);
     // smoke from the chimney, puffed harder when it whistles
@@ -837,19 +999,55 @@ export function createTrainScene({ mobile, seed }) {
     for (let i = 0; i < NSM; i++) { if (smAge[i] > 12) continue; smAge[i] += dt; smPos[i * 3 + 1] += dt * (0.6 + 0.4 / (1 + smAge[i])); smPos[i * 3] += dt * 0.4; smPos[i * 3 + 2] += dt * 0.25; }
     smGeo.attributes.position.needsUpdate = true; smGeo.attributes.aAge.needsUpdate = true;
 
-    // the camera: on the berth by the door, looking out of the window, eyes wandering along the view
+    // the other carriages we walk through, set on the line like ours
+    const ph = walkPhase(t);
+    const inCar = !ph || ph.name === 'up' || ph.name === 'corridor' || (ph.name === 'back' && ph.k > 0.5) || (ph.name === 'dining' && ph.u < 0.4);
+    corridor.group.visible = !!ph && (ph.name === 'up' || ph.name === 'corridor');
+    dineCar.visible = !!ph && (ph.name === 'dining' || (ph.name === 'corridor' && ph.k > 0.85) || (ph.name === 'through' && ph.k < 0.5));
+    obsCar.visible = !!ph && ((ph.name === 'through' && ph.k >= 0.5) || ph.name === 'obs' || (ph.name === 'back' && ph.k < 0.5));
+    for (const [G, k] of [[dineCar, OURS - 1], [obsCar, 0]]) if (G.visible) { const og = placeOnTrack(dist + (k - OURS) * CARLEN, BOGIE, G, co); G.rotation.set(lean.v, og.yaw, 0, 'YXZ'); G.position.y = inner.position.y; }
+    corridor.light.intensity = corridor.group.visible ? 2.2 : 0; dine.light.intensity = dineCar.visible ? 3.5 : 0; obs.light.intensity = obsCar.visible ? 1.6 : 0;
+    walkAmb.intensity = lerp(walkAmb.intensity, ph && !inCarSeat(ph) ? 0.85 : 0, 1 - Math.exp(-dt * 3));
+    if (corridor.group.visible) corridor.light.position.x = S.camera.position.x - 1;
+    if (dineCar.visible) dine.animate(t);
+    fadeM.opacity = !ph ? 0 : ph.name === 'through' || ph.name === 'back' ? 1 - Math.abs(ph.k - 0.5) * 2 : ph.name === 'corridor' ? sstep(0.86, 1, ph.k) : ph.name === 'dining' && ph.u < 0.8 ? 1 - ph.u / 0.8 : 0;
+    fade.visible = fadeM.opacity > 0.001;
+
+    // the camera: on the berth by the door, looking out of the window, eyes wandering along the view;
+    // at the glass on a tight bend; walking back through the train; lying down at bedtime
     const cam = S.camera, a = cam.aspect || 1, portrait = a < 0.8;
     const gaze = 0.18 * Math.sin(t * 0.031) + 0.08 * Math.sin(t * 0.083 + 1);
-    cam.position.set((portrait ? 0.1 : 0.05) + Math.sin(t * 0.05) * 0.03, FL + 1.13 + bump * 0.6, portrait ? -0.5 : -0.38);
-    car.updateMatrixWorld();
-    look.set(portrait ? 0.14 + gaze * 0.4 : 0.1 + gaze * 1.5, FL + 1.18 - (portrait ? 0.2 : 0) - 0.25 * valleyLook, Z1 + 1.0); car.localToWorld(look); cam.lookAt(look);
+    track(dist + 20, pa); track(dist + 160, pb);
+    const turn = Math.atan2(Math.sin(Math.atan2(pb.dz, pb.dx) - Math.atan2(pa.dz, pa.dx)), Math.cos(Math.atan2(pb.dz, pb.dx) - Math.atan2(pa.dz, pa.dx))) / 140;
+    bend = lerp(bend, !ph && bedT0 < 0 && turn > 1 / 330 && speed > 5 ? 1 : 0, 1 - Math.exp(-dt * 0.5));
+    const parent = !ph || inCar ? car : ph.name === 'obs' || ph.name === 'back' || (ph.name === 'through' && ph.k >= 0.5) ? obsCar : dineCar;
+    if (cam.parent !== parent) { parent.add(cam); parent.add(rainL); parent.add(snowL); }
+    parent.updateMatrixWorld();
+    const sit = [(portrait ? 0.1 : 0.05) + Math.sin(t * 0.05) * 0.03, FL + 1.13 + bump * 0.6, portrait ? -0.5 : -0.38];
+    const sitLook = [portrait ? 0.14 + gaze * 0.4 : 0.1 + gaze * 1.5, FL + 1.18 - (portrait ? 0.2 : 0) - 0.25 * valleyLook, Z1 + 1.0];
+    let P = sit, L = sitLook;
+    const mixv = (A, B, k) => [lerp(A[0], B[0], k), lerp(A[1], B[1], k), lerp(A[2], B[2], k)];
+    if (bend > 0.01) { P = mixv(P, [-0.25, FL + 1.16, Z1 - 0.065], sstep(0, 1, bend)); L = mixv(L, [10, FL + 0.95, Z1 + 1.15], sstep(0, 1, bend)); }
+    if (bedT0 >= 0) { const k = sstep(4, 16, bedK); P = mixv(P, [-0.78, FL + 0.68 + Math.sin(t * 0.5) * 0.004, -0.3], k); L = mixv(L, [0.25 + gaze * 0.3, FL + 1.02, Z1 + 0.6], k); }
+    if (ph) {
+      const step = Math.abs(Math.sin(t * 5.2)) * 0.025, zc = (Z0 - 1.4) / 2;
+      if (ph.name === 'up') { const k = sstep(0, 1, ph.k); P = mixv(sit, [-0.05, FL + 1.6, zc], k); L = mixv(sitLook, [-6, FL + 1.5, zc - 0.2], sstep(0.35, 1, ph.k)); }
+      else if (ph.name === 'corridor') { const x = lerp(-0.05, -9.7, sstep(0, 1, ph.k)), gl = sstep(0.25, 0.4, ph.k) * (1 - sstep(0.6, 0.75, ph.k)); P = [x, FL + 1.6 + step, zc]; L = [x - 5, FL + 1.45, zc - 0.2 - 3 * gl]; }
+      else if (ph.name === 'dining') { const k = sstep(0, 0.65, ph.k), x = lerp(9.6, dine.BAR + 0.9, k), side = Math.sin(ph.u * 0.35) * (1 - sstep(0.6, 0.7, ph.k)); P = [x, FL + 1.6 + (k < 1 ? step : 0), 0]; L = k < 1 ? [x - 4, FL + 1.25, side * 1.5] : [-8.4, FL + 1.45, 0.3]; }
+      else if (ph.name === 'through') { P = ph.k < 0.5 ? [dine.BAR + 0.9, FL + 1.6, 0] : [obs.SEAT[0] + 0.15, FL + 1.1, obs.SEAT[1]]; L = ph.k < 0.5 ? [-8.4, FL + 1.45, 0.3] : [-40, FL + 0.4, 0.4]; }
+      else if (ph.name === 'obs') { P = [obs.SEAT[0] + 0.15, FL + 1.1, obs.SEAT[1]]; L = [-40, FL + 0.4 + Math.sin(t * 0.1) * 0.5, 0.4 + gaze * 8]; }
+      else if (ph.name === 'back') { if (ph.k < 0.5) { P = [obs.SEAT[0] + 0.15, FL + 1.1, obs.SEAT[1]]; L = [-40, FL + 0.4, 0.4]; } }
+    }
+    cam.position.set(P[0], P[1], P[2]);
+    look.set(L[0], L[1], L[2]); parent.localToWorld(look); cam.lookAt(look);
     cam.position.y += inner.position.y * 0.6;
+    weatherStep(t, dt, speed);
     // the sky goes with us
     cam.getWorldPosition(camW); sky.position.copy(camW);
     // keep the numbers small
     if (Math.hypot(p.x, p.z) > 3000) rebase();
   });
 
-  S.scene.userData.train = { get dist() { return dist; }, get speed() { return speed; }, get rebased() { return rebaseX; }, get lean() { return lean.v; }, get features() { return features.map((f) => ({ kind: f.kind, s0: Math.round(f.s0 - dist), s1: Math.round(f.s1 - dist), name: f.name })); }, get state() { return J ? J.state : 'music'; }, get express() { return express && { s0: Math.round(express.s0 - dist), near: !!express.near }; }, get darkness() { return darkness; }, handleEv, get jOff() { return jOff; } };
+  S.scene.userData.train = { get dist() { return dist; }, get speed() { return speed; }, get rebased() { return rebaseX; }, get lean() { return lean.v; }, get features() { return features.map((f) => ({ kind: f.kind, s0: Math.round(f.s0 - dist), s1: Math.round(f.s1 - dist), name: f.name })); }, get state() { return J ? J.state : 'music'; }, get express() { return express && { s0: Math.round(express.s0 - dist), near: !!express.near }; }, get darkness() { return darkness; }, handleEv, get jOff() { return jOff; }, get region() { return regionAt(dist); }, get regions() { return regions.map((g) => ({ name: g.name, s0: Math.round(g.s0 - dist) })); }, get weather() { return { ...wx }; }, get walk() { const ph = walkPhase(clock); return ph && ph.name + ' ' + ph.k.toFixed(2); }, get bend() { return bend; }, get bed() { return bedT0 >= 0; } };
   return S.finalize({ portraitFov: 64 });
 }

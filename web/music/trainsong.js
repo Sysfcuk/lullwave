@@ -6,11 +6,14 @@
 // whistle, the engine chuffing away again; the roar of a tunnel, the hollow knock of a viaduct, a
 // level crossing's bell rising and falling in pitch as it goes by, another train's horn bending
 // down as it flashes past. Over it all, a night-train lullaby in D: soft electric-piano chords, a
-// round bass, a clarinet tune.
+// round bass, and a tune that changes with the country: an electric piano in the city, a clarinet
+// over the farmland, lower in the mountains, glass bells by the lake, a celesta in the snow. And when
+// we walk back through the train: the door sliding, footsteps, the rattle of the gangway, the murmur
+// and clink of the dining car. Rain patters on the glass; snow hushes everything.
 import { padChord, bass, epiano, noiseHit, bell, swell, mtof } from './voices.js';
 import { panned } from './ambient.js';
 import { thud, clarinet, mew, makeComposer, tunePlayer, scaleOf, liveBeds } from './bespoke.js';
-import { createJourney, RAIL } from '../scenes/dream/train-journey.js';
+import { createJourney, RAIL, WALK } from '../scenes/dream/train-journey.js';
 
 /** A wheel over a rail joint: a metallic knock with a thump under it (lower and boomier on a viaduct). */
 function clack(A, ch, t, vel, pan = 0, ring = true, hollow = 0) {
@@ -72,6 +75,11 @@ export function createTrainSong({ rng }) {
   const J = createJourney(rng);
   const joints = AXLES.map(([o]) => Math.floor(o / RAIL));
   let hollow = 0, tunnel = 0, squealed = false, chuff = 0, horned = new Set(), whistled = new Set();
+  let region = 'city', wxs = { rain: 0, fog: 0, snow: 0 };
+  const pending = []; // sounds to come at a journey time: [at, fn(localTime)]
+  const later = (at, fn) => pending.push([at, fn]);
+  const footstep = (A, ch, t, v = 1) => { thud(A, ch, t, 0.009 * v, 105 + Math.random() * 20, 0.05); noiseHit(A, ch, t, { vel: 0.006 * v, type: 'lowpass', freq: 900, decay: 0.05 }); };
+  const door = (A, ch, t) => swell(A, ch, t, { dur: 0.9, vel: 0.02, freq: 700, freq2: 1500, q: 1.2, pan: -0.3 });
   return {
     ...makeComposer({
       rng, bpm: [54, 74], meter: 4, swing: 0.08, level: 0.82, verb: 0.7, delay: 0.75,
@@ -86,7 +94,24 @@ export function createTrainSong({ rng }) {
           const lt = t + k * dt, at = tm + k * dt;
           for (const ev of J.step(dt, e, cruise)) {
             const lt2 = lt + dt;
-            if (ev.type === 'plan') A.emit('plan', at, { kind: ev.kind, s0: ev.s0, s1: ev.s1, no: ev.no, dwell: ev.dwell, speed: ev.speed, cars: ev.cars });
+            if (ev.type === 'plan') A.emit('plan', at, { kind: ev.kind, s0: ev.s0, s1: ev.s1, no: ev.no, dwell: ev.dwell, speed: ev.speed, cars: ev.cars, name: ev.name, city: ev.city });
+            else if (ev.type === 'region') { region = ev.name; A.emit('region', at, { name: ev.name }); }
+            else if (ev.type === 'weather') { wxs = { rain: ev.rain, fog: ev.fog, snow: ev.snow }; A.emit('weather', at, wxs); }
+            else if (ev.type === 'bed') { A.emit('bed', at, {}); later(J.T + 8, (lt3) => { noiseHit(A, ch.perc, lt3, { vel: 0.02, type: 'highpass', freq: 2500, decay: 0.02, pan: 0.3 }); thud(A, ch.perc, lt3, 0.008, 240, 0.3); }); }
+            else if (ev.type === 'walk') { // up, out of the door, along the corridor, through the gangway, the dining car, the observation car, and back
+              A.emit('walk', at, {});
+              const w0 = J.T, P = {}; let acc = 0; for (const [nm, d] of WALK) { P[nm] = acc; acc += d; }
+              later(w0 + 2.5, (x) => noiseHit(A, ch.night, x, { vel: 0.01, type: 'lowpass', freq: 600, decay: 0.4 }));
+              later(w0 + P.up + 4.5, (x) => door(A, ch.night, x));
+              for (let q = P.corridor + 0.5; q < P.dining - 1.2; q += 0.62) later(w0 + q, (x) => footstep(A, ch.night, x));
+              later(w0 + P.dining - 1.4, (x) => { swell(A, ch.perc, x, { dur: 2.6, vel: 0.04, freq: 400, freq2: 300, q: 0.6 }); door(A, ch.night, x + 1.8); });
+              for (let q = P.dining + 0.6; q < P.dining + 22; q += 0.62) later(w0 + q, (x) => footstep(A, ch.night, x, 0.9));
+              for (const q of [0.5, 16]) later(w0 + P.dining + q, (x) => swell(A, ch.far, x, { dur: 20, vel: 0.012, freq: 480, freq2: 520, q: 1.3 })); // the dining car's murmur
+              for (const q of [3, 8, 15, 21, 27, 31]) later(w0 + P.dining + q, (x) => { for (let k = 0; k < 2; k++) bell(A, ch.night, x + k * 0.09, 100 + rng() * 4, 0.004, rng() - 0.5, 0.4); });
+              later(w0 + P.through + 0.4, (x) => door(A, ch.night, x));
+              later(w0 + P.obs + 1, (x) => swell(A, ch.night, x, { dur: 60, vel: 0.008, freq: 300, freq2: 260, q: 0.5 }));
+              later(w0 + P.back + 0.5, (x) => door(A, ch.night, x));
+            }
             else if (ev.type === 'brake') { squealed = false; A.emit('brake', at, {}); }
             else if (ev.type === 'arrive') {
               noiseHit(A, ch.perc, lt2, { vel: 0.02, type: 'highpass', freq: 2500, decay: 1.2, pan: 0.5 }); // the brakes' sigh
@@ -110,6 +135,7 @@ export function createTrainSong({ rng }) {
               A.emit('meet', at, {});
             }
           }
+          while (pending.length) { const i = pending.findIndex(([w]) => w <= J.T); if (i < 0) break; const [, fn] = pending.splice(i, 1)[0]; fn(lt + dt); }
           // wheels over the joints
           const pos = J.pos;
           AXLES.forEach(([o, g], i) => {
@@ -146,7 +172,17 @@ export function createTrainSong({ rng }) {
         }
         if (sub === 0 && (inBar === 0 || inBar === 2)) bass(A, ch.bass, t, root - 12 + br + (inBar === 2 ? 7 : 0), beatLen * 1.6, 0.05 + 0.02 * e);
         if (e > 0.3 && sub === 0 && inBar === (bar % 2 ? 3 : 1)) for (const m of notes.slice(1)) epiano(A, ch.arp, t + rng() * 0.02, m, 0.008 + 0.006 * e, (rng() - 0.5) * 0.4, beatLen * 0.9);
-        tune.step(S, (d, len) => clarinet(A, ch.lead, t, deg(d) + 12, len * S.eighth * 0.95, 0.024 + 0.01 * e, (rng() - 0.5) * 0.3));
+        tune.step(S, (d, len) => { // the tune, on the country's own instrument
+          const dur = len * S.eighth * 0.95, pan = (rng() - 0.5) * 0.3;
+          if (region === 'city') epiano(A, ch.lead, t, deg(d) + 12, 0.034 + 0.01 * e, pan, dur * 1.3);
+          else if (region === 'mountain') clarinet(A, ch.lead, t, deg(d), dur, 0.03 + 0.01 * e, pan);
+          else if (region === 'lake') bell(A, ch.lead, t, deg(d) + 24, 0.022 + 0.008 * e, pan, 3.5);
+          else if (region === 'snow') { bell(A, ch.lead, t, deg(d) + 24, 0.02, pan, 2.4); bell(A, ch.far, t + 0.01, deg(d) + 36, 0.004, -pan, 1.4); }
+          else clarinet(A, ch.lead, t, deg(d) + 12, dur, 0.024 + 0.01 * e, pan);
+        });
+        // ---- weather: rain pattering on the glass; snow's hush
+        if (wxs.rain > 0.05) { if (rng() < wxs.rain * 0.9) noiseHit(A, ch.night, t + rng() * eighth, { vel: 0.004 * wxs.rain, type: 'highpass', freq: 3500 + rng() * 2000, decay: 0.015, pan: 0.4 + rng() * 0.4 }); S.every('rainbed', 6, () => swell(A, ch.night, t, { dur: 10, vel: 0.022 * wxs.rain, freq: 2400, freq2: 2600, q: 0.5, pan: 0.4 })); }
+        if (wxs.snow > 0.05) S.every('snowhush', 7, () => swell(A, ch.far, t, { dur: 11, vel: 0.012 * wxs.snow, freq: 380, freq2: 300, q: 0.6, pan: 0.3 }));
         // ---- now and then
         S.every('whistle', 90, () => { if (J.state === 'cruise') { whistle(A, ch.far, t, root + 19 + (rng() < 0.5 ? 0 : 2), 1.4 + rng(), 0.006 + 0.004 * e); A.emit('whistle', S.tm, {}); } });
         S.every('clink', 17, () => { if (J.v > 3) { clink(A, ch.night, t); A.emit('clink', S.tm, {}); } });
