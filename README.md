@@ -11,9 +11,9 @@ closes, and in the last stretch of the timer everything fades out.
 
 ## Worlds
 
-Seventeen worlds are on: Crystal Cave, Night Drive, Deep Ocean, Aurora, Cotswold Valley, Disco Cat, and eleven dream
+Eighteen worlds are on: Crystal Cave, Night Drive, Deep Ocean, Aurora, Cotswold Valley, Disco Cat, and twelve dream
 scenes (Moonlit Canal, Christmas Market, Midnight Choir, Penny's Night Patrol, Pineapple Pizza Incident, Counting
-Sheep, 8-Bit Night Walk, Glowing Sands, The Fantastical Snowstorm, Computer Says No, Pineapple Fever Dream). The others are switched off with `off: true` in `WORLDS` in `web/main.js`; their code is kept, and
+Sheep, 8-Bit Night Walk, Glowing Sands, The Fantastical Snowstorm, Computer Says No, The Sleeper Train, Pineapple Fever Dream). The others are switched off with `off: true` in `WORLDS` in `web/main.js`; their code is kept, and
 flipping the flag brings one back.
 
 | World | Visuals | Music |
@@ -30,7 +30,7 @@ flipping the flag brings one back.
 
 ### Dream scenes
 
-The eleven dream scenes that are on each have their own hand-written composer, with its own original tunes, band and
+The twelve dream scenes that are on each have their own hand-written composer, with its own original tunes, band and
 sounds of the place (built on `web/music/bespoke.js`):
 
 | Scene | Music |
@@ -46,6 +46,7 @@ sounds of the place (built on `web/music/bespoke.js`):
 | **Glowing Sands** (`sandsong.js`) | Glassy and still: soft sine pads drifting through a lydian progression, tiny high bell pings falling at random like grains striking glass (fewer as the night goes on), a slow phrase on glass bells, a low hum and the faint hiss of sand. |
 | **The Fantastical Snowstorm** (`snowsong.js`) | A storm that blows itself out into a lullaby: resonant gusts that rise, howl and fade (sent to the scene, so the snow surges with them) over a low drone and a wordless choir; a glassy celesta tune in D dorian, sleigh-bell shimmers for the snow spirits. The gusts come softer and further apart through the night until only the choir, the celesta and the hush of snow are left. |
 | **Computer Says No** (`saysnosong.js`) | A soft 1980s synth lullaby in F (a warm analogue pad, a little plucked arpeggio, an electric-piano tune) in the room with the computer. The conversation runs here too: every key click as the questions are typed, the disk drive's motor and stepping head while it thinks, its two-note "no" beep, the lamp switch, all sent to the scene so the screen and the sounds land together. |
+| **The Sleeper Train** (`trainsong.js`) | The rails are the rhythm: each beat is one rail length, so the wheels cross a joint every beat (the rear bogie of the carriage ahead, then our front bogie: the clickety-clack) over a low rumble, and the scene takes the train's speed from the tempo and its bumps from the clacks. Over it, a night-train lullaby in D: soft electric-piano chords, a round bass, a clarinet tune; a distant whistle now and then, and the cup rattling on its saucer. |
 
 In **Counting Sheep**, a flock of cloud-sheep grazes on stars growing in the grass of a floating island, above a slowly billowing sea of moonlit cloud. Each sheep has its own mind: it wanders, eats a star (which grows back), rests, or looks up to bleat. On the music's breath, one trots up and leaps the fence, sailing across the gap to the next island beneath a moon that hangs high in the sky: the run-up and the hop to the top are the in-breath, and the long, slow float down onto the quilt (ears up, legs dangling, like thistledown) is the out-breath. A number glows and fades at the top of the leap. A soft ring of light round the moon breathes with the music, swelling on the in-breath and settling on the out-breath, whether or not a sheep is jumping, so you can breathe along with it. It lands on the next island (a patchwork quilt with a pillow), finds a bed and goes to sleep; later its fleece dissolves into a soft cloud that drifts up into the sky, and a cloud may come back down to the grass as a sheep. The moon waxes through the night, from a thin, leaning crescent at bedtime (with the rest of its face just showing by earthshine) to full; when it's full it has a face, fast asleep. As the night goes on the jumps get lazier and the clouds stop coming down, until the flock is asleep on the quilt and in the sky. The ram won't jump: he watches from the fence and shakes his head. Now and then he squares up to it (backs off, paws the ground, makes a run at it), stops short, shakes his head and wanders off. In the end he falls asleep there.
 
@@ -88,6 +89,16 @@ THE BED?"). The typing slows and slips; they ask to turn off the lamp (no) and t
 "ARE YOU STILL AWAKE?" NO. Then it goes to sleep, its words fading and its cursor blinking slower and slower. The
 screen is a small phosphor buffer in our own 5x7 font, shown through a CRT shader with curved glass, scanlines and a
 soft beam.
+
+**The Sleeper Train** is a night journey in a cosy couchette compartment: wood panelling, patterned berths with
+white antimacassars, a luggage rack with a suitcase, travel posters for places on the line, and a table under the
+window with a pleated-shade lamp, a book and a cup that rattles on its saucer. The carriage sways, bumps over the rail
+joints in time with the music and leans into the bends. Outside is a papercut world in moonlit blues, made up as the
+train goes along a real curving line: layer upon layer of cut-paper hills with moonlit edges, tree lines, hedgerows,
+fences, farms, villages and churches whose windows glow and go out one by one through the night, lit windows on the
+far hillsides, cows and sheep in the fields, telegraph poles whipping past, a paper moon. The train's own lit windows
+throw moving squares of warm light over everything it passes. (This is the first stage: stations, tunnels, other
+landscapes, weather and a walk through the train are to come.)
 
 The switched-off dream scenes use the shared ambient composer described below.
 
