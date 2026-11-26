@@ -28,6 +28,7 @@ export function createSandsScene({ mobile, seed }) {
   };
   const N = GW * GH;
   let type = new Uint8Array(N), col = new Uint8Array(N), vari = new Uint8Array(N), act = new Uint8Array(N); // type: 0 inside (empty), 1 outside, 2 sand
+  const vy = new Uint8Array(N); // how fast each grain is falling, in cells a step (0: resting)
   const stamp = new Uint16Array(N); let step = 1;
   for (let y = 0; y < GH; y++) { const hw = halfW(y); for (let x = 0; x < GW; x++) type[y * GW + x] = hw > 0 && Math.abs(x + 0.5 - cx) <= hw ? 0 : 1; }
   // the frame drawn round it: glass edges, brass posts, wooden caps (all fixed, so drawn once)
@@ -54,23 +55,49 @@ export function createSandsScene({ mobile, seed }) {
     } }
 
   // ---------------------------------------------------------------- the sand falls
+  // Grains speed up once they're in the open below the neck (so the stream stretches into droplets),
+  // the whole stream sways as `wander` moves (so the heap's peak drifts and its layers come out wavy
+  // and lopsided), hard landings roll on a little further and throw up glitter, grains in the neck now
+  // and then catch for a moment (`jam`: dribbles, and the odd pause and rush), and after each turn the
+  // glass settles with a slight lean (`bias`). Every rule applies to all the grains alike at any
+  // moment: chance applied grain by grain stirs the colour layers into confetti.
+  let wander = 0, bias = 0, jam = 0;
+  const glitter = [];
+  const inX = (x) => x >= 0 && x < GW;
   function simulate() {
     step = (step + 1) & 0xffff || 1;
     let moved = 0; top = 0;
+    const sway = rnd() < Math.abs(wander) * 0.7 ? (wander > 0 ? 1 : -1) : 0; // this step, the whole stream leans one way (or not)
     for (let y = GH - 2; y >= 0; y--) {
       const ltr = (y + step) & 1;
       for (let i = 0; i < GW; i++) {
         const x = ltr ? i : GW - 1 - i, k = y * GW + x;
         if (type[k] !== 2) continue;
         if (stamp[k] === step) { if (y < NECK) top++; continue; }
-        let to = -1; const b = k + GW;
-        if (type[b] === 0) to = b;
-        else { const d = rnd() < 0.5 ? -1 : 1; if (x + d >= 0 && x + d < GW && type[b + d] === 0 && type[k + d] === 0) to = b + d; else if (x - d >= 0 && x - d < GW && type[b - d] === 0 && type[k - d] === 0) to = b - d; }
-        if (to < 0 && rnd() < 0.3) { const d = rnd() < 0.5 ? -1 : 1; if (x + d >= 0 && x + d < GW && type[k + d] === 0 && type[b + d] === 0) to = k + d; }
-        if (to < 0) { if (y < NECK) top++; if (act[k] > 0) act[k] = Math.max(0, act[k] - 40); continue; }
-        type[to] = 2; col[to] = col[k]; vari[to] = vari[k]; act[to] = 255; stamp[to] = step;
-        type[k] = 0; act[k] = 0; moved++;
-        if (((to / GW) | 0) < NECK) top++; if (y === NECK - 1 && to >= NECK * GW) passed++;
+        if (jam > 0 && y >= NECK - 2 && y <= NECK + 1 && rnd() < jam) { if (y < NECK) top++; continue; } // caught in the neck
+        let to = -1, v = 0; const b = k + GW;
+        if (type[b] === 0) {
+          // falling: a little faster each step, up to four cells, stopping at whatever is below
+          const want = y < NECK - 1 ? 1 : Math.min(4, vy[k] + 1); let kk = k; // speeding up only in the open fall below the neck (above it, the sand drains in order)
+          for (let n = 0; n < want; n++) { if (kk + GW >= N || type[kk + GW] !== 0) break; kk += GW; }
+          if (sway && want >= 2 && y > NECK) { const xx = (kk % GW) + sway; if (inX(xx) && type[kk + sway] === 0) kk += sway; } // the stream sways
+          to = kk; v = want;
+        } else {
+          // on something: slide down a side if it can, rolling on a little further after a hard landing
+          const hard = vy[k] >= 3;
+          {
+            const d = rnd() < 0.5 + bias ? 1 : -1;
+            if (inX(x + d) && type[b + d] === 0 && type[k + d] === 0) to = b + d; else if (inX(x - d) && type[b - d] === 0 && type[k - d] === 0) to = b - d;
+            if (to >= 0 && hard) { const dd = (to % GW) - x; if (inX(x + 2 * dd) && type[to + GW + dd] === 0 && type[to + dd] === 0) to = to + GW + dd; } // and roll on
+          }
+          if (to < 0 && y < NECK && rnd() < 0.12) { const d = rnd() < 0.5 + bias ? 1 : -1; if (inX(x + d) && type[k + d] === 0 && type[b + d] === 0) to = k + d; }
+          if (hard && glitter.length < 60 && rnd() < 0.22) glitter.push({ x: x + 0.5, y: y, vx: (rnd() - 0.5) * 6, life: 1, c: col[k] });
+        }
+        if (to < 0) { vy[k] = 0; if (y < NECK) top++; if (act[k] > 0) act[k] = Math.max(0, act[k] - 40); continue; }
+        type[to] = 2; col[to] = col[k]; vari[to] = vari[k]; act[to] = 255; vy[to] = v; stamp[to] = step;
+        type[k] = 0; act[k] = 0; vy[k] = 0; moved++;
+        const ty = (to / GW) | 0;
+        if (ty < NECK) top++; else if (y < NECK) passed++;
       }
     }
     return moved;
@@ -94,7 +121,13 @@ export function createSandsScene({ mobile, seed }) {
         let m = (v * 0.92 + a * 0.18) * bright;
         const r = Math.min(255, c[0] * m + 255 * sp), g = Math.min(255, c[1] * m + 255 * sp), b = Math.min(255, c[2] * m + 255 * sp);
         buf[row + x] = (255 << 24) | (b << 16) | (g << 8) | r;
+        if (vy[k] >= 2 && y > 0 && type[k - GW] === 0) { const tr = 0.3 * bright; buf[row + GW + x] = (150 << 24) | ((c[2] * tr) << 16) | ((c[1] * tr) << 8) | (c[0] * tr); } // a streak
       }
+    }
+    for (const p of glitter) { // tiny sparks thrown up by hard landings
+      const x = Math.round(p.x), y = Math.round(p.y); if (x < 0 || x >= GW || y < 0 || y >= GH) continue;
+      const c = rgb[p.c], w = p.life * bright, r = Math.min(255, 140 * w + c[0] * w), g = Math.min(255, 140 * w + c[1] * w), b = Math.min(255, 140 * w + c[2] * w);
+      buf[(GH - 1 - y) * GW + x] = ((Math.min(255, 255 * p.life * 1.4) | 0) << 24) | ((b | 0) << 16) | ((g | 0) << 8) | (r | 0);
     }
     tex.needsUpdate = true;
   }
@@ -106,25 +139,29 @@ export function createSandsScene({ mobile, seed }) {
   const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.35 }));
   glow.position.z = -10.5; S.camera.add(glow);
   const glowCol = new THREE.Color(SAND[0]), tmpC = new THREE.Color();
+  const lerp = (a, b, k) => a + (b - a) * k;
 
   // ---------------------------------------------------------------- time: pouring, resting, turning over
-  let passed = 0, lastPass = 0, acc = 0, still = 0, flip = -1, pulse = 0, energy = 1, rest = false;
+  let catchT = 0, lean = 0, newLean = 0, passed = 0, lastPass = 0, acc = 0, still = 0, flip = -1, pulse = 0, energy = 1, rest = false;
   S.onEvent((ev) => { if (ev.type === 'chord') pulse = 1; });
   S.on((t, dt, st) => {
     energy = st.energy;
     bright = (0.62 + 0.38 * energy) * (1 + 0.08 * pulse); pulse *= Math.exp(-dt * 0.8);
+    wander = 0.24 * Math.sin(t * 0.13) + 0.14 * Math.sin(t * 0.051 + 2);
+    if (catchT > 0) { catchT -= dt; jam = 0.93; } else { jam = 0.1 * (0.5 + 0.5 * Math.sin(t * 0.37)) * (0.5 + 0.5 * Math.sin(t * 0.11 + 1)); if (Math.random() < dt / 35) catchT = 0.8 + Math.random() * 2; }
+    for (let i = glitter.length - 1; i >= 0; i--) { const p = glitter[i]; p.life -= dt * 1.4; p.y -= dt * 5 * p.life; p.x += p.vx * dt; if (p.life <= 0) glitter.splice(i, 1); }
     if (flip < 0) {
-      const rate = 30 * (0.4 + 0.6 * energy); // grain-steps a second
+      const rate = 34 * (0.4 + 0.6 * energy); // grain-steps a second
       acc += dt * rate; let n = 0, moved = 0;
       while (acc >= 1 && n < 3) { acc -= 1; n++; moved += simulate(); }
       if (passed !== lastPass) { lastPass = passed; still = 0; } else still += dt;
       // turn over once the stream through the neck has stopped (not at the very end of the night)
-      if (still > 3 && !rest) { if (energy < 0.33) rest = true; else flip = 0; }
+      if (still > 3 && !rest) { if (energy < 0.33) rest = true; else { flip = 0; newLean = (Math.random() - 0.5) * 0.05; } } // each turn settles at its own slight lean
     } else {
       flip += dt / 8;
       const k = Math.min(1, flip), e = k * k * (3 - 2 * k);
-      quad.rotation.z = Math.PI * e; glow.material.rotation = Math.PI * e;
-      if (k >= 1) { type.reverse(); col.reverse(); vari.reverse(); act.fill(0); stamp.fill(0); quad.rotation.z = 0; flip = -1; still = 0; }
+      quad.rotation.z = lerp(lean, Math.PI + newLean, e); glow.material.rotation = Math.PI * e;
+      if (k >= 1) { type.reverse(); col.reverse(); vari.reverse(); act.fill(0); vy.fill(0); stamp.fill(0); glitter.length = 0; lean = newLean; bias = -lean * 6; quad.rotation.z = lean; flip = -1; still = 0; }
     }
     draw(t);
     // size: the glass stands tall in the view, whatever the screen's shape
@@ -136,6 +173,6 @@ export function createSandsScene({ mobile, seed }) {
     glow.material.color.copy(glowCol); glow.scale.set(w * 1.6, h * 0.9, 1); glow.material.opacity = (0.22 + 0.12 * pulse) * (0.5 + 0.5 * energy);
   });
 
-  S.scene.userData.sands = { get top() { return top; }, get flipping() { return flip >= 0; }, get grains() { let n = 0; for (let k = 0; k < N; k++) if (type[k] === 2) n++; return n; } };
+  S.scene.userData.sands = { coherence() { let same = 0, all = 0; for (let y = NECK + 2; y < GH - CAP; y++) for (let x = 0; x < GW - 1; x++) { const k = y * GW + x; if (type[k] === 2 && type[k + 1] === 2) { all++; if (col[k] === col[k + 1]) same++; } } return all ? same / all : 0; }, get top() { return top; }, get flipping() { return flip >= 0; }, get grains() { let n = 0; for (let k = 0; k < N; k++) if (type[k] === 2) n++; return n; } };
   return S.finalize({ portraitFov: 50 });
 }

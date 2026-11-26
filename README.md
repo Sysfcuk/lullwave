@@ -56,8 +56,11 @@ then a shooting star crosses. As the night winds down the walker looks for a fie
 then lies down under a blanket; pixel Zs drift up and the fire burns low.
 
 **Glowing Sands** is a real falling-sand simulation in an hourglass: about seven thousand glowing grains in rainbow
-layers, each falling, sliding off to one side, or creeping off a ledge, pour through the neck in a thin stream and
-heap into a cone. When the stream stops, the hourglass slowly turns over and pours again; every grain keeps its
+layers pour through the neck and heap below. Grains speed up once they're falling free, so the stream stretches into
+sparkling droplets; the whole stream sways as it falls, so the heap's peak wanders and its layers come out wavy and
+lopsided; hard landings roll on and throw up a little glitter; the neck dribbles, and now and then catches for a moment
+and lets go with a rush. When the stream stops, the hourglass slowly turns over and settles with a slight lean of its own (so each pour slides
+its own way); every grain keeps its
 colour, so each turn stirs the layers into new chevrons and stripes. A glow behind the glass takes the colour of the
 falling stream. Through the night the sand runs slower and dimmer, and at the end the glass comes to rest.
 
