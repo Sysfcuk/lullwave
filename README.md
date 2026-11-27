@@ -11,9 +11,9 @@ closes, and in the last stretch of the timer everything fades out.
 
 ## Worlds
 
-Twenty-one worlds are on: Crystal Cave, Night Drive, Deep Ocean, Aurora, Cotswold Valley, Disco Cat, and fifteen dream
+Twenty-two worlds are on: Crystal Cave, Night Drive, Deep Ocean, Aurora, Cotswold Valley, Disco Cat, and sixteen dream
 scenes (Moonlit Canal, Christmas Market, Midnight Choir, Penny's Night Patrol, Pineapple Pizza Incident, Counting
-Sheep, 8-Bit Night Walk, Glowing Sands, The Fantastical Snowstorm, Computer Says No, The Sleeper Train, Any Second Now, Round and Round, Lost in Thought, Pineapple Fever Dream). The others are switched off with `off: true` in `WORLDS` in `web/main.js`; their code is kept, and
+Sheep, 8-Bit Night Walk, Glowing Sands, The Fantastical Snowstorm, Computer Says No, The Sleeper Train, Any Second Now, Round and Round, Lost in Thought, Plain Sailing, Pineapple Fever Dream). The others are switched off with `off: true` in `WORLDS` in `web/main.js`; their code is kept, and
 flipping the flag brings one back.
 
 | World | Visuals | Music |
@@ -30,7 +30,7 @@ flipping the flag brings one back.
 
 ### Dream scenes
 
-The fifteen dream scenes that are on each have their own hand-written composer, with its own original tunes, band and
+The sixteen dream scenes that are on each have their own hand-written composer, with its own original tunes, band and
 sounds of the place (built on `web/music/bespoke.js`):
 
 | Scene | Music |
@@ -50,6 +50,7 @@ sounds of the place (built on `web/music/bespoke.js`):
 | **Any Second Now** (`pushersong.js`) | A slow seaside-arcade waltz in G: a music-box tune and soft vibes over a warm pad, the sea outside, and the other machines' far-off jingles fading as the arcade empties. And the machine itself, sent to the scene so it all lines up: the shelf's push once a bar with the pile shuffling forward, every coin that goes in (the slot, the rattle down the rail, the clink as it lands), the clatter of one slipping into a side gutter, and now and then a hopeful run of notes up as the edge looks closest... and a soft two-note "nearly" back down. |
 | **Round and Round** (`spirosong.js`) | A slow, glassy lullaby round the key of D that chooses every drawing (`spiro-plan.js`) and plays its gears: the pad holds the interval the ring and wheel make, tuned pure (a 3:2 pair of gears is a perfect fifth, a 15:8 a major seventh), over a soft music-box tune. A bell rings each time the pen reaches a petal's tip, walking up the scale and back and panned to where the tip is, and as the curve closes the last one rings the interval itself. The pen's soft hiss follows its speed, a fine high glitter chimes as the line catches the light, and each finished drawing melts away on a slow breath. |
 | **Lost in Thought** (`mazesong.js`) | A slow, wandering waltz that chooses the dreams. Each one has its own key, mode and voice: a music box in D lydian for the moon garden, a warm electric piano in F for the library, vibraphone and a far-off choir in A dorian for the sunken temple, high glassy bells in E lydian for the halls of glass, floating bells and voices in G for the cloud palace, and handbells, a choir and a great bell tolling far off in C minor for the snowbound abbey. When it moves on to the next dream there's a long breath out and a low bell, and the screen melts. It brings the weather and the whale too: a shower passes over the garden or the temple (you hear it come and go, and see it ring on the pools), and now and then a whale sings far off as it swims across the sky. Bells ring from somewhere in the labyrinth and the guiding wisp brightens with them. Late in the night the dreams stop changing and the waltz thins to a pad and the odd bell. |
+| **Plain Sailing** (`ferrysong.js`) | A slow sea lullaby in a rocking 6/8, in G mixolydian. A concertina breathes the chords, a guitar picks the lilt and a music box carries the tune, with the water lapping at the hull and the engine's far-off hum underneath. The sea has its own voices: a bell buoy clanking off in the dark as the swell rocks it, the ship's bell telling the half hours, another ship's horn far off as it passes, and our own long, low horn when the mist comes down. The music chooses the night's events and tells the scene: dolphins alongside (a glitter of bells), a shower (you hear it come and go), and the sea lighting up with plankton (a shimmer of voices). Late on it thins to the concertina, the water and the odd bell as the ferry slips into harbour. |
 
 In **Counting Sheep**, a flock of cloud-sheep grazes on stars growing in the grass of a floating island, above a slowly billowing sea of moonlit cloud. Each sheep has its own mind: it wanders, eats a star (which grows back), rests, or looks up to bleat. On the music's breath, one trots up and leaps the fence, sailing across the gap to the next island beneath a moon that hangs high in the sky: the run-up and the hop to the top are the in-breath, and the long, slow float down onto the quilt (ears up, legs dangling, like thistledown) is the out-breath. A number glows and fades at the top of the leap. A soft ring of light round the moon breathes with the music, swelling on the in-breath and settling on the out-breath, whether or not a sheep is jumping, so you can breathe along with it. It lands on the next island (a patchwork quilt with a pillow), finds a bed and goes to sleep; later its fleece dissolves into a soft cloud that drifts up into the sky, and a cloud may come back down to the grass as a sheep. The moon waxes through the night, from a thin, leaning crescent at bedtime (with the rest of its face just showing by earthshine) to full; when it's full it has a face, fast asleep. As the night goes on the jumps get lazier and the clouds stop coming down, until the flock is asleep on the quilt and in the sky. The ram won't jump: he watches from the fence and shakes his head. Now and then he squares up to it (backs off, paws the ground, makes a run at it), stops short, shakes his head and wanders off. In the end he falls asleep there.
 
@@ -172,6 +173,17 @@ and when the music sings it a whale swims slowly across the sky. A will-o'-the-w
 as it passes. In the courtyards the dreamer stops to look up at the moon. Late in the night the walking slows, and at
 last they settle under the widest open sky, put the lantern away, and the night's wandering is drawn across the stars
 as a constellation.
+
+**Plain Sailing** is a night ferry crossing a calm sea. You stand at the starboard rail with the deck lamps warm
+behind you and watch the night go by. A big low moon lays a glittering path across the water, islands drift past with
+their few lit windows, and a lighthouse sweeps its beams through the dark. Another ship's lights pass far off, and the
+wake glows blue-green behind with phosphorescence. Now and then dolphins come alongside, glowing as they swim under
+the surface and trailing light when they leap. A shower passes and rings the sea, a mist rolls in and lifts, and on
+some nights the whole sea lights up with plankton, or an aurora rises. The sea is a shader on a wide radial grid
+round the ship, lifted by long waves whose phase is worked out on the CPU, so a whole night's travel never loses
+precision. It reflects the sky and the islands' outlines, glitters with the moon, and throws every light nearby back
+as a long, trembling streak. Through the night the sea calms and the moon swings round ahead. At the end the ferry
+slows into a sleeping harbour town under the moon, and its lamps go out one by one.
 
 The switched-off dream scenes use the shared ambient composer described below.
 
