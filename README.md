@@ -49,7 +49,7 @@ sounds of the place (built on `web/music/bespoke.js`):
 | **The Sleeper Train** (`trainsong.js`) | The rails are the rhythm: every axle crossing a rail joint knocks (the rear bogie of the carriage ahead, then our front bogie: the clickety-clack), and at a cruise one rail length is one beat. It also runs the journey (`train-journey.js`), so every sound lands where the train is: brakes squealing into a station, the sigh as it stops, the platform chime and the guard's whistle, the engine chuffing away again; the roar of a tunnel (with a whistle before it), the hollow knock of a viaduct, a level crossing's bell rising and falling in pitch as it goes by, another train's horn bending down as it flashes past. Over it, a night-train lullaby in D (soft electric-piano chords, a round bass) whose tune changes with the country: electric piano in the city, clarinet over the farmland and lower in the mountains, glass bells by the lake, a celesta in the snow. Rain patters on the glass, snow hushes everything, and on the walk through the train you hear the door slide, your footsteps, the gangway's rattle and the dining car's murmur and clinking glasses; at bedtime, the lamp's switch. |
 | **Any Second Now** (`pushersong.js`) | A slow seaside-arcade waltz in G: a music-box tune and soft vibes over a warm pad, the sea outside, and the other machines' far-off jingles fading as the arcade empties. And the machine itself, sent to the scene so it all lines up: the shelf's push once a bar with the pile shuffling forward, every coin that goes in (the slot, the rattle down the rail, the clink as it lands), the clatter of one slipping into a side gutter, and now and then a hopeful run of notes up as the edge looks closest... and a soft two-note "nearly" back down. |
 | **Round and Round** (`spirosong.js`) | A slow, glassy lullaby round the key of D that chooses every drawing (`spiro-plan.js`) and plays its gears: the pad holds the interval the ring and wheel make, tuned pure (a 3:2 pair of gears is a perfect fifth, a 15:8 a major seventh), over a soft music-box tune. A bell rings each time the pen reaches a petal's tip, walking up the scale and back and panned to where the tip is, and as the curve closes the last one rings the interval itself. The pen's soft hiss follows its speed, a fine high glitter chimes as the line catches the light, and each finished drawing melts away on a slow breath. |
-| **Lost in Thought** (`mazesong.js`) | A slow, wandering waltz that chooses the dreams. Each one has its own key, mode and voice: a music box in D lydian for the moon garden, a warm electric piano in F for the library, vibraphone and a far-off choir in A dorian for the sunken temple, high glassy bells in E lydian for the halls of glass. When it moves on to the next dream there's a long breath out and a low bell, and the screen melts. Now and then a bell rings from somewhere in the labyrinth and the guiding wisp brightens with it. Late in the night the dreams stop changing and the waltz thins to a pad and the odd bell. |
+| **Lost in Thought** (`mazesong.js`) | A slow, wandering waltz that chooses the dreams. Each one has its own key, mode and voice: a music box in D lydian for the moon garden, a warm electric piano in F for the library, vibraphone and a far-off choir in A dorian for the sunken temple, high glassy bells in E lydian for the halls of glass, floating bells and voices in G for the cloud palace, and handbells, a choir and a great bell tolling far off in C minor for the snowbound abbey. When it moves on to the next dream there's a long breath out and a low bell, and the screen melts. It brings the weather and the whale too: a shower passes over the garden or the temple (you hear it come and go, and see it ring on the pools), and now and then a whale sings far off as it swims across the sky. Bells ring from somewhere in the labyrinth and the guiding wisp brightens with them. Late in the night the dreams stop changing and the waltz thins to a pad and the odd bell. |
 
 In **Counting Sheep**, a flock of cloud-sheep grazes on stars growing in the grass of a floating island, above a slowly billowing sea of moonlit cloud. Each sheep has its own mind: it wanders, eats a star (which grows back), rests, or looks up to bleat. On the music's breath, one trots up and leaps the fence, sailing across the gap to the next island beneath a moon that hangs high in the sky: the run-up and the hop to the top are the in-breath, and the long, slow float down onto the quilt (ears up, legs dangling, like thistledown) is the out-breath. A number glows and fades at the top of the leap. A soft ring of light round the moon breathes with the music, swelling on the in-breath and settling on the out-breath, whether or not a sheep is jumping, so you can breathe along with it. It lands on the next island (a patchwork quilt with a pillow), finds a bed and goes to sleep; later its fleece dissolves into a soft cloud that drifts up into the sky, and a cloud may come back down to the grass as a sheep. The moon waxes through the night, from a thin, leaning crescent at bedtime (with the rest of its face just showing by earthshine) to full; when it's full it has a face, fast asleep. As the night goes on the jumps get lazier and the clouds stop coming down, until the flock is asleep on the quilt and in the sky. The ram won't jump: he watches from the fence and shakes his head. Now and then he squares up to it (backs off, paws the ground, makes a run at it), stops short, shakes his head and wanders off. In the end he falls asleep there.
 
@@ -146,14 +146,32 @@ first, then the steps and lintels where heights change, then the wall that ends 
 and ceilings are perspective-mapped flats. Where a sector has no roof, the sky shows through. Light falls off with
 distance in banded steps, and walls facing one way are a shade lighter than the other. The view bobs as you walk and
 eases up and down stairs. The lantern in your hand sways like a Doom weapon, doors slide up as you reach them, and
-when the dream changes the screen melts away, column by column, into the next one. Everything is made in code when a
-dream begins: the textures (stone, hedges, bookcases, marble, glowing runes, stained-glass moon windows), the
-sprites, the skies (the Milky Way, a big moon with its halo and ring, an aurora over the temple) and the labyrinth
-itself, carved fresh each time with courtyards, gardens, pillared halls and pools. There are four dreams: a hedge
-garden where koi swim through the air, an endless library of candles and drifting books, a sunken temple of runes and
-still pools that mirror the sky, and halls of glass and marble with jellyfish of light. A will-o'-the-wisp leads the
-way and lights the walls as it passes. In the courtyards the dreamer stops to look up at the moon. Late in the night
-the walking slows, and at last they sit down under the open sky, put the lantern away, and just look at the stars.
+when the dream changes the screen melts away, column by column, into the next one.
+
+It goes further than Doom could:
+- **See-through walls.** Grilles, lattices and garden gates are drawn over the column back to front once it's done.
+- **Real reflections.** Pools are cast a second time from an eye mirrored under the surface, so they reflect the walls
+  and the sky, rippling, with rings when it rains.
+- **Walkways over the void.** Some floors fall away into a sea of stars.
+- **Coloured light.** Every lantern, crystal and stained-glass window lights only what it can reach.
+- **Impossible corridors.** Portals carry both the rays and the dreamer, so a stair climbs for ever (step off the top
+  and you're back at its foot, a storey higher) and a gallery never ends.
+- **A shifting maze.** Walls quietly move while you aren't looking.
+
+Everything is made in code when a dream begins: the textures, the sprites, the skies (the Milky Way, a big moon with
+its halo and ring, an aurora over the temple) and the labyrinth itself, carved fresh each time. There are six dreams:
+- **The Moon Garden:** koi swim through the air.
+- **The Endless Library:** candles, drifting books, a sleeping cat, and the other Lullwave worlds hung as paintings.
+- **The Sunken Temple:** runes and still pools.
+- **The Halls of Glass:** jellyfish of light.
+- **The Cloud Palace:** walkways over the stars and floating lanterns.
+- **The Snowbound Abbey:** falling snow and candlelit windows.
+
+Petals and showers drift over the garden, a deer of light wanders the open corridors, owls watch from the wall tops,
+and when the music sings it a whale swims slowly across the sky. A will-o'-the-wisp leads the way and lights the walls
+as it passes. In the courtyards the dreamer stops to look up at the moon. Late in the night the walking slows, and at
+last they settle under the widest open sky, put the lantern away, and the night's wandering is drawn across the stars
+as a constellation.
 
 The switched-off dream scenes use the shared ambient composer described below.
 

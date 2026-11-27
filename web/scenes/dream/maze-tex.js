@@ -451,75 +451,309 @@ export function heldLantern() {
   }, (g) => { rect(g, 19, 27, 18, 26, '#fff'); });
 }
 
+// ------------------------------------------------------------------ see-through walls (Doom's masked mid-textures)
+function masked(fn) {
+  const T = tex(); T.alpha = new Uint8Array(TS * TS);
+  for (let y = 0; y < TS; y++) for (let x = 0; x < TS; x++) {
+    const c = fn(x, y); if (!c) continue;
+    const i = y * TS + x; T.px[i] = pack(c[0], c[1], c[2]); T.alpha[i] = 1;
+    if (c[3]) { if (!T.glow) T.glow = new Uint8Array(TS * TS); T.glow[i] = clamp8(c[3]); }
+  }
+  return T;
+}
+/** A wrought-iron garden gate, ivy climbing it. */
+function gate(N, { iron = '#2a2a34', leaf = '#2a5a34', frost = 0, s = 0 }) {
+  const I = hx(iron), L = hx(leaf);
+  return masked((x, y) => {
+    const bar = x % 8 === 3 || x % 8 === 4, rail = (y >= 14 && y <= 15) || (y >= 56 && y <= 57) || y >= 62;
+    const tip = x % 8 >= 2 && x % 8 <= 5 && y >= 4 && y < 8 && Math.abs((x % 8) - 3.5) < (y - 3) * 0.6;
+    const curl = Math.abs(Math.hypot((x % 16) - 8, y - 22) - 5) < 0.8 && y < 26;
+    const on = (bar && y >= 7) || rail || tip || curl || x < 2 || x > 61;
+    const lv = N.fbm(x / 6, y / 6, 10.6667, 3, 400 + s) + (y / TS) * 0.25;
+    if (lv > 0.66 && (on || lv > 0.72)) return mul(L, 0.6 + 0.7 * N.hash(x, y, 401 + s));
+    if (!on) return null;
+    let c = mul(I, x % 8 === 3 ? 1.5 : 1);
+    if (frost && N.hash(x, y, 402) < frost) c = [210, 225, 245];
+    return c;
+  });
+}
+/** Carved wooden lattice, a reading-room screen. */
+function lattice(N, { wood = '#5a3a24', s = 0 }) {
+  const W = hx(wood);
+  return masked((x, y) => {
+    const fr = x < 3 || x > 60 || y < 3 || y > 60, d1 = (x + y) % 11, d2 = (x - y + 66) % 11;
+    if (!fr && d1 > 1 && d2 > 1) return null;
+    return mul(W, (fr ? 1 : 0.85) * (0.8 + 0.3 * N.tn(x / 16, y / 1.5, 4, 410 + s)) * (d1 === 0 || d2 === 0 ? 1.25 : 1));
+  });
+}
+/** A stone screen pierced with round holes. */
+function pierced(N, T, { r = 5.5 } = {}) {
+  return masked((x, y) => {
+    const dx = (x % 16) - 7.5, dy = (y % 16) - 7.5, d = Math.hypot(dx, dy);
+    if (d < r) return null;
+    const c = unpack(T.px[y * TS + x]);
+    return d < r + 1.2 ? mul(c, dy < 0 ? 0.6 : 1.3) : c;
+  });
+}
+/** Golden filigree: thin bars and rings, glinting. */
+function filigree(N, { gold = '#e0b860', s = 0 }) {
+  const G = hx(gold);
+  return masked((x, y) => {
+    const bar = x % 16 === 7 || x % 16 === 8, ring = Math.abs(Math.hypot((x % 16) - 7.5, (y % 16) - 7.5) - 6) < 0.7, fr = x < 2 || x > 61 || y > 61 || y < 2;
+    if (!bar && !ring && !fr) return null;
+    return [...mul(G, 0.8 + 0.4 * N.hash(x, y, 420 + s)), N.hash(x, y, 421 + s) < 0.05 ? 160 : 30];
+  });
+}
+/** Crystal leading: a lattice of fine lines with a star at each crossing. */
+function crystalLattice(N, { line = '#f0c8ff' } = {}) {
+  const C = hx(line);
+  return masked((x, y) => {
+    const lx = x % 16, ly = y % 16, ax = Math.abs(lx - 8), ay = Math.abs(ly - 8), star = ax + ay < 3 - Math.min(ax, ay) * 0.8;
+    if (!(lx === 0 || ly === 0 || star || x > 62 || y > 62)) return null;
+    return [...mul(C, star ? 1.1 : 0.75), star ? 140 : 40];
+  });
+}
+
+// ------------------------------------------------------------------ more walls and floors
+/** Walls of cloud: soft puffs, lilac in the shadows, pink-white where the moon catches them, a gold band. */
+function cloudStone(N, { lo = '#3e3258', hi = '#b8a4c0', s = 0 }) {
+  const L = hx(lo), H = hx(hi);
+  return paint(tex(), (x, y) => {
+    const n = N.fbm(x / 16, y / 16, 4, 5, 430 + s), m = N.fbm(x / 8 + 3, y / 8, 8, 3, 431 + s);
+    const k = sstep(0.32, 0.72, n * 0.8 + m * 0.3 + (1 - y / TS) * 0.12);
+    let c = mul(mixc(L, H, k), 0.82);
+    if (y % 32 === 0 || y % 32 === 1) c = mixc(c, [224, 184, 96], 0.7);
+    return c;
+  });
+}
+/** Old stone with snow lying along the top of every course. */
+function snowStone(N, { base = '#6a6a74', mortar = '#2a2a34', s = 0 }) {
+  const T = stone(N, { base, mortar, rows: 4, cols: 2, grain: 0.4, s });
+  return paint(tex(), (x, y) => {
+    const c = unpack(T.px[y * TS + x]), ly = y % 16, drift = 1.5 + 2.5 * N.tn(x / 4, Math.floor(y / 16), 16, 440 + s);
+    if (ly >= 1 && ly < drift) return mixc([168, 178, 198], [136, 148, 172], N.hash(x, y, 441) * 0.5);
+    return c;
+  });
+}
+function snowFloor(N, { s = 0 } = {}) {
+  return paint(tex(), (x, y) => {
+    const n = N.fbm(x / 16, y / 16, 4, 4, 450 + s), h = N.hash(x, y, 451 + s);
+    if (h < 0.01) return [255, 255, 255, 160];
+    return mixc([104, 116, 144], [160, 170, 194], 0.4 + n * 0.6);
+  });
+}
+
+// ------------------------------------------------------------------ paintings of the other worlds, hung in the galleries
+const WORLD_THUMBS = ['cave', 'drive', 'ocean', 'aurora', 'cotswold', 'disco', 'canal', 'market', 'choir', 'penny', 'pizza', 'sheep', 'pixel', 'sands', 'snowstorm', 'saysno', 'train', 'pusher', 'spiro', 'fever'];
+let paintingsP = null;
+export function loadPaintings() {
+  if (paintingsP) return paintingsP;
+  paintingsP = Promise.all(WORLD_THUMBS.map((id) => new Promise((res) => {
+    const im = new Image();
+    im.onload = () => res(im); im.onerror = () => res(null);
+    im.src = new URL(`../../thumbs/${id}.jpg`, import.meta.url).href;
+  }))).then((ims) => ims.filter(Boolean).map((im) => {
+    const c = document.createElement('canvas'); c.width = TS; c.height = TS;
+    const g = c.getContext('2d', { willReadFrequently: true });
+    g.fillStyle = '#2a2026'; g.fillRect(0, 0, TS, TS);
+    g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(13, 6, 42, 56);
+    const gr = g.createLinearGradient(10, 4, 54, 60); gr.addColorStop(0, '#f0d488'); gr.addColorStop(0.5, '#a07830'); gr.addColorStop(1, '#e0bc68');
+    g.fillStyle = gr; g.fillRect(11, 4, 42, 56);
+    g.fillStyle = '#5a4018'; g.fillRect(14, 7, 36, 50);
+    g.drawImage(im, 15, 8, 34, 48);
+    const d = g.getImageData(0, 0, TS, TS).data, T = tex();
+    for (let i = 0; i < TS * TS; i++) T.px[i] = pack(d[i * 4], d[i * 4 + 1], d[i * 4 + 2]);
+    T.glow = new Uint8Array(TS * TS);
+    for (let y = 8; y < 56; y++) for (let x = 15; x < 49; x++) T.glow[y * TS + x] = 70; // a little lit, like a gallery picture
+    return T;
+  }));
+  return paintingsP;
+}
+
+// ------------------------------------------------------------------ creatures and more things
+export function cat(frame) {
+  return sprite(36, 20, (g) => {
+    const b = frame ? 0.6 : 0;
+    ell(g, 18, 13 - b / 2, 14, 7 + b, '#8a8aa0'); ell(g, 20, 11 - b, 10, 4, '#a0a0b8');
+    g.strokeStyle = '#7a7a90'; g.lineWidth = 3; g.beginPath(); g.arc(18, 14, 13, 0.2, 2.2); g.stroke();
+    ell(g, 7, 13, 6, 5, '#9a9ab0');
+    g.fillStyle = '#8a8aa0'; g.beginPath(); g.moveTo(3, 10); g.lineTo(4, 5); g.lineTo(7, 9); g.fill(); g.beginPath(); g.moveTo(8, 9); g.lineTo(11, 5); g.lineTo(12, 10); g.fill();
+    rect(g, 4, 13, 2, 1, '#3a3a48'); rect(g, 8, 13, 2, 1, '#3a3a48');
+    for (let k = 0; k < 4; k++) rect(g, 14 + k * 5, 8 - b, 2, 1, '#6a6a80');
+  });
+}
+export function owl(frame) {
+  return sprite(16, 22, (g) => {
+    ell(g, 8, 13, 6, 8, '#6a5440'); ell(g, 8, 9, 5.5, 5, '#8a7458');
+    g.fillStyle = '#6a5440'; g.beginPath(); g.moveTo(3, 6); g.lineTo(4, 1); g.lineTo(6, 5); g.fill(); g.beginPath(); g.moveTo(10, 5); g.lineTo(12, 1); g.lineTo(13, 6); g.fill();
+    if (frame) { rect(g, 4, 9, 3, 1, '#2a2018'); rect(g, 9, 9, 3, 1, '#2a2018'); } else { ell(g, 5.5, 9, 2, 2, '#ffd860'); ell(g, 10.5, 9, 2, 2, '#ffd860'); rect(g, 5, 9, 1, 1, '#1a1410'); rect(g, 10, 9, 1, 1, '#1a1410'); }
+    rect(g, 7, 11, 2, 2, '#c89040');
+    for (let y = 14; y < 20; y += 2) rect(g, 5, y, 6, 1, '#7a6450');
+    rect(g, 5, 20, 2, 2, '#c89040'); rect(g, 9, 20, 2, 2, '#c89040');
+  }, (g) => { if (!frame) { ell(g, 5.5, 9, 2, 2, 'rgba(255,255,255,0.6)'); ell(g, 10.5, 9, 2, 2, 'rgba(255,255,255,0.6)'); } });
+}
+const DEER = '#d8f4ff';
+export function deerSide(frame) {
+  return sprite(48, 44, (g) => {
+    g.strokeStyle = DEER; g.fillStyle = DEER;
+    ell(g, 22, 24, 13, 6.5, DEER);
+    g.lineWidth = 4; g.beginPath(); g.moveTo(32, 21); g.lineTo(37, 11); g.stroke();
+    ell(g, 39, 10, 5, 3, DEER);
+    g.lineWidth = 1.2; g.beginPath(); g.moveTo(37, 7); g.lineTo(33, 1); g.moveTo(35, 4); g.lineTo(31, 3); g.moveTo(39, 7); g.lineTo(42, 0); g.moveTo(41, 3); g.lineTo(45, 2); g.stroke();
+    g.lineWidth = 2;
+    const sw = frame ? 3 : -3;
+    for (const [x, d] of [[13, sw], [16, -sw], [29, -sw], [32, sw]]) { g.beginPath(); g.moveTo(x, 28); g.lineTo(x + d * 0.5, 36); g.lineTo(x + d, 43); g.stroke(); }
+    ell(g, 9, 21, 2.5, 2, '#ffffff');
+  }, (g) => { g.fillStyle = 'rgba(255,255,255,0.9)'; g.fillRect(0, 0, 48, 44); });
+}
+export function deerFront() {
+  return sprite(28, 44, (g) => {
+    g.strokeStyle = DEER;
+    ell(g, 14, 24, 7, 7, DEER); ell(g, 14, 12, 4, 6, DEER);
+    g.lineWidth = 1.2; g.beginPath();
+    g.moveTo(11, 7); g.lineTo(5, 1); g.moveTo(8, 4); g.lineTo(3, 5); g.moveTo(17, 7); g.lineTo(23, 1); g.moveTo(20, 4); g.lineTo(25, 5); g.stroke();
+    ell(g, 7, 8, 2.5, 1.2, DEER); ell(g, 21, 8, 2.5, 1.2, DEER);
+    g.lineWidth = 2; for (const x of [10, 13, 15, 18]) { g.beginPath(); g.moveTo(x, 28); g.lineTo(x, 43); g.stroke(); }
+  }, (g) => { g.fillStyle = 'rgba(255,255,255,0.9)'; g.fillRect(0, 0, 28, 44); });
+}
+export function whale() {
+  return sprite(128, 48, (g) => {
+    g.fillStyle = '#a8c8f0';
+    g.beginPath(); g.moveTo(4, 22); g.bezierCurveTo(10, 6, 50, 4, 84, 16); g.bezierCurveTo(98, 20, 106, 22, 112, 20); g.lineTo(126, 10); g.lineTo(120, 24); g.lineTo(126, 36); g.lineTo(110, 27); g.bezierCurveTo(96, 32, 70, 40, 40, 36); g.bezierCurveTo(18, 34, 4, 30, 4, 22); g.fill();
+    g.fillStyle = '#d0e4ff'; g.beginPath(); g.moveTo(8, 27); g.bezierCurveTo(30, 36, 60, 38, 84, 30); g.lineTo(84, 33); g.bezierCurveTo(60, 41, 26, 39, 8, 29); g.fill();
+    g.fillStyle = '#90b0e0'; g.beginPath(); g.moveTo(34, 32); g.lineTo(52, 46); g.lineTo(46, 33); g.fill();
+    g.strokeStyle = '#c0d8f8'; g.lineWidth = 0.8; for (let k = 0; k < 5; k++) { g.beginPath(); g.moveTo(14 + k * 8, 30 + k * 0.4); g.lineTo(30 + k * 9, 35); g.stroke(); }
+    rect(g, 20, 20, 2, 2, '#ffffff');
+  }, (g) => { g.fillStyle = 'rgba(255,255,255,0.8)'; g.fillRect(0, 0, 128, 48); });
+}
+export function skyLantern(col = '#ffb860') {
+  const body = (g, fill) => { g.fillStyle = fill; g.beginPath(); g.moveTo(2, 2); g.lineTo(14, 2); g.lineTo(12, 18); g.lineTo(4, 18); g.closePath(); g.fill(); };
+  return sprite(16, 22, (g) => {
+    body(g, col);
+    rect(g, 4, 18, 8, 2, '#5a3a20'); ell(g, 8, 15, 2, 2.5, '#fff4d0');
+    for (let y = 6; y < 18; y += 4) rect(g, 3, y, 10, 1, 'rgba(160,80,30,0.8)');
+  }, (g) => body(g, '#fff'));
+}
+export function fir() {
+  return sprite(32, 48, (g) => {
+    rect(g, 14, 40, 4, 8, '#3a2a20');
+    for (let k = 0; k < 4; k++) {
+      const y = 4 + k * 9, w = 6 + k * 4;
+      g.fillStyle = '#1e3a2e'; g.beginPath(); g.moveTo(16, y); g.lineTo(16 + w, y + 14); g.lineTo(16 - w, y + 14); g.closePath(); g.fill();
+      g.fillStyle = '#d8e4f4'; g.beginPath(); g.moveTo(16, y); g.lineTo(16 + w * 0.6, y + 8); g.lineTo(16, y + 6); g.lineTo(16 - w * 0.6, y + 8); g.closePath(); g.fill();
+    }
+  });
+}
+
 // ------------------------------------------------------------------ the dreams
-/** Each dream: its name, its walls, floors and ceilings, its sky, its fog, its things. Built on demand. */
+/** Each dream: its name, its walls, floors and ceilings, its sky, its fog, its things, its weather. Built on demand. */
 export const DREAMS = [
   {
     id: 'garden', name: 'The Moon Garden', fog: '#1c1a3a', fogD: 0.075, light: 0.62, moonLight: 0.95, tint: [0.92, 0.95, 1.08],
-    skyCorr: 0.85, corrH: 1.25, wallH: 1.3, hallH: 2.2, rooms: { court: 3, garden: 4, pool: 3, hall: 1 }, doors: 0.25, water: 0,
-    hills: 1.4, motes: { col: [190, 255, 140], n: 26, blink: true }, wisp: [255, 236, 190],
+    skyCorr: 0.85, corrH: 1.25, wallH: 1.3, hallH: 2.2, rooms: { court: 2, garden: 4, pool: 2, hall: 1, void: 1 }, doors: 0.25, water: 0,
+    hills: 1.4, motes: { col: [190, 255, 140], n: 26, blink: true }, wisp: [255, 236, 190], hangCol: [1, 0.78, 0.45], lampCol: [1, 0.82, 0.55],
+    weather: { petals: 1, showers: true }, whale: true, deer: true,
     sky: { zen: '#060818', mid: '#141a40', hor: '#2c2a5a', glow: '#8a90c8', moonCol: '#fff6e0', moon: [0.4, 0.62], moonRad: 0.1, ring: 0.42, band: '#c0b8e8', clouds: 0.35 },
     build(N) {
       const st = stone(N, { base: '#8a8070', mortar: '#3a3a34', moss: 0.8, s: 1 });
       return {
         walls: [hedge(N, { s: 1 }), hedge(N, { s: 2, leaf: '#163a2e' }), ivy(N, st, { amount: 0.8, s: 1 }), hedge(N, { s: 3 })],
-        special: [ivy(N, stone(N, { base: '#b0a490', mortar: '#4a4a40', moss: 0.5, s: 2 }), { amount: 0.4, s: 2 })],
+        special: [ivy(N, stone(N, { base: '#b0a490', mortar: '#4a4a40', moss: 0.5, s: 2 }), { amount: 0.4, s: 2 })], specialLight: [null],
         upper: stone(N, { base: '#a09480', mortar: '#3a3a34', rows: 4, cols: 2, s: 3 }), step: riser(N, '#9a9080', '#3a3a34', 4),
-        door: door(N, { plank: '#4a5a3a', band: '#3a3a3a', s: 1 }),
+        door: door(N, { plank: '#4a5a3a', band: '#3a3a3a', s: 1 }), grate: gate(N, { s: 1 }),
         floor: [flags(N, { base: '#6e6a64', joint: '#2a4a2e', s: 1 }), grass(N, { base: '#24462a', s: 1 })], ceil: beams(N, { wood: '#3a2a20', s: 1 }), hallCeil: beams(N, { s: 2 }),
-        things: { lamp: stoneLantern(), hang: hangingLantern(), decor: [moonflowers()], float: [koi(0), koi(1)], floatCol: 'koi' },
+        things: { lamp: stoneLantern(), hang: hangingLantern(), decor: [moonflowers()], float: [koi(0), koi(1)], floatScale: 0.85, owl: [owl(0), owl(1)] },
       };
     },
   },
   {
     id: 'library', name: 'The Endless Library', fog: '#1e140e', fogD: 0.1, light: 0.5, moonLight: 0.8, tint: [1.12, 0.98, 0.85],
-    skyCorr: 0.08, corrH: 1.5, wallH: 1.6, hallH: 2.8, rooms: { court: 2, hall: 5, pool: 0, garden: 0 }, doors: 0.6, water: 0,
-    hills: 1.1, motes: { col: [255, 220, 160], n: 34, blink: false }, wisp: [255, 220, 160],
+    skyCorr: 0.08, corrH: 1.5, wallH: 1.6, hallH: 2.8, rooms: { court: 2, hall: 5 }, doors: 0.6, water: 0,
+    hills: 1.1, motes: { col: [255, 220, 160], n: 34, blink: false }, wisp: [255, 220, 160], hangCol: [1, 0.75, 0.4], lampCol: [1, 0.7, 0.35],
+    weather: null, paintings: true,
     sky: { zen: '#04101a', mid: '#0c2030', hor: '#1e3444', glow: '#a09060', moonCol: '#ffe8b0', moon: [2.1, 0.7], moonRad: 0.085, ring: 0, band: '#a8c0d0', clouds: 0.2 },
     build(N) {
       const pan = panel(N, { s: 1 });
       return {
         walls: [bookcase(N, { s: 1 }), bookcase(N, { s: 2 }), bookcase(N, { s: 3, wood: '#3e2618' }), pan],
-        special: [moonWindow(N, { frame: pan, s: 1 })],
+        special: [moonWindow(N, { frame: pan, s: 1 })], specialLight: [[0.45, 0.55, 1]],
         upper: panel(N, { wood: '#4a2e1c', s: 2 }), step: boards(N, { wood: '#5a3a24', s: 3 }),
-        door: door(N, { plank: '#6a3a22', band: '#2a2420', moon: '#ffe0a0', s: 2 }),
+        door: door(N, { plank: '#6a3a22', band: '#2a2420', moon: '#ffe0a0', s: 2 }), grate: lattice(N, { s: 1 }),
         floor: [carpet(N, { s: 1 }), boards(N, { s: 1 })], ceil: beams(N, { wood: '#2e1e14', s: 3 }), hallCeil: paintedStars(N, { s: 1 }),
-        things: { lamp: candelabra(), hang: hangingLantern('#ffe0a0'), decor: [candelabra()], float: [book(0), book(1)], floatCol: 'book' },
+        things: { lamp: candelabra(), hang: hangingLantern('#ffe0a0'), decor: [candelabra()], float: [book(0), book(1)], floatScale: 1, cat: [cat(0), cat(1)] },
       };
     },
   },
   {
     id: 'temple', name: 'The Sunken Temple', fog: '#0a2026', fogD: 0.085, light: 0.5, moonLight: 0.85, tint: [0.85, 1.05, 1.05],
-    skyCorr: 0.4, corrH: 1.3, wallH: 1.6, hallH: 2.4, rooms: { court: 2, pool: 5, hall: 2, garden: 0 }, doors: 0.35, water: 0.3,
-    hills: 1.0, motes: { col: [150, 255, 240], n: 30, blink: false }, wisp: [170, 255, 240],
+    skyCorr: 0.4, corrH: 1.3, wallH: 1.6, hallH: 2.4, rooms: { court: 2, pool: 4, hall: 2, void: 1 }, doors: 0.35, water: 0.3,
+    hills: 1.0, motes: { col: [150, 255, 240], n: 30, blink: false }, wisp: [170, 255, 240], hangCol: [0.5, 1, 0.9], lampCol: [0.4, 0.95, 1], addFloat: 0.6,
+    weather: { showers: true }, whale: true,
     sky: { zen: '#020a10', mid: '#06182a', hor: '#0e2a3a', glow: '#70a0a8', moonCol: '#e8fff8', moon: [3.6, 0.55], moonRad: 0.11, ring: 0, band: '#90c8c8', aurora: ['#40ffa0', '#a060ff'], auroraAmt: 0.55, clouds: 0.15 },
     build(N) {
       const st = stone(N, { base: '#56685f', mortar: '#1e2a26', moss: 0.55, mossCol: '#2a5a40', rows: 3, cols: 2, s: 5 });
       const st2 = stone(N, { base: '#4a5a58', mortar: '#1a2422', moss: 0.3, mossCol: '#2a5a40', rows: 4, cols: 3, s: 6 });
       return {
         walls: [st, st2, st, ivy(N, st2, { leaf: '#1e4a3a', amount: 0.5, flower: '#a0fff0', s: 3 })],
-        special: [runeStone(N, st, { s: 1 }), runeStone(N, st2, { s: 2, glow: '#a0ffb0' })],
+        special: [runeStone(N, st, { s: 1 }), runeStone(N, st2, { s: 2, glow: '#a0ffb0' })], specialLight: [[0.4, 1, 1], [0.55, 1, 0.65]],
         upper: stone(N, { base: '#506660', mortar: '#1e2a26', rows: 2, cols: 1, s: 7 }), step: riser(N, '#5a6a64', '#1e2a26', 8),
-        door: door(N, { plank: '#3a4a46', band: '#22302c', moon: '#a0fff0', s: 3 }),
+        door: door(N, { plank: '#3a4a46', band: '#22302c', moon: '#a0fff0', s: 3 }), grate: pierced(N, st2),
         floor: [flags(N, { base: '#56645e', joint: '#1e3a30', cells: 2, s: 3 }), flags(N, { base: '#4a5a56', joint: '#1a3028', cells: 4, s: 4 })], ceil: stone(N, { base: '#3e4c48', mortar: '#1a2422', rows: 2, cols: 2, s: 9 }), hallCeil: stone(N, { base: '#3a4644', mortar: '#162020', rows: 1, cols: 1, s: 10 }),
-        things: { lamp: crystal('#7affe0', '#7ab8ff'), hang: hangingLantern('#9affe8'), decor: [crystal('#7affe0', '#b07aff')], float: [jelly(0), jelly(1)], floatCol: 'jelly' },
+        things: { lamp: crystal('#7affe0', '#7ab8ff'), hang: hangingLantern('#9affe8'), decor: [crystal('#7affe0', '#b07aff')], float: [jelly(0), jelly(1)], floatScale: 1.35, owl: [owl(0), owl(1)] },
       };
     },
   },
   {
     id: 'glass', name: 'The Halls of Glass', fog: '#2a1a3a', fogD: 0.07, light: 0.68, moonLight: 1, tint: [1.02, 0.95, 1.1],
-    skyCorr: 0.3, corrH: 1.4, wallH: 1.5, hallH: 3, rooms: { court: 3, hall: 4, pool: 2, garden: 0 }, doors: 0.3, water: 0,
-    hills: 1.7, motes: { col: [255, 210, 250], n: 30, blink: true }, wisp: [255, 220, 255],
+    skyCorr: 0.3, corrH: 1.4, wallH: 1.5, hallH: 3, rooms: { court: 2, hall: 4, pool: 2, void: 1 }, doors: 0.3, water: 0,
+    hills: 1.7, motes: { col: [255, 210, 250], n: 30, blink: true }, wisp: [255, 220, 255], hangCol: [1, 0.72, 0.95], lampCol: [0.85, 0.72, 1], addFloat: 0.5,
+    weather: null, whale: true, paintings: true,
     sky: { zen: '#0a0620', mid: '#2a1446', hor: '#5a2e64', glow: '#c0a0d8', moonCol: '#fff4fa', moon: [5.2, 0.5], moonRad: 0.13, ring: 0.5, band: '#e0c0f0', clouds: 0.3 },
     build(N) {
-      const m1 = marble(N, { base: '#9c98b4', vein: '#585c80', s: 1 }), m2 = marble(N, { base: '#a496ac', vein: '#6a5480', s: 2 });
+      const m1 = marble(N, { base: '#868298', vein: '#4c4e70', s: 1 }), m2 = marble(N, { base: '#8c8094', vein: '#5a4870', s: 2 });
       return {
         walls: [m1, m2, m1, nightGlass(N, { s: 1 })],
-        special: [nightGlass(N, { base: '#4a2a7a', edge: '#ffb8f0', s: 2 }), moonWindow(N, { frame: m1, glass: '#3a2a8a', glass2: '#7a2a7a', moon: '#fff4fa', s: 2 })],
+        special: [nightGlass(N, { base: '#4a2a7a', edge: '#ffb8f0', s: 2 }), moonWindow(N, { frame: m1, glass: '#3a2a8a', glass2: '#7a2a7a', moon: '#fff4fa', s: 2 })], specialLight: [[0.75, 0.5, 1], [0.6, 0.45, 1]],
         upper: marble(N, { base: '#8e88a6', vein: '#585c80', slab: 16, s: 3 }), step: marble(N, { base: '#84809c', vein: '#585c80', slab: 8, s: 4 }),
-        door: door(N, { plank: '#8a84a4', band: '#5a5070', moon: '#ffe0ff', s: 4 }),
+        door: door(N, { plank: '#8a84a4', band: '#5a5070', moon: '#ffe0ff', s: 4 }), grate: crystalLattice(N),
         floor: [starTiles(N, { s: 1 }), marble(N, { base: '#7a7494', vein: '#4a4870', slab: 32, s: 5 })], ceil: paintedStars(N, { base: '#1e1440', star: '#ffd8f0', s: 2 }), hallCeil: paintedStars(N, { base: '#1a1238', s: 3 }),
-        things: { lamp: orbPlinth(), hang: hangingLantern('#ffd0f8'), decor: [crystal(), orbPlinth('#a8e8ff')], float: [jelly(0), jelly(1)], floatCol: 'glassjelly' },
+        things: { lamp: orbPlinth(), hang: hangingLantern('#ffd0f8'), decor: [crystal(), orbPlinth('#a8e8ff')], float: [jelly(0), jelly(1)], floatScale: 1.35 },
+      };
+    },
+  },
+  {
+    id: 'cloud', name: 'The Cloud Palace', fog: '#3a2a4e', fogD: 0.06, light: 0.7, moonLight: 1, tint: [1.05, 0.95, 1.05],
+    skyCorr: 0.7, corrH: 1.4, wallH: 1.4, hallH: 2.8, rooms: { void: 4, court: 2, hall: 2 }, doors: 0.3, water: 0,
+    hills: 2, motes: { col: [255, 230, 180], n: 30, blink: true }, wisp: [255, 230, 200], hangCol: [1, 0.7, 0.8], lampCol: [1, 0.85, 0.6],
+    weather: null, whale: true, deer: true,
+    sky: { zen: '#140a2a', mid: '#3a2458', hor: '#8a5480', glow: '#e0a8c8', moonCol: '#fff0f4', moon: [1.3, 0.48], moonRad: 0.14, ring: 0.46, band: '#f0c8e8', clouds: 0.6 },
+    build(N) {
+      const c1 = cloudStone(N, { s: 1 }), c2 = cloudStone(N, { lo: '#363a60', hi: '#aaa8c4', s: 2 });
+      return {
+        walls: [c1, c2, c1, c2],
+        special: [moonWindow(N, { frame: c1, glass: '#7a3a8a', glass2: '#3a3a9a', moon: '#fff0f4', s: 3 })], specialLight: [[1, 0.6, 0.9]],
+        upper: cloudStone(N, { lo: '#463a62', hi: '#bcaac4', s: 3 }), step: marble(N, { base: '#c8b8c8', vein: '#9a8aa8', slab: 8, s: 6 }),
+        door: door(N, { plank: '#c8b8d0', band: '#c0a060', moon: '#fff0c0', s: 5 }), grate: filigree(N, { s: 1 }),
+        floor: [marble(N, { base: '#857890', vein: '#5e5074', slab: 32, s: 7 }), starTiles(N, { a: '#3a2a5a', b: '#4a3060', star: '#ffd890', s: 2 })], ceil: paintedStars(N, { base: '#2a1a48', star: '#ffe0f0', s: 4 }), hallCeil: paintedStars(N, { base: '#24163e', star: '#ffd890', s: 5 }),
+        things: { lamp: orbPlinth('#ffe8b0'), hang: hangingLantern('#ffc8e0'), decor: [orbPlinth('#ffd0f0')], float: [skyLantern(), skyLantern('#ff9ab0')], floatScale: 1.3 },
+      };
+    },
+  },
+  {
+    id: 'abbey', name: 'The Snowbound Abbey', fog: '#1a2230', fogD: 0.08, light: 0.52, moonLight: 0.95, tint: [0.95, 1, 1.1],
+    skyCorr: 0.45, corrH: 1.4, wallH: 1.6, hallH: 2.8, rooms: { court: 3, hall: 3, garden: 1 }, doors: 0.45, water: 0, skyFloor: 2,
+    hills: 1.2, motes: { col: [255, 210, 150], n: 16, blink: false }, wisp: [255, 214, 170], hangCol: [1, 0.72, 0.38], lampCol: [1, 0.68, 0.32],
+    weather: { snow: 1 }, deer: true, paintings: true,
+    sky: { zen: '#04060e', mid: '#101828', hor: '#283648', glow: '#9aa8c0', moonCol: '#f4f8ff', moon: [4.4, 0.6], moonRad: 0.1, ring: 0.4, band: '#b8c4d8', clouds: 0.45 },
+    build(N) {
+      const s1 = snowStone(N, { s: 1 }), s2 = snowStone(N, { base: '#5e5a62', s: 2 });
+      return {
+        walls: [s1, s2, s1, stone(N, { base: '#6a6670', mortar: '#2a2a34', rows: 3, cols: 2, s: 12 })],
+        special: [moonWindow(N, { frame: s1, glass: '#c87a2a', glass2: '#a8501e', moon: '#fff0c0', s: 4 })], specialLight: [[1, 0.65, 0.3]],
+        upper: stone(N, { base: '#605c66', mortar: '#26262e', rows: 2, cols: 1, s: 13 }), step: riser(N, '#6a6670', '#2a2a34', 14),
+        door: door(N, { plank: '#4a3020', band: '#2a2a30', moon: '#ffe0a0', s: 6 }), grate: gate(N, { iron: '#24242c', leaf: '#3a4a40', frost: 0.25, s: 2 }),
+        floor: [flags(N, { base: '#5e5a60', joint: '#2a2a30', cells: 3, s: 5 }), carpet(N, { base: '#3a1a22', line: '#c09048', s: 2 }), snowFloor(N)], ceil: beams(N, { wood: '#2a1e18', s: 4 }), hallCeil: stone(N, { base: '#4a4652', mortar: '#1e1e26', rows: 1, cols: 1, s: 15 }),
+        things: { lamp: candelabra(), hang: hangingLantern('#ffd090'), decor: [fir()], float: [skyLantern(), skyLantern('#ffd080')], floatScale: 1.2, owl: [owl(0), owl(1)], cat: [cat(0), cat(1)] },
       };
     },
   },
